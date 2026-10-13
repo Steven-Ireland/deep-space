@@ -34,6 +34,8 @@ def main():
         started = time.time()
         bpy.ops.wm.read_factory_settings(use_empty=True)
         model = spec.build()
+        for extra in model.extras:  # colliders and sockets: exported, never baked or rendered
+            extra.hide_render = True
         triangles = sum(len(p.vertices) - 2 for p in model.low.data.polygons)
         dimensions = tuple(round(d, 3) for d in model.low.dimensions)
         textures = lib.ROOT / "assets" / "textures"
@@ -42,11 +44,13 @@ def main():
                                                 spec.ao, spec.dither, out_dir=str(textures), name=spec.name)
         for decal in model.decals:
             bpy.data.objects.remove(decal)
+        if model.after_bake:
+            model.after_bake(model)
         output.save_blend(spec.name)
         output.export_glb(spec, model)
         output.write_material(spec, albedo, glow)
         if "--no-preview" not in args:
-            preview.render(spec.name, [model.low])
+            preview.render(spec.name, [model.low] + [e for e in model.extras if e.type == "MESH" and not e.name.endswith("-colonly")], spec.angles)
         stats = dict(name=spec.name, triangles=triangles, dimensions=dimensions,
                      texture=spec.texture, palette=palette, glow=glow is not None,
                      seconds=round(time.time() - started, 1))

@@ -76,17 +76,10 @@ class Mesh:
 
     def box(self, size, material, at=(0, 0, 0), rot=(0, 0, 0), bevel=0.0, segments=1):
         """A box `size` (x, y, z) centred on `at`, edges optionally bevelled."""
-        geom = bmesh.ops.create_cube(self.bm, size=1.0)
-        verts = geom["verts"]
+        verts = bmesh.ops.create_cube(self.bm, size=1.0)["verts"]
         bmesh.ops.scale(self.bm, vec=Vector(size), verts=verts)
-        faces = self._faces_of(verts)
-        if bevel > 0:
-            edges = list({e for f in faces for e in f.edges})
-            result = bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=segments,
-                                     affect="EDGES", profile=0.5, clamp_overlap=True)
-            faces = list(set(faces) | set(result["faces"]))
-            faces = [f for f in faces if f.is_valid]
-        return self._finish(faces, material, place(at, rot))
+        faces = self._finish(self._faces_of(verts), material, place(at, rot))
+        return self._bevel(faces, verts, bevel, segments)
 
     def cylinder(self, radius, depth, material, sides=8, at=(0, 0, 0), rot=(0, 0, 0), radius_top=None,
                  caps=True):
@@ -131,12 +124,8 @@ class Mesh:
             j = (i + 1) % n
             faces.append(self.bm.faces.new((front[j], front[i], back[i], back[j])))
         bmesh.ops.recalc_face_normals(self.bm, faces=faces)
-        if bevel > 0:
-            edges = list({e for f in faces for e in f.edges})
-            result = bmesh.ops.bevel(self.bm, geom=edges, offset=bevel, segments=segments,
-                                     affect="EDGES", profile=0.5, clamp_overlap=True)
-            faces = [f for f in set(faces) | set(result["faces"]) if f.is_valid]
-        return self._finish(faces, material, place(at, rot))
+        faces = self._finish(faces, material, place(at, rot))
+        return self._bevel(faces, front + back, bevel, segments)
 
     def pipe(self, points, radius, material, sides=6, caps=True):
         """A tube swept through `points` (world positions), mitred at the joints: pipes, cables.
@@ -249,15 +238,20 @@ class Mesh:
         verts = list({v for f in faces for v in f.verts})
         bmesh.ops.transform(self.bm, matrix=matrix, verts=verts)
 
-    def mirror_x(self, faces=None):
-        """Adds a copy of `faces` (or everything) mirrored across X = 0."""
+    def mirror(self, faces=None, axis="X"):
+        """Adds a copy of `faces` (or everything) mirrored across the plane through the origin
+        normal to `axis`: build one side of a symmetrical model, mirror it to the other."""
         faces = faces or list(self.bm.faces)
         result = bmesh.ops.duplicate(self.bm, geom=faces)
         new_faces = [g for g in result["geom"] if isinstance(g, bmesh.types.BMFace)]
         verts = list({v for f in new_faces for v in f.verts})
-        bmesh.ops.scale(self.bm, vec=(-1, 1, 1), verts=verts)
+        flip = {"X": (-1, 1, 1), "Y": (1, -1, 1), "Z": (1, 1, -1)}[axis]
+        bmesh.ops.scale(self.bm, vec=flip, verts=verts)
         bmesh.ops.reverse_faces(self.bm, faces=new_faces)
         return new_faces
+
+    def mirror_x(self, faces=None):
+        return self.mirror(faces, "X")
 
     def subdivide(self, max_edge=1.0):
         """Splits edges longer than `max_edge`, so big faces don't swim too far under affine
@@ -285,6 +279,17 @@ class Mesh:
         return obj
 
     # Internals ----------------------------------------------------------------------------------
+
+    def _bevel(self, faces, verts, width, segments):
+        """Bevels the edges of a finished part. New faces inherit material and placement from the
+        faces they grow out of, so this runs after _finish."""
+        if width <= 0:
+            return faces
+        edges = list({e for f in faces for e in f.edges})
+        result = bmesh.ops.bevel(self.bm, geom=edges, offset=width, segments=segments,
+                                 affect="EDGES", profile=0.5, clamp_overlap=True)
+        verts = [v for v in verts if v.is_valid] + list(result["verts"])
+        return self._faces_of(verts)
 
     def _slot(self, material):
         if material not in self.materials:
@@ -326,4 +331,26 @@ def text(body, size, material, at=(0, 0, 0), rot=(0, 0, 0), matrix=None, align="
     mesh_obj.matrix_world = obj.matrix_world
     (collection or bpy.context.scene.collection).objects.link(mesh_obj)
     bpy.data.objects.remove(obj)
+    bpy.context.view_layer.update()
     return mesh_obj
+
+
+def split_object(obj, parts):
+    """Splits `obj` into one object per entry of `parts` ({name: predicate(face_centre)}), keeping
+    UVs and materials: e.g. a baked door into leaves Godot can slide apart. Removes `obj`."""
+    result = []
+    for name, keep in parts.items():
+        data = obj.data.copy()
+        bm = bmesh.new()
+        bm.from_mesh(data)
+        doomed = [f for f in bm.faces if not keep(f.calc_center_median())]
+        bmesh.ops.delete(bm, geom=doomed, context="FACES")
+        bm.to_mesh(data)
+        bm.free()
+        part = bpy.data.objects.new(name, data)
+        part.matrix_world = obj.matrix_world
+        for collection in obj.users_collection:
+            collection.objects.link(part)
+        result.append(part)
+    bpy.data.objects.remove(obj)
+    return result

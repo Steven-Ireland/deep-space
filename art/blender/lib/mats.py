@@ -12,7 +12,10 @@ Recipes return their material's name, for geo.Mesh parts. Colours are sRGB tuple
 
 import bpy
 
+from . import ROOT
+
 PASS_NODE = "PASS"
+SCANS = ROOT / "art" / "textures_src"  # CC0 photo scans (tools/fetch_textures.sh)
 GRIME = (0.09, 0.075, 0.06)
 
 
@@ -148,6 +151,33 @@ class Graph:
         self.set(e, "Strength", strength)
         return self.out(e)
 
+    def photo(self, scan, scale=1.0, colour=False):
+        """A CC0 photo scan box-projected over the object at `scale` repeats per metre: its
+        luminance (or colour), for real scratches and mottling under the authored colour."""
+        image = bpy.data.images.load(str(SCANS / f"{scan}_Color.jpg"), check_existing=True)
+        mapping = self.node("ShaderNodeMapping")
+        self.link(self.coords(), mapping, "Vector")
+        self.set(mapping, "Scale", (scale, scale, scale))
+        tex = self.node("ShaderNodeTexImage", image=image, projection="BOX", projection_blend=0.25)
+        self.link(self.out(mapping), tex, "Vector")
+        if colour:
+            return self.out(tex, "Color")
+        grey = self.node("ShaderNodeRGBToBW")
+        self.link(self.out(tex, "Color"), grey, 0)
+        return self.out(grey)
+
+    def detail(self, colour, scan, strength, scale):
+        """`colour` with a photo scan's light and dark overlaid at `strength`."""
+        if not scan or strength <= 0:
+            return colour
+        return self.mix(strength, colour, self._grey(self.photo(scan, scale)), blend="OVERLAY")
+
+    def _grey(self, value):
+        combine = self.node("ShaderNodeCombineColor")
+        for i in range(3):
+            self.link(value, combine, i)
+        return self.out(combine)
+
     def finish(self, albedo, glow=None, mask=0.0):
         """Wires the three passes to the output, switched by the PASS value."""
         self.material["glows"] = glow is not None
@@ -181,9 +211,10 @@ def _material(name):
 
 
 def paint(name, color, wear=0.3, grime=0.35, under=(0.42, 0.42, 0.4), variation=0.07, scale=1.0,
-          glow=None, streaks=0.0):
-    """Painted metal: colour with low-frequency variation, chipped back to `under` on worn edges,
-    darkened with grime in crevices (and optionally in vertical streaks)."""
+          glow=None, streaks=0.0, detail="Metal009", detail_strength=0.35, detail_scale=0.6, rust=0.0):
+    """Painted metal: colour with low-frequency variation and photo-scan detail, chipped back to
+    `under` on worn edges, darkened with grime in crevices (and optionally in vertical streaks),
+    and for derelicts, eaten by `rust` in patches and crevices."""
     g = _material(name)
     if g is None:
         return name
@@ -194,7 +225,7 @@ def paint(name, color, wear=0.3, grime=0.35, under=(0.42, 0.42, 0.4), variation=
     # A second, finer blotch layer so large faces never read as flat.
     varied = g.mix(g.ramp(g.noise(18.0 * scale, detail=6.0, seed=3), 0.35, 0.75), varied,
                    tuple(c * 0.93 for c in base[:3]) + (1.0,))
-    colour = varied
+    colour = g.detail(varied, detail, detail_strength, detail_scale * scale)
     if wear > 0:
         chips = g.math("MULTIPLY", g.edges(), g.noise(26.0 * scale, detail=8.0, roughness=0.7, seed=1))
         chip_mask = g.ramp(chips, 0.55 - wear * 0.45, 0.62 - wear * 0.45)
@@ -205,12 +236,17 @@ def paint(name, color, wear=0.3, grime=0.35, under=(0.42, 0.42, 0.4), variation=
             streak = g.ramp(g.noise(9.0 * scale, detail=2.0, stretch=(1.0, 1.0, 0.08), seed=4), 0.5, 0.75)
             dirt = g.math("ADD", dirt, g.math("MULTIPLY", streak, streaks))
         colour = g.mix(g.math("MULTIPLY", g.ramp(dirt, 0.05, 0.9), grime), colour, srgb(GRIME))
+    if rust > 0:
+        patches = g.math("ADD", g.math("MULTIPLY", g.cavity(0.25), 0.8), g.noise(3.0 * scale, detail=6.0, seed=7))
+        rust_mask = g.ramp(patches, 1.05 - rust * 0.5, 1.2 - rust * 0.5)
+        colour = g.mix(rust_mask, colour, g.photo("Metal021", 0.8 * scale, colour=True))
     g.finish(colour, glow=srgb(glow) if glow else None)
     return name
 
 
-def metal(name, color=(0.5, 0.5, 0.48), grime=0.4, brushed=True, scale=1.0):
-    """Bare or brushed metal: streaky variation, grime in crevices, bright worn edges."""
+def metal(name, color=(0.5, 0.5, 0.48), grime=0.4, brushed=True, scale=1.0, detail="Metal009",
+          detail_strength=0.5):
+    """Bare or brushed metal: streaky variation and scratches, grime in crevices, bright worn edges."""
     g = _material(name)
     if g is None:
         return name
@@ -218,6 +254,7 @@ def metal(name, color=(0.5, 0.5, 0.48), grime=0.4, brushed=True, scale=1.0):
     stretch = (1.0, 1.0, 14.0) if brushed else (1, 1, 1)
     streak = g.noise(30.0 * scale, detail=4.0, stretch=stretch)
     colour = g.mix(streak, tuple(c * 0.8 for c in base[:3]) + (1.0,), tuple(min(1, c * 1.15) for c in base[:3]) + (1.0,))
+    colour = g.detail(colour, detail, detail_strength, 1.2 * scale)
     colour = g.mix(g.math("MULTIPLY", g.edges(), 0.6), colour, tuple(min(1, c * 1.45) for c in base[:3]) + (1.0,))
     if grime > 0:
         dirt = g.math("MULTIPLY", g.cavity(), g.math("ADD", 0.4, g.noise(6.0 * scale, seed=5)))
@@ -226,9 +263,10 @@ def metal(name, color=(0.5, 0.5, 0.48), grime=0.4, brushed=True, scale=1.0):
     return name
 
 
-def plain(name, color, grime=0.25, variation=0.05, scale=1.0):
-    """Plastic, rubber, fabric: no chipping, gentle variation and grime."""
-    return paint(name, color, wear=0.0, grime=grime, variation=variation, scale=scale)
+def plain(name, color, grime=0.25, variation=0.05, scale=1.0, detail="Concrete034", detail_strength=0.2):
+    """Plastic, rubber, fabric: no chipping, gentle variation, a fine mottle, and grime."""
+    return paint(name, color, wear=0.0, grime=grime, variation=variation, scale=scale, detail=detail,
+                 detail_strength=detail_strength, detail_scale=2.0)
 
 
 def glowing(name, color, base=None, flicker=0.15, streaks=0.0):

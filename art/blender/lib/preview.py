@@ -15,7 +15,7 @@ SCALE = 2
 ANGLES = [(-35, 18), (145, 22), (90, 4), (-20, 58)]
 
 
-def render(name, objects):
+def render(name, objects, angles=()):
     scene = bpy.context.scene
     scene.render.engine = "BLENDER_EEVEE"
     scene.render.resolution_x, scene.render.resolution_y = VIEW
@@ -32,6 +32,9 @@ def render(name, objects):
             background.inputs["Color"].default_value = (0.02, 0.022, 0.026, 1)
             background.inputs["Strength"].default_value = 1.0
 
+    hidden = {obj.name: obj.hide_render for obj in objects}
+    for obj in objects:
+        obj.hide_render = False
     centre, radius = _bounds(objects)
     rig = _lights(centre, radius)
     camera_data = bpy.data.cameras.new("preview")
@@ -44,7 +47,7 @@ def render(name, objects):
     camera_data.clip_end = distance * 4
 
     tiles = []
-    for azimuth, elevation in ANGLES:
+    for azimuth, elevation in (angles or ANGLES):
         a, e = math.radians(azimuth), math.radians(elevation)
         offset = Vector((math.sin(a) * math.cos(e), -math.cos(a) * math.cos(e), math.sin(e)))
         camera.location = centre + offset * distance
@@ -63,6 +66,8 @@ def render(name, objects):
     image.save()
     for obj in rig + [camera]:
         bpy.data.objects.remove(obj)
+    for obj in objects:
+        obj.hide_render = hidden.get(obj.name, obj.hide_render)
     return path
 
 

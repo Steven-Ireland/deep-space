@@ -25,6 +25,7 @@ class Spec:
     roughness: float = 0.85  # Godot material parameters
     metallic: float = 0.0
     specular: float = 0.3
+    angles: tuple = ()       # preview (azimuth, elevation) pairs; default views if empty
 
 
 @dataclass
@@ -32,6 +33,7 @@ class Model:
     low: object                                  # the game mesh
     decals: list = field(default_factory=list)   # geometry baked on top of it, then discarded
     extras: list = field(default_factory=list)   # exported with it: SOCKET_* empties, colliders
+    after_bake: object = None                    # fn(model), e.g. to split the baked mesh in parts
 
 
 def asset(name, category, **options):

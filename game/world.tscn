@@ -1,43 +1,47 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://game/rendering/lookdev.gd" id="1"]
+[ext_resource type="Script" path="res://game/station/lantern.gd" id="1"]
 [ext_resource type="Script" path="res://game/core/crew.gd" id="2"]
-[ext_resource type="Script" path="res://game/core/interactable.gd" id="3"]
 
-[sub_resource type="BoxShape3D" id="switch_shape"]
-size = Vector3(0.3, 0.3, 0.3)
+[sub_resource type="Environment" id="space"]
+background_mode = 1
+background_color = Color(0, 0, 0, 1)
+ambient_light_source = 2
+ambient_light_color = Color(0.06, 0.07, 0.09, 1)
+ambient_light_energy = 1.0
+tonemap_mode = 0
+fog_enabled = true
+fog_mode = 1
+fog_light_color = Color(0, 0, 0, 1)
+fog_density = 1.0
+fog_depth_begin = 10.0
+fog_depth_end = 40.0
 
 [node name="World" type="Node3D"]
 
-[node name="Lookdev" type="Node3D" parent="."]
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("space")
+
+[node name="Lantern" type="Node3D" parent="."]
 script = ExtResource("1")
-with_camera = false
-
-[node name="TestSwitch" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.5, 1.2, 1)
-script = ExtResource("3")
-verb = "TEST"
-
-[node name="Shape" type="CollisionShape3D" parent="TestSwitch"]
-shape = SubResource("switch_shape")
 
 [node name="Players" type="Node3D" parent="."]
 
 [node name="Spawns" type="Node3D" parent="."]
 
-[node name="Spawn1" type="Marker3D" parent="Spawns"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 5)
+[node name="Cabin1" type="Marker3D" parent="Spawns"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4, 0, 12)
 
-[node name="Spawn2" type="Marker3D" parent="Spawns"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.2, 0, 5.5)
+[node name="Cabin2" type="Marker3D" parent="Spawns"]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4, 0, 12)
 
-[node name="Spawn3" type="Marker3D" parent="Spawns"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.2, 0, 5.5)
+[node name="Cabin3" type="Marker3D" parent="Spawns"]
+transform = Transform3D(-4.371139e-08, 0, -1, 0, 1, 0, 1, 0, -4.371139e-08, -4, 0, 16)
 
-[node name="Spawn4" type="Marker3D" parent="Spawns"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6.5)
+[node name="Cabin4" type="Marker3D" parent="Spawns"]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 4, 0, 16)
 
 [node name="Crew" type="MultiplayerSpawner" parent="." node_paths=PackedStringArray("spawn_points")]
 spawn_path = NodePath("../Players")
 script = ExtResource("2")
-spawn_points = [NodePath("../Spawns/Spawn1"), NodePath("../Spawns/Spawn2"), NodePath("../Spawns/Spawn3"), NodePath("../Spawns/Spawn4")]
+spawn_points = [NodePath("../Spawns/Cabin1"), NodePath("../Spawns/Cabin2"), NodePath("../Spawns/Cabin3"), NodePath("../Spawns/Cabin4")]

@@ -11,6 +11,7 @@ dither, and saved as PNGs. The model's materials are then replaced by one materi
 """
 
 import math
+import os
 
 import bpy
 import numpy as np
@@ -157,7 +158,11 @@ def _bake_pass(obj, kind, pass_index, size, decals, non_color=False, background=
     mats.set_pass(0)
     rgb = pixels.reshape(size, size, 4)[..., :3]
     # Bakes come out linear; the texture is stored and quantized as sRGB.
-    return rgb if non_color else _to_srgb(rgb)
+    rgb = rgb if non_color else _to_srgb(rgb)
+    debug = os.environ.get("DS_DEBUG_PASSES")
+    if debug:  # DS_DEBUG_PASSES=<dir> saves every raw pass for inspection
+        _save(rgb, f"{debug}/{obj.name}_{kind}_{pass_index}_{'decals' if decals else 'base'}.png")
+    return rgb
 
 
 def _has_glow(objects):
@@ -237,6 +242,9 @@ def _save(rgb, path):
 def _use_baked_material(obj, name, albedo_path, glow_path):
     """Swaps `obj`'s recipes for one material showing the baked textures: what the glTF carries
     (by name, for Godot's import to replace with its PSX material) and what previews render."""
+    clash = bpy.data.materials.get(name)
+    if clash is not None:  # a recipe named like the model: keep the model's name for Godot
+        clash.name = name + "_recipe"
     material = bpy.data.materials.new(name)
     if hasattr(material, "use_nodes"):
         material.use_nodes = True
@@ -263,7 +271,8 @@ def _use_baked_material(obj, name, albedo_path, glow_path):
 
 
 def _select_only(obj, extra=()):
-    for o in bpy.context.view_layer.objects:
+    bpy.context.view_layer.update()
+    for o in bpy.context.scene.objects:
         o.select_set(False)
     obj.select_set(True)
     for o in extra:
