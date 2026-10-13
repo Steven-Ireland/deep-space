@@ -27,7 +27,14 @@ DOOR_W = 2.2
 DOOR_H = 2.45
 
 
+# The kit's two looks: the LANTERN's ("station") and a derelict's ("derelict"): the same geometry,
+# re-baked with decayed recipes (discoloured paint eaten by rust, heavy grime and streaks, dead lamps).
+STYLE = {"name": "station"}
+
+
 def _materials():
+    if STYLE["name"] == "derelict":
+        return _derelict_materials()
     return dict(
         panel=mats.paint("lk_panel", (0.78, 0.74, 0.64), wear=0.2, grime=0.3, streaks=0.15,
                          under=(0.55, 0.55, 0.52), detail_strength=0.25),
@@ -41,7 +48,31 @@ def _materials():
     )
 
 
+def _derelict_materials():
+    return dict(
+        panel=mats.paint("dk_panel", (0.56, 0.53, 0.45), wear=0.55, grime=0.75, streaks=0.8, under=(0.4, 0.38, 0.35),
+                         detail="PaintedMetal013", detail_strength=0.4, rust=0.55),
+        backing=mats.paint("dk_backing", (0.1, 0.1, 0.1), wear=0.0, grime=0.4),
+        kick=mats.metal("dk_kick", (0.26, 0.24, 0.22), grime=0.8, detail="Metal021"),
+        trim=mats.paint("dk_trim", (0.5, 0.28, 0.12), wear=0.7, grime=0.6, rust=0.4),
+        chamfer=mats.paint("dk_chamfer", (0.38, 0.38, 0.36), wear=0.4, grime=0.7, streaks=0.6, rust=0.35),
+        vent=mats.metal("dk_vent", (0.08, 0.07, 0.07), grime=0.3),
+        steel=mats.metal("dk_steel", (0.4, 0.37, 0.33), grime=0.6, detail="Metal021"),
+        frame=mats.paint("dk_frame", (0.2, 0.2, 0.21), wear=0.6, grime=0.6, rust=0.5),
+    )
+
+
 def _decal_materials():
+    if STYLE["name"] == "derelict":
+        return dict(
+            black=mats.decal("dk_d_black", (0.05, 0.05, 0.05)),
+            orange=mats.decal("dk_d_orange", (0.5, 0.28, 0.12)),
+            cream=mats.decal("dk_d_cream", (0.55, 0.52, 0.45)),
+            dark=mats.decal("dk_d_dark", (0.1, 0.1, 0.1)),
+            bolt=mats.decal("dk_d_bolt", (0.38, 0.34, 0.3)),
+            green=mats.decal("dk_d_dead", (0.12, 0.13, 0.12)),
+            red=mats.decal("dk_d_red", (0.9, 0.12, 0.08), glow=True),
+        )
     return dict(
         black=mats.decal("lk_d_black", (0.06, 0.06, 0.06)),
         orange=mats.decal("lk_d_orange", (0.86, 0.42, 0.1)),
@@ -406,7 +437,8 @@ def floor():
     bolts, a darker drainage strip around the edge where it meets the walls."""
     k = _materials()
     dm = _decal_materials()
-    deck = mats.metal("lk_deck", (0.3, 0.32, 0.34), grime=0.5, brushed=False, detail="DiamondPlate008A")
+    deck = (mats.metal("dk_deck", (0.22, 0.21, 0.2), grime=0.85, brushed=False, detail="Metal021")
+            if STYLE["name"] == "derelict" else mats.metal("lk_deck", (0.3, 0.32, 0.34), grime=0.5, brushed=False, detail="DiamondPlate008A"))
     m = Mesh("lk_floor")
     m.box((WIDTH, WIDTH, 0.1), deck, at=(0, 0, -0.05))
     m.subdivide(1.0)
@@ -437,8 +469,10 @@ def ceiling():
     a warm fluorescent panel behind a steel grille (Godot adds the light itself)."""
     k = _materials()
     dm = _decal_materials()
-    tile = mats.paint("lk_ceiling", (0.56, 0.57, 0.55), wear=0.1, grime=0.35)
-    light = mats.glowing("lk_light", (1.0, 0.84, 0.6), base=(0.9, 0.85, 0.75), flicker=0.1)
+    tile = (mats.paint("dk_ceiling", (0.34, 0.34, 0.32), wear=0.3, grime=0.7, streaks=0.5, rust=0.3)
+            if STYLE["name"] == "derelict" else mats.paint("lk_ceiling", (0.56, 0.57, 0.55), wear=0.1, grime=0.35))
+    light = (mats.plain("dk_light_dead", (0.32, 0.31, 0.28), grime=0.6) if STYLE["name"] == "derelict"
+             else mats.glowing("lk_light", (1.0, 0.84, 0.6), base=(0.9, 0.85, 0.75), flicker=0.1))
     m = Mesh("lk_ceiling")
     faces = m.box((WIDTH, WIDTH, 0.1), tile, at=(0, 0, HEIGHT + 0.05))
     bottom = m.faces(among=faces, normal=(0, 0, -1), min_dot=0.99)
@@ -543,3 +577,21 @@ def wall_hatch():
         model.extras.append(hatch)
 
     return Model(low=low, decals=decals, extras=colliders + [lamp_obj], after_bake=split)
+
+
+# Derelict variants: every kit piece re-baked in the derelict style, as dk_* in assets/models/derelict.
+def _derelict(build):
+    def variant():
+        STYLE["name"] = "derelict"
+        try:
+            return build()
+        finally:
+            STYLE["name"] = "station"
+    return variant
+
+
+import lib as _lib  # noqa: E402
+
+for _name in ("lk_wall", "lk_wall_door", "lk_door", "lk_wall_window", "lk_corner", "lk_floor", "lk_ceiling", "lk_wall_hatch"):
+    _spec = _lib.ASSETS[_name]
+    asset("dk" + _name[2:], "derelict", texture=_spec.texture, colors=_spec.colors, ao=_spec.ao, angles=_spec.angles)(_derelict(_spec.build))

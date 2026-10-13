@@ -41,6 +41,15 @@ func _fixed_camera(v: PackedFloat64Array) -> void:
 	camera.position = Vector3(v[0], v[1], v[2])
 	camera.rotation_degrees = Vector3(v[4] if v.size() > 4 else 0.0, v[3] if v.size() > 3 else 0.0, 0)
 	add_child(camera)
+	if Args.flag("--flashlight"):
+		var torch := SpotLight3D.new()
+		torch.position = Vector3(0.22, -0.2, 0)
+		torch.light_color = Color(1, 0.95, 0.86)
+		torch.light_energy = 6.0
+		torch.shadow_enabled = true
+		torch.spot_range = 18.0
+		torch.spot_angle = 22.0
+		camera.add_child(torch)
 	# Players make their own cameras current as they spawn; take over after them.
 	for i in 30:
 		await get_tree().process_frame

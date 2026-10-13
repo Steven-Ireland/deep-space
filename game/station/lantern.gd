@@ -54,6 +54,7 @@ func _ready() -> void:
 	var med_bay: Door = doors.get("1,5,v")
 	if med_bay != null:
 		med_bay.sealed = true
+	_open_collar()
 	_furnish_bridge()
 	_furnish_rooms()
 	_place_cameras()
@@ -64,6 +65,15 @@ func _ready() -> void:
 func room_at(at: Vector3) -> String:
 	var cell := Vector2i(roundi(at.x / CELL), roundi(at.z / CELL))
 	return ROOM_NAMES.get(cells.get(cell, ""), "OUTSIDE")
+
+
+## Docked: the collar's hatch is retracted so the derelict alongside is open to walk into.
+func _open_collar() -> void:
+	for piece in get_children():
+		if piece.name.begins_with("hatch_") and piece.position.x > 13.0:
+			var door := piece.find_child("hatch_door", true, false) as Node3D
+			if door != null:
+				door.visible = false
 
 
 ## The bridge stations (GDD §5): helm and science face the viewport; ops and engineering stand

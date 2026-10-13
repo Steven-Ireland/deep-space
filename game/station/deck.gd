@@ -13,16 +13,12 @@ const CELL := 4.0
 const SIDES := {"N": Vector2i(0, -1), "E": Vector2i(1, 0), "S": Vector2i(0, 1), "W": Vector2i(-1, 0)}
 const OPPOSITE := {"N": "S", "E": "W", "S": "N", "W": "E"}
 
-const KIT := {
-	"wall": preload("res://assets/models/station/lk_wall.glb"),
-	"door": preload("res://assets/models/station/lk_wall_door.glb"),
-	"window": preload("res://assets/models/station/lk_wall_window.glb"),
-	"viewport": preload("res://assets/models/station/lk_wall_viewport.glb"),
-	"hatch": preload("res://assets/models/station/lk_wall_hatch.glb"),
-	"corner": preload("res://assets/models/station/lk_corner.glb"),
-	"floor": preload("res://assets/models/station/lk_floor.glb"),
-	"ceiling": preload("res://assets/models/station/lk_ceiling.glb"),
-}
+## Kit pieces by kind, for each look: the LANTERN's ("lk") and a derelict's ("dk", decayed). Kinds
+## a look lacks fall back to the LANTERN's.
+const PIECES := {"wall": "wall", "door": "wall_door", "window": "wall_window", "viewport": "wall_viewport",
+		"hatch": "wall_hatch", "breach": "wall_breach", "corner": "corner", "floor": "floor", "ceiling": "ceiling"}
+const KIT_FOLDERS := {"lk": "station", "dk": "derelict"}
+
 const HULL := {
 	"wall": preload("res://assets/models/hull/hl_side.glb"),
 	"window": preload("res://assets/models/hull/hl_side_window.glb"),
@@ -43,6 +39,11 @@ const HULL_LAYER := 4
 @export var light_colour := Color(1.0, 0.78, 0.52)
 @export var light_energy := 1.35
 @export var light_range := 7.0
+
+## Which look the deck is built in: "lk" (the LANTERN) or "dk" (a derelict).
+@export var kit := "lk"
+## Whether each cell's ceiling fixture is lit (derelicts are dark).
+@export var lit := true
 
 ## Whether to wrap the deck in hull plating (the LANTERN; derelict modules bring their own).
 @export var hull := true
@@ -66,12 +67,14 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 		var at := _centre(cell)
 		_place("floor", at, 0.0)
 		_place("ceiling", at, 0.0)
-		if not dark.contains(cells[cell]):
+		if lit and not dark.contains(cells[cell]):
 			_light(at)
 	var wall_ends := {}
 	for key: String in edges:
 		var edge: Dictionary = edges[key]
 		var kind: String = edge.kind
+		if kind == "open":
+			continue
 		var piece := _place("door" if kind == "door" else kind, edge.at, edge.yaw)
 		piece.name = "%s_%s" % [kind, key.replace(",", "_")]
 		if kind == "door":
@@ -80,6 +83,11 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 			door.rotation.y = edge.yaw
 			door.name = "Door_" + key.replace(",", "_")
 			door.lamp = piece.find_child("status_lamp", true, false)
+			if kit != "lk":
+				door.get_node("Leaves").free()
+				var leaves := _scene("door_leaves").instantiate()
+				leaves.name = "Leaves"
+				door.add_child(leaves)
 			add_child(door)
 			_mark_interior(door)
 			doors[key] = door
@@ -137,12 +145,23 @@ func _edges(openings: Dictionary, origin: Vector2i) -> Dictionary:
 
 
 func _place(kind: String, at: Vector3, yaw: float) -> Node3D:
-	var piece: Node3D = KIT[kind].instantiate()
+	var piece: Node3D = _scene(kind).instantiate()
 	piece.position = at
 	piece.rotation.y = yaw
 	add_child(piece)
 	_mark_interior(piece)
 	return piece
+
+
+## The kit piece for `kind` in this deck's look (falling back to the LANTERN's).
+func _scene(kind: String) -> PackedScene:
+	var piece: String = "door" if kind == "door_leaves" else PIECES[kind]
+	for look: String in [kit, "lk"]:
+		var path := "res://assets/models/%s/%s_%s.glb" % [KIT_FOLDERS[look], look, piece]
+		if ResourceLoader.exists(path):
+			return load(path)
+	push_error("Deck: no kit piece for %s." % kind)
+	return null
 
 
 static func _mark_interior(node: Node) -> void:
@@ -165,6 +184,8 @@ func _build_hull(edges: Dictionary) -> void:
 		if room_owner == cells.has(other):
 			continue # between two rooms: no hull
 		var outward: Vector2i = (Vector2i(0, -1) if horizontal else Vector2i(-1, 0)) if room_owner else (Vector2i(0, 1) if horizontal else Vector2i(1, 0))
+		if edge.kind == "open":
+			continue # docked to something: no plating over the join
 		var kind: String = edge.kind if edge.kind in HULL else "wall"
 		var yaw := atan2(float(outward.x), float(outward.y))
 		_place_hull(kind, edge.at, yaw)

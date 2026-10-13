@@ -239,7 +239,10 @@ def paint(name, color, wear=0.3, grime=0.35, under=(0.42, 0.42, 0.4), variation=
     if rust > 0:
         patches = g.math("ADD", g.math("MULTIPLY", g.cavity(0.25), 0.8), g.noise(3.0 * scale, detail=6.0, seed=7))
         rust_mask = g.ramp(patches, 1.05 - rust * 0.5, 1.2 - rust * 0.5)
-        colour = g.mix(rust_mask, colour, g.photo("Metal021", 0.8 * scale, colour=True))
+        # The scan gives rust its texture; a tint gives it its colour, from orange-brown to near-black.
+        rust_colour = g.mix(1.0, g._grey(g.math("MULTIPLY", g.photo("Metal021", 0.8 * scale), 1.6)), srgb((0.72, 0.36, 0.16)),
+                            blend="MULTIPLY")
+        colour = g.mix(rust_mask, colour, rust_colour)
     g.finish(colour, glow=srgb(glow) if glow else None)
     return name
 
