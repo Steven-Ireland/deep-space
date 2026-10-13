@@ -18,19 +18,34 @@ const KIT := {
 	"door": preload("res://assets/models/station/lk_wall_door.glb"),
 	"window": preload("res://assets/models/station/lk_wall_window.glb"),
 	"viewport": preload("res://assets/models/station/lk_wall_viewport.glb"),
+	"hatch": preload("res://assets/models/station/lk_wall_hatch.glb"),
 	"corner": preload("res://assets/models/station/lk_corner.glb"),
 	"floor": preload("res://assets/models/station/lk_floor.glb"),
 	"ceiling": preload("res://assets/models/station/lk_ceiling.glb"),
+}
+const HULL := {
+	"wall": preload("res://assets/models/hull/hl_side.glb"),
+	"window": preload("res://assets/models/hull/hl_side_window.glb"),
+	"viewport": preload("res://assets/models/hull/hl_side_viewport.glb"),
+	"hatch": preload("res://assets/models/hull/hl_side_hatch.glb"),
+	"corner": preload("res://assets/models/hull/hl_corner.glb"),
+	"roof": preload("res://assets/models/hull/hl_roof.glb"),
+	"belly": preload("res://assets/models/hull/hl_belly.glb"),
 }
 const DOOR := preload("res://game/station/door.tscn")
 ## Render layer for interiors: the star's light skips it (StarSystem), so it can't leak through
 ## thin walls; interiors are lit by their own practicals.
 const INTERIOR_LAYER := 2
+## Render layer for the hull: interior lights skip it, so they don't glow through the walls.
+const HULL_LAYER := 4
 
 ## Warm sodium-amber practicals (GDD §14).
 @export var light_colour := Color(1.0, 0.78, 0.52)
 @export var light_energy := 1.35
 @export var light_range := 7.0
+
+## Whether to wrap the deck in hull plating (the LANTERN; derelict modules bring their own).
+@export var hull := true
 
 ## Room character at each grid cell.
 var cells := {}
@@ -75,6 +90,8 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 		var straight: bool = axes.size() == 2 and axes[0] == axes[1]
 		if not straight:
 			_place("corner", Vector3(corner.x * CELL - CELL / 2, 0, corner.y * CELL - CELL / 2), 0.0)
+	if hull:
+		_build_hull(edges)
 
 
 ## The world position of a grid cell's centre, on the floor.
@@ -133,6 +150,49 @@ static func _mark_interior(node: Node) -> void:
 		mesh.layers = INTERIOR_LAYER
 
 
+## Hull plating outside every exterior edge (matching its opening), outer corner posts, and roof
+## and belly plates over every cell.
+func _build_hull(edges: Dictionary) -> void:
+	var outer := {}
+	for key: String in edges:
+		var edge: Dictionary = edges[key]
+		var parts := key.split(",")
+		var owner := Vector2i(int(parts[0]), int(parts[1]))
+		var horizontal: bool = parts[2] == "h"
+		# The two cells either side: the owner (south or east of the edge) and its neighbour.
+		var other := owner + (Vector2i(0, -1) if horizontal else Vector2i(-1, 0))
+		var room_owner := cells.has(owner)
+		if room_owner == cells.has(other):
+			continue # between two rooms: no hull
+		var outward: Vector2i = (Vector2i(0, -1) if horizontal else Vector2i(-1, 0)) if room_owner else (Vector2i(0, 1) if horizontal else Vector2i(1, 0))
+		var kind: String = edge.kind if edge.kind in HULL else "wall"
+		var yaw := atan2(float(outward.x), float(outward.y))
+		_place_hull(kind, edge.at, yaw)
+		for end: Vector2i in edge.ends:
+			outer[end] = outer.get(end, Vector2i.ZERO) + outward
+	for vertex: Vector2i in outer:
+		var around := 0
+		for offset in [Vector2i(0, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(-1, -1)]:
+			if cells.has(vertex + offset):
+				around += 1
+		if around == 1: # a convex corner of the deck
+			var out: Vector2i = outer[vertex]
+			_place_hull("corner", Vector3(vertex.x * CELL - CELL / 2 + out.x * 0.2, 0, vertex.y * CELL - CELL / 2 + out.y * 0.2), 0.0)
+	for cell: Vector2i in cells:
+		_place_hull("roof", centre_of(cell), 0.0)
+		_place_hull("belly", centre_of(cell), 0.0)
+
+
+func _place_hull(kind: String, at: Vector3, yaw: float) -> Node3D:
+	var piece: Node3D = HULL[kind].instantiate()
+	piece.position = at
+	piece.rotation.y = yaw
+	add_child(piece)
+	for mesh: VisualInstance3D in piece.find_children("*", "VisualInstance3D", true, false):
+		mesh.layers = HULL_LAYER
+	return piece
+
+
 func _light(at: Vector3) -> void:
 	var light := OmniLight3D.new()
 	light.position = at + Vector3(0, 2.8, 0)
@@ -141,4 +201,5 @@ func _light(at: Vector3) -> void:
 	light.omni_range = light_range
 	light.omni_attenuation = 1.4
 	light.shadow_enabled = false
+	light.light_cull_mask = ~HULL_LAYER
 	add_child(light)

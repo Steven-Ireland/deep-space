@@ -43,7 +43,7 @@ def render(name, objects, angles=()):
     scene.collection.objects.link(camera)
     scene.camera = camera
     fov = 2 * math.atan(camera_data.sensor_width / 2 / camera_data.lens) * VIEW[1] / VIEW[0]
-    distance = radius / math.sin(fov / 2) * 0.85
+    distance = radius / math.sin(fov / 2) * 0.95
     camera_data.clip_end = distance * 4
 
     tiles = []

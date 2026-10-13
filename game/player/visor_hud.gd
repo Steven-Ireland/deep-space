@@ -22,7 +22,7 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	var target := player.aimed_at
-	visible = player.operating == null
+	visible = player.operating == null and not Args.flag("--view")
 	dot.visible = target != null
 	verb.visible = target != null
 	if target != null:

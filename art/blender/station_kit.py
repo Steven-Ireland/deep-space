@@ -466,3 +466,80 @@ def ceiling():
         d.polygon([(-0.015, -0.3), (0.015, -0.3), (0.015, 0.3), (-0.015, 0.3)], dm["dark"], f)
     collider = _collider("lk_ceiling_col", (WIDTH, WIDTH, 0.1), (0, 0, HEIGHT + 0.05))
     return Model(low=low, decals=[d.to_object()], extras=[collider])
+
+
+@asset("lk_wall_hatch", "station", texture=256, colors=32, ao=0.5)
+def wall_hatch():
+    """LANTERN pressure hatch wall: the airlock's outer door and the docking collar's mouth. A round
+    1.6 m hatch (`hatch_door`, a separate mesh that swings) in a deep ring frame with locking dogs,
+    a hazard ring painted around it, and an amber warning beacon above. Finished on both faces; the
+    outer face meets vacuum."""
+    k = _materials()
+    dm = _decal_materials()
+    m = Mesh("lk_wall_hatch")
+    d = Mesh("lk_wall_hatch_decals")
+    geo_text.clear()
+    r = 0.8
+    cz = 1.15
+    # The wall around a square opening, the ring frame filling it down to the round hatch.
+    _wall_backing_around(m, k, -1.1, 1.1, cz - 1.1, cz + 1.1)
+    for side in (-1, 1):
+        for x0, x1 in ((-WIDTH / 2, -1.1), (1.1, WIDTH / 2)):
+            _wall_side(m, k, x0, x1, side, rail=False)
+        m.box((WIDTH, 0.035, 0.07), k["trim"], at=(0, side * (HALF + 0.0175), CHAMFER_START - 0.035), bevel=0.006)
+        _chamfer(m, k, -WIDTH / 2, WIDTH / 2, side)
+    m.lathe([(r + 0.3, -0.22), (r + 0.3, 0.22)], k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
+    m.lathe([(r, -0.22), (r, 0.22)], k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
+    for side in (-1, 1):
+        m.lathe([(r, side * 0.22), (r + 0.3, side * 0.22)] if side > 0 else [(r + 0.3, side * 0.22), (r, side * 0.22)],
+                k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
+        # Locking dogs around the ring.
+        for i in range(8):
+            a = i / 8 * math.tau
+            m.box((0.1, 0.06, 0.06), k["steel"], at=(math.cos(a) * (r + 0.12), side * 0.25, cz + math.sin(a) * (r + 0.12)),
+                  rot=(0, -math.degrees(a), 0), bevel=0.01)
+        # Beacon above.
+        m.box((0.16, 0.08, 0.06), k["frame"], at=(0, side * (HALF + 0.04), cz + r + 0.45), bevel=0.01)
+    # Fill the square between the ring and the opening.
+    for x, z, w, h in ((-1.0, cz, 0.2, 2.2), (1.0, cz, 0.2, 2.2), (0, cz + 1.0, 1.8, 0.2), (0, cz - 1.0, 1.8, 0.2)):
+        m.box((w, THICK, h), k["backing"], at=(x, 0, z))
+    # The hatch itself: baked with the wall, split off after (hatch_door) so it can swing open.
+    m.cylinder(r - 0.01, 0.16, k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0))
+    for side in (-1, 1):
+        m.cylinder(r * 0.6, 0.02, k["panel"], sides=16, at=(0, side * 0.09, cz), rot=(90, 0, 0))
+        m.cylinder(0.14, 0.06, k["steel"], sides=8, at=(0, side * 0.11, cz), rot=(90, 0, 0))
+        for i in range(4):
+            a = i / 4 * math.tau + math.pi / 4
+            m.box((0.42, 0.04, 0.04), k["steel"], at=(math.cos(a) * 0.2, side * 0.14, cz + math.sin(a) * 0.2), rot=(0, -math.degrees(a), 0))
+    m.subdivide(1.0)
+    low = m.to_object()
+    # Hazard ring decal on both faces.
+    for side in (-1, 1):
+        normal = Vector((0, side, 0))
+        for i in range(16):
+            a0 = i / 16 * math.tau
+            a1 = (i + 1) / 16 * math.tau
+            colour = dm["black"] if i % 2 else dm["orange"]
+            f = frame((0, side * 0.221, cz), normal, lift=0.001)
+            pts = [(math.cos(a0) * (r + 0.02), math.sin(a0) * (r + 0.02)), (math.cos(a1) * (r + 0.02), math.sin(a1) * (r + 0.02)),
+                   (math.cos(a1) * (r + 0.28), math.sin(a1) * (r + 0.28)), (math.cos(a0) * (r + 0.28), math.sin(a0) * (r + 0.28))]
+            if side > 0:
+                pts = [(-x, z) for x, z in pts]
+            d.polygon(pts, colour, f)
+    lamp = Mesh("status_lamp")
+    for side in (-1, 1):
+        lamp.cylinder(0.06, 0.08, mats.plain("lk_lamp", (0.2, 0.9, 0.3)), sides=8, at=(0, side * (HALF + 0.1), cz + r + 0.45), rot=(90, 0, 0))
+    lamp_obj = lamp.to_object()
+    decals = [d.to_object()] + geo_text
+    geo_text.clear()
+    colliders = [_collider("lk_wall_hatch_col_l", (WIDTH / 2 - 1.1, THICK, HEIGHT), (-(WIDTH / 2 + 1.1) / 2, 0, HEIGHT / 2)),
+                 _collider("lk_wall_hatch_col_r", (WIDTH / 2 - 1.1, THICK, HEIGHT), ((WIDTH / 2 + 1.1) / 2, 0, HEIGHT / 2)),
+                 _collider("lk_wall_hatch_col_t", (2.2, THICK, HEIGHT - cz - 1.1), (0, 0, (HEIGHT + cz + 1.1) / 2))]
+    def split(model):
+        def in_hatch(c):
+            return math.hypot(c.x, c.z - cz) < r - 0.005 and abs(c.y) < 0.17
+        wall, hatch = geo.split_object(model.low, {"lk_wall_hatch": lambda c: not in_hatch(c), "hatch_door": in_hatch})
+        model.low = wall
+        model.extras.append(hatch)
+
+    return Model(low=low, decals=decals, extras=colliders + [lamp_obj], after_bake=split)
