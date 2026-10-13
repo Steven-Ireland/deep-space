@@ -93,7 +93,7 @@ class Mesh:
         return self._finish(faces, material, place(at, rot))
 
     def lathe(self, profile, material, sides=8, at=(0, 0, 0), rot=(0, 0, 0), cap_start=True, cap_end=True,
-              angle_offset=None):
+              angle_offset=None, scale=(1, 1, 1)):
         """A surface of revolution around Z from `profile`, a list of (radius, z) from bottom to top.
         Ends with a radius above zero are capped with an n-gon."""
         offset = math.pi / sides if angle_offset is None else angle_offset
@@ -113,7 +113,7 @@ class Mesh:
             faces.append(self.bm.faces.new(list(reversed(rings[0]))))
         if cap_end and profile[-1][0] > 0:
             faces.append(self.bm.faces.new(rings[-1]))
-        return self._finish(faces, material, place(at, rot))
+        return self._finish(faces, material, place(at, rot, scale))
 
     def prism(self, outline, depth, material, at=(0, 0, 0), rot=(0, 0, 0), bevel=0.0, segments=1):
         """An outline of (x, z) points (counter-clockwise, seen from the front) extruded `depth`
