@@ -1,0 +1,22 @@
+# Godot
+.godot/
+/android/
+/export/
+*.translation
+
+# Blender: generated .blend files are rebuilt by art/blender/build.py in seconds
+art/source/
+*.blend1
+*.blend2
+
+# Downloaded texture sources (large originals; processed tiles are committed)
+art/textures_src/
+
+# OS / editor
+.DS_Store
+.vscode/
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
