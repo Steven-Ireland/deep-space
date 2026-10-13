@@ -29,8 +29,8 @@ const INTERIOR_LAYER := 2
 
 ## Warm sodium-amber practicals (GDD §14).
 @export var light_colour := Color(1.0, 0.78, 0.52)
-@export var light_energy := 0.9
-@export var light_range := 6.5
+@export var light_energy := 1.35
+@export var light_range := 7.0
 
 ## Room character at each grid cell.
 var cells := {}

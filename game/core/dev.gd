@@ -8,6 +8,7 @@ extends Node
 ##   --look=<yaw>,<pitch>  their starting view, in degrees (Player)
 ##   --view=<x>,<y>,<z>,<yaw>,<pitch>  look from a fixed camera instead (degrees), e.g. for shots
 ##   --system-seed=<n>     build this star system instead of the default (StarSystem)
+##   --operate=<screen>    step up to the terminal on that screen mesh, e.g. screen_survey (Player)
 
 
 func _ready() -> void:

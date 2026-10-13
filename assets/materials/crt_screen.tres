@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://game/rendering/psx_unlit.gdshader" id="shader"]
+
+[resource]
+resource_name = "crt_screen"
+shader = ExtResource("shader")
+shader_parameter/albedo = Color(0.03, 0.045, 0.04, 1)
+shader_parameter/energy = 1.0

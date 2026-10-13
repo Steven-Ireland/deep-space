@@ -353,4 +353,66 @@ def split_object(obj, parts):
             collection.objects.link(part)
         result.append(part)
     bpy.data.objects.remove(obj)
+    for name, part in zip(parts, result):
+        part.name = name
+        part.data.name = name
     return result
+
+
+def screen(name, width, height, matrix, material="crt_screen", bulge=0.012, grid=(4, 3)):
+    """A CRT face: a slightly bulged grid `width` x `height` facing -Y in its own frame, placed by
+    `matrix`, with UVs running 0..1 across it so Godot can show a terminal's SubViewport on it
+    exactly. Not baked: it keeps the `crt_screen` material for the terminal to replace."""
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("UVMap")
+    cols, rows = grid
+    verts = {}
+    for j in range(rows + 1):
+        for i in range(cols + 1):
+            u, v = i / cols, j / rows
+            x, z = (u - 0.5) * width, (v - 0.5) * height
+            # A gentle dome toward the viewer, deepest in the middle.
+            dome = bulge * (1 - (2 * u - 1) ** 2) * (1 - (2 * v - 1) ** 2)
+            verts[i, j] = (bm.verts.new((x, -dome, z)), (u, v))
+    for j in range(rows):
+        for i in range(cols):
+            quad = [verts[i, j], verts[i + 1, j], verts[i + 1, j + 1], verts[i, j + 1]]
+            face = bm.faces.new([q[0] for q in quad])
+            for loop, (_, coords) in zip(face.loops, quad):
+                loop[uv].uv = coords
+            if face.normal.y > 0:
+                face.normal_flip()
+    bmesh.ops.transform(bm, matrix=matrix, verts=list(bm.verts))
+    data = bpy.data.meshes.new(name)
+    bm.to_mesh(data)
+    bm.free()
+    mat = bpy.data.materials.get(material) or bpy.data.materials.new(material)
+    data.materials.append(mat)
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj
+
+
+def screen_round(name, radius, matrix, material="crt_screen", sides=16, bulge=0.01):
+    """A round CRT face (a scanner scope): a domed disc facing -Y, UVs planar 0..1 across its
+    bounding square, so the terminal draws a round display into the middle of its viewport."""
+    bm = bmesh.new()
+    uv = bm.loops.layers.uv.new("UVMap")
+    centre = bm.verts.new((0, -bulge, 0))
+    ring = [bm.verts.new((radius * math.cos(2 * math.pi * i / sides), 0, radius * math.sin(2 * math.pi * i / sides)))
+            for i in range(sides)]
+    for i in range(sides):
+        face = bm.faces.new((centre, ring[i], ring[(i + 1) % sides]))
+        if face.normal.y > 0:
+            face.normal_flip()
+        for loop in face.loops:
+            x, _, z = loop.vert.co
+            loop[uv].uv = (x / (2 * radius) + 0.5, z / (2 * radius) + 0.5)
+    bmesh.ops.transform(bm, matrix=matrix, verts=list(bm.verts))
+    data = bpy.data.meshes.new(name)
+    bm.to_mesh(data)
+    bm.free()
+    data.materials.append(bpy.data.materials.get(material) or bpy.data.materials.new(material))
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.scene.collection.objects.link(obj)
+    return obj

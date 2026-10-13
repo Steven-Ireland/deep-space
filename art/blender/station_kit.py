@@ -443,8 +443,12 @@ def ceiling():
     faces = m.box((WIDTH, WIDTH, 0.1), tile, at=(0, 0, HEIGHT + 0.05))
     bottom = m.faces(among=faces, normal=(0, 0, -1), min_dot=0.99)
     # Recess the fixture: inset the bottom face to a 2.2 x 0.7 m opening, then push it up.
-    m.box((2.3, 0.8, 0.1), k["frame"], at=(0, 0, HEIGHT - 0.03), bevel=0.01)
-    m.box((2.1, 0.6, 0.02), light, at=(0, 0, HEIGHT - 0.085))
+    # A shallow steel frame, and a frosted diffuser box below it that glows on every face, so the
+    # fixture reads as a light from across a room, not just from underneath.
+    m.box((2.3, 0.8, 0.04), k["frame"], at=(0, 0, HEIGHT - 0.01), bevel=0.01)
+    m.box((2.1, 0.6, 0.09), light, at=(0, 0, HEIGHT - 0.075), bevel=0.01)
+    for x in (-1.08, 1.08):
+        m.box((0.06, 0.64, 0.11), k["frame"], at=(x, 0, HEIGHT - 0.075), bevel=0.008)
     m.subdivide(1.0)
     low = m.to_object()
     d = Mesh("lk_ceiling_decals")
@@ -458,7 +462,7 @@ def ceiling():
     # Grille bars across the fixture.
     for i in range(9):
         x = -1.0 + i * 0.25
-        f = frame((x, 0, HEIGHT - 0.095), down, up=(0, 1, 0), lift=0.001)
+        f = frame((x, 0, HEIGHT - 0.12), down, up=(0, 1, 0), lift=0.001)
         d.polygon([(-0.015, -0.3), (0.015, -0.3), (0.015, 0.3), (-0.015, 0.3)], dm["dark"], f)
     collider = _collider("lk_ceiling_col", (WIDTH, WIDTH, 0.1), (0, 0, HEIGHT + 0.05))
     return Model(low=low, decals=[d.to_object()], extras=[collider])

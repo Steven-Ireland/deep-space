@@ -46,12 +46,15 @@ const NEBULAE := [
 @export var seed := 1
 
 var star_type := ""
+## The system's catalogue name, e.g. "GJ-0042"; planets are this plus a letter (b, c, ...).
+var designation := ""
 ## Each planet: {"kind", "radius", "distance", "direction", "node"}.
 var planets: Array[Dictionary] = []
 var sun: DirectionalLight3D
 
 
 func _ready() -> void:
+	add_to_group(&"star_system")
 	generate(int(Args.value("--system-seed", str(seed))))
 
 
@@ -64,6 +67,7 @@ func generate(new_seed: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(["system", new_seed])
 
+	designation = "%s-%04d" % [["KX", "HD", "GJ", "TY", "LH", "VX", "RK"][rng.randi_range(0, 6)], rng.randi_range(1, 9999)]
 	star_type = _pick(rng, STARS)
 	var star: Dictionary = STARS[star_type]
 	# The primary hangs ahead of the bridge viewport (fore is -Z), where the crew first sees it; the
@@ -155,7 +159,9 @@ func _add_planet(rng: RandomNumberGenerator, sun_direction: Vector3, ahead: Vect
 	planet.position = direction * distance
 	planet.rotation = Vector3(rng.randf_range(-0.4, 0.4), rng.randf_range(0, TAU), rng.randf_range(-0.3, 0.3))
 	add_child(planet)
-	planets.append({"kind": kind, "radius": radius, "distance": distance, "direction": direction, "node": planet})
+	var letter := "bcdefg"[planets.size()]
+	planets.append({"kind": kind, "radius": radius, "distance": distance, "direction": direction, "node": planet,
+			"name": "%s %s" % [designation, letter]})
 
 
 ## A random unit direction between two elevations (degrees) at any azimuth.

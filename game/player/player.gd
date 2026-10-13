@@ -29,6 +29,10 @@ var sprinting := false
 
 ## The Interactable under the crosshair, on the owner's machine.
 var aimed_at: Interactable
+## The terminal this crew member is working at, if any (GDD §10).
+var operating: Terminal
+var _terminal_cursor := Vector2(-1, -1)
+var _camera_tween: Tween
 
 var _bob := 0.0
 
@@ -45,6 +49,7 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	add_to_group(&"crew")
 	var local := is_multiplayer_authority()
 	camera.current = local
 	body_visual.visible = not local
@@ -52,6 +57,7 @@ func _ready() -> void:
 	aim.target_position = Vector3(0, 0, -REACH)
 	aim.enabled = local
 	if local:
+		add_to_group(&"local_player")
 		_apply_dev_flags()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		var hud := preload("res://game/player/visor_hud.tscn").instantiate()
@@ -62,6 +68,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not is_multiplayer_authority():
+		return
+	if operating != null:
+		_terminal_input(event)
+		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		look.x -= event.relative.x * MOUSE_SENSITIVITY
@@ -81,7 +91,10 @@ func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		rotation.y = look.x
 		head.rotation.x = look.y
-		_update_aim()
+		if operating == null:
+			_update_aim()
+		else:
+			aimed_at = null
 	else:
 		var follow := 1.0 - exp(-delta * 18.0)
 		rotation.y = lerp_angle(rotation.y, look.x, follow)
@@ -99,6 +112,8 @@ func _tick(delta: float, _tick_number: int) -> void:
 	crouching = Input.is_action_pressed("crouch") or (crouching and not _can_stand())
 	_fit_shape()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	if operating != null:
+		input = Vector2.ZERO
 	sprinting = Input.is_action_pressed("sprint") and not crouching and input.y < -0.1
 	var speed := CROUCH_SPEED if crouching else (SPRINT_SPEED if sprinting else WALK_SPEED)
 	var wish := (Basis(Vector3.UP, look.x) * Vector3(input.x, 0, input.y)).limit_length(1.0) * speed
@@ -128,7 +143,7 @@ func _update_aim() -> void:
 
 
 func _head_bob(delta: float) -> void:
-	if not is_multiplayer_authority():
+	if not is_multiplayer_authority() or camera.top_level:
 		return
 	var speed := Vector2(velocity.x, velocity.z).length()
 	if is_on_floor() and speed > 0.3:
@@ -162,7 +177,66 @@ func _can_stand() -> bool:
 func _apply_dev_flags() -> void:
 	if Args.flag("--flashlight"):
 		flashlight_on = true
+	var target := Args.value("--operate", "")
+	if target != "":
+		_operate_when_ready.call_deferred(target)
 	var view := Args.value("--look", "")
 	if view != "":
 		var angles := view.split_floats(",")
 		look = Vector2(deg_to_rad(angles[0]), deg_to_rad(angles[1] if angles.size() > 1 else 0.0))
+
+
+## Steps up to `terminal`: the camera eases in until its screen fills the view, and the mouse
+## drives the screen's cursor. Interact or pause steps back.
+func operate(terminal: Terminal) -> void:
+	if operating != null:
+		return
+	operating = terminal
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var start := camera.global_transform
+	camera.top_level = true
+	camera.global_transform = start
+	_ease_camera(terminal.view_transform(camera.fov))
+
+
+func leave_terminal() -> void:
+	if operating == null:
+		return
+	operating.screen.cursor = Vector2(-1, -1)
+	operating = null
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	await _ease_camera(head.global_transform)
+	if operating == null:
+		camera.top_level = false
+		camera.transform = Transform3D.IDENTITY
+
+
+func _ease_camera(to: Transform3D) -> Signal:
+	if _camera_tween != null:
+		_camera_tween.kill()
+	_camera_tween = create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_camera_tween.tween_property(camera, "global_transform", to, 0.45)
+	return _camera_tween.finished
+
+
+func _terminal_input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") or event.is_action_pressed("interact"):
+		leave_terminal()
+		return
+	if event is InputEventMouse:
+		var mouse: Vector2 = event.position
+		var at := operating.pointer(camera.project_ray_origin(mouse), camera.project_ray_normal(mouse))
+		operating.screen.cursor = at
+		if at.x >= 0:
+			operating.push(event, at)
+	elif event is InputEventKey:
+		operating.push(event, Vector2.ZERO)
+
+
+func _operate_when_ready(screen_mesh: String) -> void:
+	for i in 20:
+		await get_tree().process_frame
+	for terminal: Terminal in get_tree().get_root().find_children("*", "Terminal", true, false):
+		if terminal.screen_mesh_name == screen_mesh:
+			operate(terminal)
+			return
