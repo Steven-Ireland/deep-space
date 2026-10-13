@@ -7,6 +7,7 @@ extends Node
 ##   --flashlight          the local crew member starts with the flashlight on (Player)
 ##   --look=<yaw>,<pitch>  their starting view, in degrees (Player)
 ##   --view=<x>,<y>,<z>,<yaw>,<pitch>  look from a fixed camera instead (degrees), e.g. for shots
+##   --system-seed=<n>     build this star system instead of the default (StarSystem)
 
 
 func _ready() -> void:

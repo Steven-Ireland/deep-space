@@ -23,6 +23,9 @@ const KIT := {
 	"ceiling": preload("res://assets/models/station/lk_ceiling.glb"),
 }
 const DOOR := preload("res://game/station/door.tscn")
+## Render layer for interiors: the star's light skips it (StarSystem), so it can't leak through
+## thin walls; interiors are lit by their own practicals.
+const INTERIOR_LAYER := 2
 
 ## Warm sodium-amber practicals (GDD §14).
 @export var light_colour := Color(1.0, 0.78, 0.52)
@@ -63,6 +66,7 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 			door.name = "Door_" + key.replace(",", "_")
 			door.lamp = piece.find_child("status_lamp", true, false)
 			add_child(door)
+			_mark_interior(door)
 			doors[key] = door
 		for end: Vector2i in edge.ends:
 			wall_ends[end] = wall_ends.get(end, []) + [edge.axis]
@@ -120,7 +124,13 @@ func _place(kind: String, at: Vector3, yaw: float) -> Node3D:
 	piece.position = at
 	piece.rotation.y = yaw
 	add_child(piece)
+	_mark_interior(piece)
 	return piece
+
+
+static func _mark_interior(node: Node) -> void:
+	for mesh: VisualInstance3D in node.find_children("*", "VisualInstance3D", true, false):
+		mesh.layers = INTERIOR_LAYER
 
 
 func _light(at: Vector3) -> void:
