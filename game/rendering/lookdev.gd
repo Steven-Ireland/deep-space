@@ -4,6 +4,9 @@ extends Node3D
 
 const LIT := preload("res://game/rendering/psx_lit.gdshader")
 
+## Off when the room is a backdrop for players, who bring their own cameras and lights.
+@export var with_camera := true
+
 
 func _ready() -> void:
 	var noise := FastNoiseLite.new()
@@ -45,6 +48,15 @@ func _ready() -> void:
 	world.environment = environment
 	add_child(world)
 
+	var practical := OmniLight3D.new()
+	practical.position = Vector3(4, 2.6, -6)
+	practical.omni_range = 5
+	practical.light_color = Color(1.0, 0.2, 0.15)
+	practical.light_energy = 2
+	add_child(practical)
+
+	if not with_camera:
+		return
 	var camera := Camera3D.new()
 	camera.position = Vector3(0, 1.45, 4.2)
 	camera.rotation_degrees.x = -14
@@ -60,12 +72,6 @@ func _ready() -> void:
 	flashlight.shadow_enabled = true
 	camera.add_child(flashlight)
 
-	var practical := OmniLight3D.new()
-	practical.position = Vector3(4, 2.6, -6)
-	practical.omni_range = 5
-	practical.light_color = Color(1.0, 0.2, 0.15)
-	practical.light_energy = 2
-	add_child(practical)
 
 
 func _material(color: Color, texture: Texture2D) -> ShaderMaterial:
@@ -84,4 +90,11 @@ func _box(size: Vector3, at: Vector3, material: Material) -> MeshInstance3D:
 	instance.mesh = mesh
 	instance.position = at
 	add_child(instance)
+	var body := StaticBody3D.new()
+	var collision := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	collision.shape = box
+	body.add_child(collision)
+	instance.add_child(body)
 	return instance

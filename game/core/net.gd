@@ -15,7 +15,9 @@ const MAX_CREW := 4
 
 
 func _ready() -> void:
-	multiplayer.connected_to_server.connect(func(): joined.emit())
+	multiplayer.connected_to_server.connect(func():
+		print("Net: joined as peer %d." % multiplayer.get_unique_id())
+		joined.emit())
 	multiplayer.connection_failed.connect(func(): _fail("Couldn't reach the host."))
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	if DisplayServer.get_name() == "headless" and not Args.flag("--host") and not Args.flag("--join"):
@@ -32,6 +34,7 @@ func host(port := DEFAULT_PORT) -> Error:
 		return error
 	multiplayer.multiplayer_peer = peer
 	_title("Host")
+	print("Net: hosting on port %d." % port)
 	hosted.emit()
 	return OK
 
@@ -45,6 +48,7 @@ func join(address: String, port := DEFAULT_PORT) -> Error:
 		return error
 	multiplayer.multiplayer_peer = peer
 	_title("Crew")
+	print("Net: connecting to %s:%d." % [address, port])
 	return OK
 
 

@@ -4,6 +4,8 @@ extends Node
 ##   --screenshot=<path>   save the window's image after `--frames` frames, then quit
 ##   --frames=<n>          frames to wait first (default 90)
 ##   --quit-after=<s>      quit after this many seconds
+##   --flashlight          the local crew member starts with the flashlight on (Player)
+##   --look=<yaw>,<pitch>  their starting view, in degrees (Player)
 
 
 func _ready() -> void:
