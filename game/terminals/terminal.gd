@@ -14,6 +14,8 @@ const CRT := preload("res://game/terminals/crt.gdshader")
 @export var resolution := Vector2i(320, 240)
 @export var glow := Color(0.4, 1.0, 0.5)
 @export var verb := "USE"
+## Whether crew can step up and use it (a console) or it only shows (the wrist cuff).
+@export var interactive := true
 ## Properties set on the screen after it's made, e.g. {"slot": 2} for a vitals tile.
 @export var screen_settings := {}
 
@@ -51,8 +53,9 @@ func _ready() -> void:
 	material.set_shader_parameter("lines", float(resolution.y))
 	mesh.material_override = material
 	_solve_plane()
-	_add_panel()
-	_add_glow()
+	if interactive:
+		_add_panel()
+		_add_glow()
 
 
 ## The camera pose for operating this terminal: square on to the screen, as close as the view

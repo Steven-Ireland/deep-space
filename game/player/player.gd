@@ -42,6 +42,13 @@ var _bob := 0.0
 @onready var body_visual: Node3D = $Body
 @onready var shape: CollisionShape3D = $Shape
 @onready var aim: RayCast3D = $Head/Camera3D/Aim
+@onready var view_model: Node3D = $Head/Camera3D/ViewModel
+@onready var arms_anim: AnimationPlayer = $Head/Camera3D/ViewModel/Arms.find_child("AnimationPlayer", true, false)
+@onready var body_anim: AnimationPlayer = $Body.find_child("AnimationPlayer", true, false)
+
+const FLASHLIGHT := preload("res://assets/models/items/it_flashlight.glb")
+var _cuff_up := false
+var _torch: Node3D
 
 
 func _enter_tree() -> void:
@@ -53,6 +60,9 @@ func _ready() -> void:
 	var local := is_multiplayer_authority()
 	camera.current = local
 	body_visual.visible = not local
+	view_model.visible = local
+	if local:
+		_equip_view_model()
 	look.x = rotation.y
 	aim.target_position = Vector3(0, 0, -REACH)
 	aim.enabled = local
@@ -100,6 +110,7 @@ func _process(delta: float) -> void:
 		rotation.y = lerp_angle(rotation.y, look.x, follow)
 		head.rotation.x = lerp_angle(head.rotation.x, look.y, follow)
 	flashlight.visible = flashlight_on
+	_animate()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -240,3 +251,52 @@ func _operate_when_ready(screen_mesh: String) -> void:
 		if terminal.screen_mesh_name == screen_mesh:
 			operate(terminal)
 			return
+
+
+
+## The first-person arms: the flashlight in the right hand, the wrist cuff's screen live.
+func _equip_view_model() -> void:
+	var grip := view_model.find_child("SOCKET_grip", true, false) as Node3D
+	if grip != null:
+		_torch = FLASHLIGHT.instantiate()
+		grip.add_child(_torch)
+	var cuff := Terminal.new()
+	cuff.screen_mesh_name = "screen_cuff"
+	cuff.screen_script = preload("res://game/terminals/screens/cuff_screen.gd")
+	cuff.resolution = Vector2i(48, 56)
+	cuff.interactive = false
+	view_model.find_child("Arms", true, false).add_child(cuff)
+
+
+## Arms (owner) and body (everyone else) play the clip that matches what the crew member's doing.
+func _animate() -> void:
+	var speed := Vector2(velocity.x, velocity.z).length()
+	if is_multiplayer_authority():
+		if arms_anim == null:
+			return
+		if _torch != null:
+			# The torch follows the hand but always points where the crew member looks.
+			_torch.global_basis = camera.global_basis * Basis(Vector3.UP, PI)
+		var raise := (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null
+		if raise and not _cuff_up:
+			_cuff_up = true
+			arms_anim.play("cuff_raise")
+			arms_anim.queue("cuff_hold")
+		elif not raise and _cuff_up:
+			_cuff_up = false
+			arms_anim.play_backwards("cuff_raise")
+		elif not _cuff_up and not arms_anim.is_playing() or (not _cuff_up and arms_anim.current_animation in ["idle", "walk"]):
+			var wanted := "walk" if speed > 0.4 and is_on_floor() else "idle"
+			if arms_anim.current_animation != wanted:
+				arms_anim.play(wanted)
+	elif body_anim != null:
+		var wanted := "idle"
+		if crouching:
+			wanted = "crouch"
+		elif speed > 3.0:
+			wanted = "run"
+		elif speed > 0.4:
+			wanted = "walk"
+		if body_anim.current_animation != wanted:
+			body_anim.play(wanted)
+		body_anim.speed_scale = clampf(speed / (SPRINT_SPEED if wanted == "run" else WALK_SPEED), 0.5, 1.5) if wanted in ["walk", "run"] else 1.0

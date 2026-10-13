@@ -3,22 +3,13 @@
 [ext_resource type="Script" path="res://game/player/player.gd" id="1"]
 [ext_resource type="Script" path="res://addons/netfox/state-synchronizer.gd" id="2"]
 [ext_resource type="Script" path="res://addons/netfox/tick-interpolator.gd" id="3"]
-[ext_resource type="Shader" path="res://game/rendering/psx_lit.gdshader" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/characters/ch_suit.glb" id="4"]
+[ext_resource type="PackedScene" path="res://assets/models/characters/ch_arms.glb" id="5"]
 
 [sub_resource type="CapsuleShape3D" id="capsule"]
 resource_local_to_scene = true
 radius = 0.3
 height = 1.8
-
-[sub_resource type="CapsuleMesh" id="stand_in"]
-radius = 0.3
-height = 1.8
-radial_segments = 8
-rings = 2
-
-[sub_resource type="ShaderMaterial" id="stand_in_material"]
-shader = ExtResource("4")
-shader_parameter/albedo = Color(0.8, 0.76, 0.66, 1)
 
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2
@@ -30,10 +21,8 @@ script = ExtResource("1")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("capsule")
 
-[node name="Body" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-mesh = SubResource("stand_in")
-surface_material_override/0 = SubResource("stand_in_material")
+[node name="Body" parent="." instance=ExtResource("4")]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0, 0, 0)
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
@@ -41,6 +30,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
 [node name="Camera3D" type="Camera3D" parent="Head"]
 fov = 75.0
 near = 0.05
+
+[node name="ViewModel" type="Node3D" parent="Head/Camera3D"]
+transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0, 0.06, 0.02)
+
+[node name="Arms" parent="Head/Camera3D/ViewModel" instance=ExtResource("5")]
 
 [node name="Aim" type="RayCast3D" parent="Head/Camera3D"]
 collision_mask = 5

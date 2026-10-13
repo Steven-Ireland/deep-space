@@ -71,6 +71,8 @@ class Mesh:
         self.name = name
         self.bm = bmesh.new()
         self.materials = []
+        self.groups = []      # vertex group names, for rigid parts bound to bones (rig.py)
+        self._group = None
 
     # Parts --------------------------------------------------------------------------------------
 
@@ -188,6 +190,13 @@ class Mesh:
             face.normal_flip()
         return self._finish([face], material, matrix)
 
+    def bone(self, name):
+        """Parts added after this belong wholly to bone `name` (PSX-style rigid segments)."""
+        if name not in self.groups:
+            self.groups.append(name)
+        self._group = self.groups.index(name)
+        return self
+
     # Operations on faces ------------------------------------------------------------------------
 
     def inset(self, faces, thickness, depth=0.0, material=None, individual=True):
@@ -276,6 +285,8 @@ class Mesh:
             polygon.use_smooth = False
         obj = bpy.data.objects.new(self.name, data)
         (collection or bpy.context.scene.collection).objects.link(obj)
+        for name in self.groups:
+            obj.vertex_groups.new(name=name)
         return obj
 
     # Internals ----------------------------------------------------------------------------------
@@ -304,6 +315,11 @@ class Mesh:
         for f in faces:
             f.material_index = index
             f.smooth = False
+        if self._group is not None:
+            deform = self.bm.verts.layers.deform.verify()
+            for v in {v for f in faces for v in f.verts}:
+                v[deform].clear()
+                v[deform][self._group] = 1.0
         if matrix is not None:
             self.transform(faces, matrix)
         return faces

@@ -9,6 +9,10 @@ const LIT := preload("res://game/rendering/psx_lit.gdshader")
 
 
 func _ready() -> void:
+	var model_path := Args.value("--model", "")
+	if model_path != "":
+		_inspect(model_path)
+		return
 	var noise := FastNoiseLite.new()
 	noise.frequency = 0.08
 	var texture := NoiseTexture2D.new()
@@ -98,3 +102,31 @@ func _box(size: Vector3, at: Vector3, material: Material) -> MeshInstance3D:
 	body.add_child(collision)
 	instance.add_child(body)
 	return instance
+
+
+
+## Model inspection (dev): `--model=<res path>` shows one model in a lit void, `--anim=<clip>` plays
+## a clip paused at `--anim-time=<s>`. Pair with Dev's --view and --screenshot.
+func _inspect(path: String) -> void:
+	var model: Node3D = load(path).instantiate()
+	add_child(model)
+	var player := model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	var clip := Args.value("--anim", "")
+	if player != null:
+		print("Clips: ", player.get_animation_list())
+		if clip != "" and player.has_animation(clip):
+			player.play(clip)
+			player.seek(float(Args.value("--anim-time", "0")), true)
+			player.pause()
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.05, 0.055, 0.065)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color(0.35, 0.35, 0.38)
+	var world := WorldEnvironment.new()
+	world.environment = environment
+	add_child(world)
+	var key := DirectionalLight3D.new()
+	key.rotation_degrees = Vector3(-40, 30, 0)
+	key.light_energy = 1.4
+	add_child(key)
