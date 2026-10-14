@@ -47,6 +47,10 @@ const HULL_LAYER := 4
 
 ## Whether to wrap the deck in hull plating (the LANTERN; derelict modules bring their own).
 @export var hull := true
+## Rooms open to space (layout characters): their zones hold no air (GDD §9.2).
+@export var vacuum := ""
+## How high a room's air goes, for its zone.
+const ROOM_HEIGHT := 3.0
 
 ## Room character at each grid cell.
 var cells := {}
@@ -69,6 +73,9 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 		_place("ceiling", at, 0.0)
 		if lit and not dark.contains(cells[cell]):
 			_light(at)
+		var zone := Zone.make(at + Vector3.UP * ROOM_HEIGHT / 2, Vector3(CELL, ROOM_HEIGHT, CELL), not vacuum.contains(cells[cell]))
+		zone.name = "Zone_%d_%d" % [cell.x, cell.y]
+		add_child(zone)
 	var wall_ends := {}
 	for key: String in edges:
 		var edge: Dictionary = edges[key]

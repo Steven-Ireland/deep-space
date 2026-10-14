@@ -47,13 +47,11 @@ func _let_go(record: Dictionary, where: Transform3D, velocity: Vector3) -> void:
 ## Host: `peer` takes `pickup`. It leaves the world and goes to their belt or hands; a second
 ## request for it finds it gone.
 func take(pickup: Pickup, peer: int) -> void:
-	if pickup.is_queued_for_deletion():
+	var player := Player.of_peer(get_tree(), peer)
+	if pickup.is_queued_for_deletion() or player == null:
 		return
-	for player: Player in get_tree().get_nodes_in_group(&"crew"):
-		if player.name == str(peer):
-			pickup.queue_free()
-			player.receive.rpc_id(peer, pickup.record)
-			return
+	pickup.queue_free()
+	player.receive.rpc_id(peer, pickup.record)
 
 
 func _make(data: Dictionary) -> Node:

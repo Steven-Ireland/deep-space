@@ -5,6 +5,8 @@ extends CanvasLayer
 ##     thing, tied to it by a jointed leader line that fades toward it.
 ##   - The belt (GDD §9.4): four slots in the lower right, the one in hand raised and named (or,
 ##     carrying something big, its name over the belt). Bright when it changes, then dim.
+##   - O2 (GDD §9.2): a small gauge in the upper left while the suit is breathing for its wearer or
+##     running low, blinking when nearly out; and VITALS blinking under it when health is critical.
 
 const COLOUR := Color(0.72, 0.95, 0.78)
 const FONT := preload("res://assets/fonts/VT323-Regular.ttf")
@@ -36,6 +38,8 @@ var _drawn := 0.0
 var _time := 0.0
 var _belt_age := 0.0
 var _icons := {}
+var _o2_shown := 0.0
+var _o2_age := 0.0 # seconds since O2 last mattered
 
 
 func _ready() -> void:
@@ -50,6 +54,10 @@ func _process(delta: float) -> void:
 	visible = player.operating == null and not Args.flag("--view")
 	_time += delta
 	_belt_age += delta
+	# O2 shows while it matters, and for a few seconds after.
+	var o2_matters := player.in_vacuum or player.o2 < Player.O2_CAPACITY * 0.25 or player.health < 0.3
+	_o2_age = 0.0 if o2_matters else _o2_age + delta
+	_o2_shown = move_toward(_o2_shown, 1.0 if _o2_age < 3.0 else 0.0, delta / 0.4)
 	var target := player.aimed_at
 	if target != null and target != _target:
 		# A new thing: the box starts beside it and the line draws out again.
@@ -104,6 +112,27 @@ func _draw_hud() -> void:
 	if _shown > 0.0:
 		_draw_prompt(_shown)
 	_draw_belt()
+	if _o2_shown > 0.0:
+		_draw_o2(_o2_shown)
+
+
+## O2: the label, ten cells, the minutes and seconds left. Nearly out, it blinks.
+func _draw_o2(alpha: float) -> void:
+	var fraction := player.o2 / Player.O2_CAPACITY
+	if fraction < 0.1 and fmod(_time, 0.5) > 0.3:
+		alpha *= 0.3
+	var at := Vector2(MARGIN, MARGIN).floor()
+	canvas.draw_string(FONT, at + Vector2(0, 11), "O2", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
+	for i in 10:
+		var cell := Rect2(at + Vector2(16 + i * 5, 3), Vector2(4, 8))
+		if fraction > i / 10.0:
+			canvas.draw_rect(cell, Color(COLOUR, 0.9 * alpha))
+		else:
+			canvas.draw_rect(cell.grow(-0.5), Color(COLOUR, 0.35 * alpha), false, 1.0)
+	var left := ceili(player.o2)
+	canvas.draw_string(FONT, at + Vector2(70, 11), "%d:%02d" % [left / 60, left % 60], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
+	if player.health < 0.3 and fmod(_time, 0.8) < 0.5:
+		canvas.draw_string(FONT, at + Vector2(0, 26), "VITALS", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
 
 
 func _draw_prompt(alpha: float) -> void:

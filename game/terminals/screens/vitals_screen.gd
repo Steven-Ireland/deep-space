@@ -1,6 +1,6 @@
 extends CrtScreen
-## OPS: one crew member's vitals (GDD §5, §10): heartbeat trace, O2, where they are. One tile per
-## crew slot; a vacant slot shows static.
+## OPS: one crew member's vitals (GDD §5, §10): heartbeat trace, O2 (and whether they're breathing
+## from it), where they are. One tile per crew slot; a vacant slot shows static.
 
 @export var slot := 0
 
@@ -18,12 +18,13 @@ func _draw_screen() -> void:
 		text(size.x / CELL.x / 2 - 4, size.y / CELL.y / 2 - 0.5, "NO SIGNAL", DIM)
 		return
 	var player: Player = crew[slot]
-	var speed := Vector2(player.velocity.x, player.velocity.z).length()
-	var bpm := 68.0 + speed * 18.0 + (25.0 if player.sprinting else 0.0)
-	# ECG: a scrolling trace with a spike each beat.
+	var bpm := player.heart_rate()
+	# ECG: a scrolling trace with a spike each beat; flat, dead.
 	var beat := fmod(time * bpm / 60.0, 1.0)
 	var spike := 0.0
-	if beat < 0.04:
+	if bpm <= 0.0:
+		spike = 0.0
+	elif beat < 0.04:
 		spike = -1.0
 	elif beat < 0.08:
 		spike = 0.6
@@ -33,12 +34,23 @@ func _draw_screen() -> void:
 	if _trace.size() > int(size.x / 2):
 		_trace.remove_at(0)
 	var mid := size.y * 0.42
+	var trace := GREEN if player.health > 0.3 else RED
 	for i in range(1, _trace.size()):
-		draw_line(Vector2((i - 1) * 2, mid + _trace[i - 1] * 22), Vector2(i * 2, mid + _trace[i] * 22), GREEN, 1.0)
-	text(0.5, 6.2, "%3d BPM" % int(bpm), GREEN)
-	text(0.5, 7.2, "O2 100%", GREEN)
-	var lantern := get_tree().get_first_node_in_group(&"lantern")
-	var where := "ABOARD"
-	if lantern != null and lantern.has_method("room_at"):
-		where = lantern.room_at(player.global_position)
-	text(0.5, 8.2, where, AMBER)
+		draw_line(Vector2((i - 1) * 2, mid + _trace[i - 1] * 22), Vector2(i * 2, mid + _trace[i] * 22), trace, 1.0)
+	text(0.5, 6.2, "%3d BPM" % int(bpm) if bpm > 0.0 else "NO PULSE", trace)
+	var o2 := player.o2 / Player.O2_CAPACITY
+	text(0.5, 7.2, "O2 %3d%%" % roundi(o2 * 100.0), GREEN if o2 > 0.25 else RED)
+	if player.in_vacuum and blink():
+		text(10.5, 7.2, "VAC", AMBER)
+	text(0.5, 8.2, _where(player), AMBER)
+
+
+## Where a crew member is: a room aboard, a derelict, or outside in space.
+func _where(player: Player) -> String:
+	var zone := Zone.at(player.get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT)
+	if zone == null:
+		return "OUTSIDE"
+	var deck := zone.get_parent()
+	if deck.is_in_group(&"lantern"):
+		return deck.room_at(player.global_position)
+	return "DERELICT"

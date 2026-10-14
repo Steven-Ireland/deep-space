@@ -17,6 +17,7 @@ extends Node
 ##                         crowbar,,o2_canister (Player)
 ##   --hold=<kind>         and holds this: from the belt, or put there, or carried if it's big,
 ##                         e.g. crowbar (Player)
+##   --o2=<s>, --health=<h> their suit starts with this much O2 (seconds) and health (0..1) (Player)
 ##   --take                a second in, they take whatever's under the crosshair (Player)
 ##   --throw=<s>           a second later, they let go of what's in hand as if Q were held that
 ##                         long: 0 sets it down (Player)

@@ -121,7 +121,7 @@ func _furnish_rooms() -> void:
 	# airlock's cycle panel beside the hatch stays in clear view of the room.
 	for i in 4:
 		_prop("rm_suit_locker", Vector3(-9.125 + i * 0.75, 0, 1.55), 180.0, [])
-	_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, [])
+	_refill_point(_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, []))
 	_prop("rm_bench", Vector3(-8.0, 0, -0.85), 0.0, [])
 	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
@@ -169,6 +169,25 @@ func _furnish_rooms() -> void:
 	# Med bay (4, 20): the pod, offline and dark until it's upgraded.
 	_prop("rm_med_pod", Vector3(4.2, 0, 20.0), 0.0, [["screen_med", "status_screen", Vector2i(160, 120), Color(1, 0.3, 0.2),
 			{"title": "MED POD", "lines": [["OFFLINE", "RED"], ["UPGRADE REQUIRED", "DIM"]]}]])
+
+
+## Crew refill their suit's O2 at the rack (GDD §5, §9.2): REFILL across its front.
+func _refill_point(rack: Node3D) -> void:
+	var refill := Interactable.new()
+	refill.name = "Refill"
+	refill.verb = "REFILL"
+	refill.housing = rack
+	refill.position = Vector3(0, 1.1, 0.16)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.4, 1.4, 0.06)
+	shape.shape = box
+	refill.add_child(shape)
+	rack.add_child(refill)
+	refill.used.connect(func(peer: int):
+		var player := Player.of_peer(get_tree(), peer)
+		if player != null:
+			player.refill_from_rack.rpc_id(peer))
 
 
 ## The hull's hero pieces: the comms mast over the bridge, the name, and thruster pods on the aft

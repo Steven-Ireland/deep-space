@@ -20,6 +20,9 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
 - **Two-handed carries:** the fuel cell, held in both hands with solved poses; slow, no sprint, no
   belt or cuff until it's set down. One waits in the docking port, one in the derelict's Prize
   room.
+- **Suit O2:** per-room zones with or without air (the sample derelict's breached rooms have
+  none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
+  board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
   star systems with sky, star and planets, the lighting pass (SSIL/SSR, Godot's default shadows).
@@ -42,8 +45,10 @@ death. The consoles and cuff show placeholder numbers.
 
 1. **Rest of M1, the crew:**
    - the Prize and a body as two-handed carries (with M4; the fuel cell's done)
-   - use (`LMB`) for tools and weapons (the arms already have a swing clip)
-   - suit O2 and pressure zones, driving the cuff, the Vitals board and the spine lights
+   - use (`LMB`) for tools and weapons (the arms already have a swing clip): the O2 canister
+     refills, sealant patches, a flare lights
+   - the helmet lamp's battery (6 minutes a cell, flicker when low, lamp cells as loot: needs a
+     lamp cell model), suit integrity and breaches
 2. **M3, navigation:**
    - sector map generation (all of Sector 1, the boss node a greybox)
    - the Nav Chart terminal and the Jump Lever

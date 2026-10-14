@@ -29,7 +29,7 @@
 
 | Thing | Authority | Sync |
 |---|---|---|
-| Player body, look, helmet lamp, held item, cuff, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `cuff_up`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
+| Player body, look, helmet lamp, held item, cuff, suit, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `cuff_up`, `o2`, `health`, `in_vacuum`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
 | Player actions (hits, interactions, pickups, throws) | **Owning client reports**; host applies | Reliable RPC to the host → host applies it to the target's state → state is broadcast |
 | Run state (map, fuel, salvage, upgrades, crew status) | Host | Reliable RPCs on change. Saved by the host to `user://` between jumps |
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
@@ -64,6 +64,7 @@
   ```
 - **Zones:**
   - `Area3D` volumes carry the zone's gravity override, pressure state (drives O2 drain and the vacuum audio low-pass) and power state.
+  - Built now: a `Zone` per deck room cell, floor to ceiling, on the "zones" layer, with `pressurized` (a deck's `vacuum` lists its airless rooms; the sample derelict's breached rooms). A crew member's suit looks up the zone at their chest each tick (a point query); outside every zone is space. Gravity and power come later.
   - Doors connect zones, and breaches change their state.
   - Unpowered derelict zones are zero-g. Mag-boots attach to surfaces there; moonlets use about 0.16 g.
 - **Player body:** `CharacterBody3D`.
@@ -213,7 +214,7 @@ deep-space/
   - a scene smoke test that loads every scene
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
-- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--belt`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--take` and `--throw` act a second or two in; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--belt`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--take` and `--throw` act a second or two in; `--o2` and `--health` set the suit; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
 - **QA tools** (`tools/`), for checking changes by eye in the real game and in Blender:
   - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--lamp] --screenshot=<out> --frames=150`.
   - `pair.sh <out> "<host flags>" "<client flags>"`: a host and a client on one machine; the host shoots once the client is aboard. With `--view` in the host flags it's the way to see a teammate's suit, held item, beam or glare.
@@ -285,3 +286,6 @@ deep-space/
   - The stores' fore shelf holds real O2 canisters and sealant, the docking port a power cell, and the sample derelict salvage, supplies and a plasma cutter. The shelf's collider follows its shelves.
   - Two-handed carries: the fuel cell goes in both hands (`carrying`), never the belt. While carrying: 1.6 m/s, no sprint, no drawing from the belt, no cuff. Both rigs have a solved `hold_carry`; the old hand-keyed `carry` clips are gone.
   - `pose_sheet.py` found an item's grip by `SOCKET_grip`'s world matrix, which a linked object doesn't have yet, and by prefix, which caught `SOCKET_grip_l`; it now takes the socket's location by its base name.
+- **2026-10-14: Suit O2 and zones** (GDD §9.2).
+  - Out of the air, the suit's O2 (360 s) runs down, three times as fast at a sprint; with none left, health runs out over 20 s (death itself comes with M4). The owner runs it; `o2`, `health` and `in_vacuum` are synced.
+  - The cuff's O2 bar and heartbeat, the Vitals board (BPM, O2, VAC, where: a room aboard, DERELICT or OUTSIDE), the spine lights (green, amber, blinking red, dark) and a visor O2 gauge read them. The station's O2 rack refills a suit (REFILL).

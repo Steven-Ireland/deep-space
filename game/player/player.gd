@@ -35,6 +35,13 @@ const THROW_WIND := 0.6
 const THROW_MIN := 3.0
 const THROW_MAX := 9.0
 const DROP_SPEED := 0.6
+## Suit O2 at base capacity, in seconds of breathing out of the air (GDD §9.2), and how many times
+## faster a sprint uses it. With none left, health runs out over SUFFOCATION seconds.
+const O2_CAPACITY := 360.0
+const SPRINT_BREATH := 3.0
+const SUFFOCATION := 20.0
+## Where the suit takes its breath, above the feet: in the chest, for which zone it's in.
+const CHEST_HEIGHT := 1.2
 
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
@@ -48,6 +55,11 @@ var sprinting := false
 ## The kind of item in hand (Items), and whether the wrist cuff is raised to read.
 var held := &""
 var cuff_up := false
+## The suit (GDD §9.2): O2 left in seconds, health 0..1, and whether it's breathing for its wearer
+## (out of the air).
+var o2 := O2_CAPACITY
+var health := 1.0
+var in_vacuum := false
 
 ## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
 ## one drawn into the hand.
@@ -83,6 +95,7 @@ var _legs_yaw := 0.0
 var _crouch := 0.0
 var _cuff := 0.0
 var _winding := -1.0 # seconds Q has been held, or -1
+var _spine_material: ShaderMaterial
 
 
 func _init() -> void:
@@ -118,6 +131,10 @@ func _ready() -> void:
 		body_visual.find_child("Skeleton3D", true, false).add_child(_pose)
 		_cuff_screen = body_visual.find_child("cuff_screen", true, false) as MeshInstance3D
 		_lamp_socket = body_visual.find_child("SOCKET_lamp", true, false) as Node3D
+		var spine := body_visual.find_child("spine_lights", true, false) as MeshInstance3D
+		if spine != null and spine.get_active_material(0) is ShaderMaterial:
+			_spine_material = spine.get_active_material(0).duplicate()
+			spine.material_override = _spine_material
 		var glass := body_visual.find_child("lamp_lens", true, false) as MeshInstance3D
 		if glass != null and glass.get_active_material(0) is ShaderMaterial:
 			_lens_material = glass.get_active_material(0).duplicate()
@@ -165,6 +182,39 @@ func _unhandled_input(event: InputEvent) -> void:
 		for i in belt.size():
 			if event.is_action_pressed("slot_%d" % (i + 1)):
 				select_slot(i)
+
+
+## The crew member playing as `peer`, or null.
+static func of_peer(tree: SceneTree, peer: int) -> Player:
+	for player: Player in tree.get_nodes_in_group(&"crew"):
+		if player.name == str(peer):
+			return player
+	return null
+
+
+## Beats a minute (the cuff, the Vitals board): resting, up with effort, racing as the air runs
+## out or as health fails; nothing, dead.
+func heart_rate() -> float:
+	if health <= 0.0:
+		return 0.0
+	var speed := Vector2(velocity.x, velocity.z).length()
+	var bpm := 68.0 + speed * 18.0 + (25.0 if sprinting else 0.0)
+	var low := O2_CAPACITY * 0.25
+	if in_vacuum and o2 < low:
+		bpm += 30.0 * (1.0 - o2 / low)
+	return bpm + (1.0 - health) * 50.0
+
+
+## Tops the suit's O2 up by `seconds`, or all the way.
+func refill(seconds := O2_CAPACITY) -> void:
+	o2 = minf(O2_CAPACITY, o2 + seconds)
+
+
+## The host tells this crew member's machine they've refilled at an O2 rack.
+@rpc("any_peer", "call_local", "reliable")
+func refill_from_rack() -> void:
+	if multiplayer.get_remote_sender_id() <= 1 and is_multiplayer_authority():
+		refill()
 
 
 ## Moves the crew member straight to `at`, without smoothing the jump (owner only).
@@ -293,6 +343,7 @@ func _process(delta: float) -> void:
 		_show_held()
 	_animate(delta)
 	_place_lamp()
+	_light_spine()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -332,6 +383,18 @@ func _tick(delta: float, _tick_number: int) -> void:
 	velocity *= NetworkTime.physics_factor
 	move_and_slide()
 	velocity /= NetworkTime.physics_factor
+	_breathe(delta)
+
+
+## The suit breathes for its wearer wherever there's no air (GDD §9.2): O2 runs down, faster at a
+## sprint; with none left, health runs out.
+func _breathe(delta: float) -> void:
+	in_vacuum = not Zone.has_air(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
+	if not in_vacuum:
+		return
+	o2 = maxf(0.0, o2 - delta * (SPRINT_BREATH if sprinting else 1.0))
+	if o2 <= 0.0:
+		health = maxf(0.0, health - delta / SUFFOCATION)
 
 
 ## The usable thing under the crosshair: the nearest Interactable within reach, unless something
@@ -412,6 +475,7 @@ func _apply_dev_flags() -> void:
 		_dev_hold(kind)
 	if Args.flag("--take") or Args.flag("--throw"):
 		_dev_actions.call_deferred()
+	_dev_suit()
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)
@@ -419,6 +483,12 @@ func _apply_dev_flags() -> void:
 	if view != "":
 		var angles := view.split_floats(",")
 		look = Vector2(deg_to_rad(angles[0]), deg_to_rad(angles[1] if angles.size() > 1 else 0.0))
+
+
+## `--o2=<seconds>` and `--health=<0..1>`: how the suit starts.
+func _dev_suit() -> void:
+	o2 = float(Args.value("--o2", str(O2_CAPACITY)))
+	health = float(Args.value("--health", "1"))
 
 
 ## `--hold`: a `kind` in hand: drawn from the belt if it's there, carried if it's big, otherwise put
@@ -560,6 +630,21 @@ func _place_lamp() -> void:
 		lens = blocked.position + (view.origin - lens).normalized() * 0.06
 	var target := view.origin - view.basis.z * LAMP_CONVERGE
 	lamp.global_transform = Transform3D(Basis.looking_at(target - lens, view.basis.y), lens)
+
+
+## The spine lights down a suit's back (GDD §10) tell the crew how its wearer is: green, amber,
+## then red and blinking as health falls; dark, dead.
+func _light_spine() -> void:
+	if _spine_material == null:
+		return
+	var colour := Color(0.3, 1.0, 0.45)
+	if health <= 0.0:
+		colour = Color(0.04, 0.05, 0.04)
+	elif health < 0.3:
+		colour = Color(1.0, 0.25, 0.15) if fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.35 else Color(0.25, 0.06, 0.04)
+	elif health < 0.6:
+		colour = Color(1.0, 0.7, 0.2)
+	_spine_material.set_shader_parameter("albedo", colour)
 
 
 ## Arms (owner) and suit (everyone else) blend their clips by what the crew member's doing.

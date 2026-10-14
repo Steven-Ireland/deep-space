@@ -163,6 +163,7 @@ slot_prev={
 3d_physics/layer_3="interact"
 3d_physics/layer_4="items"
 3d_physics/layer_5="creatures"
+3d_physics/layer_6="zones"
 
 [netfox]
 

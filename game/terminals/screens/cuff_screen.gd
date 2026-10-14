@@ -12,18 +12,20 @@ func _draw_screen() -> void:
 		return
 	var w := size.x
 	var h := size.y
-	var o2 := 1.0
+	var o2 := player.o2 / Player.O2_CAPACITY
 	var integrity := 1.0
 	var battery := 1.0
-	_bar(Rect2(4, 6, w - 8, 7), o2, GREEN if o2 > 0.25 else RED)
+	# O2 blinks when it's nearly gone.
+	var o2_colour := GREEN if o2 > 0.25 else (RED if o2 > 0.1 or blink(0.5) else DIM)
+	_bar(Rect2(4, 6, w - 8, 7), o2, o2_colour)
 	_bar(Rect2(4, 18, w - 8, 7), integrity, GREEN if integrity > 0.5 else AMBER)
-	# Heartbeat: a blip that flashes at the pulse.
-	var speed := Vector2(player.velocity.x, player.velocity.z).length()
-	var bpm := 68.0 + speed * 18.0 + (25.0 if player.sprinting else 0.0)
-	var beat := fmod(time * bpm / 60.0, 1.0)
-	var blip := Color(GREEN, 1.0 - beat * 1.5)
-	draw_circle(Vector2(10, h - 16), 4, blip)
-	draw_line(Vector2(18, h - 16), Vector2(w - 4, h - 16), DIM, 1.0)
+	# Heartbeat: a blip that flashes at the pulse, red as health fails; a flat line, dead.
+	var bpm := player.heart_rate()
+	var pulse := GREEN if player.health > 0.3 else RED
+	if bpm > 0.0:
+		var beat := fmod(time * bpm / 60.0, 1.0)
+		draw_circle(Vector2(10, h - 16), 4, Color(pulse, 1.0 - beat * 1.5))
+	draw_line(Vector2(18, h - 16), Vector2(w - 4, h - 16), DIM if bpm > 0.0 else RED, 1.0)
 	# The helmet lamp's battery.
 	for i in 4:
 		var lit := battery > i / 4.0
