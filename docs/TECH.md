@@ -175,6 +175,7 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
   - Sources are recorded in `CREDITS.md`.
+- **Impacts** in the synthesized sounds are one recipe, `_thunk` (a few milliseconds of low-passed noise rung through three low band-passes fed by that noise, so it has weight and no pitch; `seal` adds a gasket's sigh). A ringing sine "clang" (`_clunk`, and the door's first stop and slam) read as a synth, not metal; it's gone from every sound.
 - **Gauge needles** are their own objects (`bridge.needle`), kept out of the bake: baked with the dial, a needle left a pale ghost of itself on the face. They wear `gauge_needle.tres`, a plain `psx_lit` material written by hand, like the lamps'.
 - **Sound** (GDD §15): synthesized by `tools/build_audio.py` into `assets/audio/`, 22,050 Hz mono, from seeded noise, tuned modes and biquad filters, so a rebuild writes the same files. A loop (the hum, the drone: 8 s; the tunnel: 7 s, two whole swells) is rendered past its length and the overrun crossfaded into its start; its `.import` loops forward over the whole file (`edit/loop_mode=2`: 1 is Disabled; `edit/loop_end` its length in samples).
 

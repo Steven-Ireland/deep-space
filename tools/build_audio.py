@@ -510,15 +510,8 @@ def generate_door_sounds():
 
         samples_open[i] += (rumble + friction + piston) * env * 1.25
 
-    # Pocket buffer stop impact (at t=0.48s to 0.55s)
-    stop_start = int(SAMPLE_RATE * 0.48)
-    bp_stop_ring = Biquad.bandpass(380, q=2.2)
-    for i in range(stop_start, n_open):
-        t = (i - stop_start) / SAMPLE_RATE
-        stop_env = math.exp(-t * 65.0)
-        stop_thump = math.sin(2.0 * math.pi * 78.0 * t) * stop_env * 1.3
-        stop_ring = bp_stop_ring.process(noise_open[i]) * math.exp(-t * 90.0) * 0.8
-        samples_open[i] += stop_thump + stop_ring
+    # Into its pocket: the leaves meet their buffers, a dull thunk.
+    _thunk(samples_open, 0.48, 705, weight=1.1, gain=0.9)
 
     hp_open = Biquad.highpass(45, q=0.7)
     lp_open = Biquad.lowpass(4600, q=0.8)
@@ -564,35 +557,8 @@ def generate_door_sounds():
 
         samples_close[i] += (rumble + friction + whoosh) * env * 1.15
 
-    # Heavy bulkhead impact slam (at t=0.465s)
-    slam_start = int(SAMPLE_RATE * 0.465)
-    bp_slam_crack = Biquad.bandpass(1750, q=2.2)
-
-    for i in range(slam_start, n_close):
-        t = (i - slam_start) / SAMPLE_RATE
-
-        # Initial explosive steel face collision transient (0 - 12ms)
-        crack_env = math.exp(-t * 260.0)
-        crack = bp_slam_crack.process(noise_close[i]) * crack_env * 2.4
-
-        # Deep structural sub-bass deck punch (58 Hz hull shudder)
-        thump_env = math.exp(-t * 26.0)
-        thump = (
-            math.sin(2.0 * math.pi * 58.0 * t) * 1.6 +
-            math.sin(2.0 * math.pi * 116.0 * t + 0.4) * 0.8
-        ) * thump_env
-
-        # Inharmonic heavy bulkhead plate ringing modes
-        ring_env = math.exp(-t * 38.0)
-        modes = (
-            math.sin(2.0 * math.pi * 185.0 * t) * 0.75 +
-            math.sin(2.0 * math.pi * 370.0 * t + 0.6) * 0.50 +
-            math.sin(2.0 * math.pi * 740.0 * t + 1.2) * 0.32 +
-            math.sin(2.0 * math.pi * 1280.0 * t + 0.3) * 0.22 +
-            math.sin(2.0 * math.pi * 2240.0 * t + 1.8) * 0.12
-        ) * ring_env
-
-        samples_close[i] += crack + thump + modes
+    # The leaves meet: heavy, dull, the gasket sighing as it seals.
+    _thunk(samples_close, 0.465, 905, weight=1.7, gain=1.5, seal=0.8)
 
     hp_close = Biquad.highpass(40, q=0.7)
     lp_close = Biquad.lowpass(4800, q=0.8)
@@ -1064,16 +1030,25 @@ def generate_item_pickup():
 # DOCKING AND THE AIRLOCK
 # =============================================================================
 
-def _clunk(samples, start, noise, thud_hz=80.0, crack_hz=1300.0, ring_hz=620.0, gain=1.0, decay=1.0):
-    """A heavy metal part driven home at `start` seconds: a crack, a thud, a short ring."""
-    bp = Biquad.bandpass(crack_hz, q=2.0)
+def _thunk(samples, start, seed, weight=1.0, gain=1.0, seal=0.0):
+    """A heavy part meeting its stop at `start` seconds, felt more than heard: a dull knock (noise,
+    a few milliseconds, low-passed) rung through a few low resonances fed by that noise, not pure
+    tones, so it has weight and no pitch, and nothing rings on after it (a ringing sine read as a
+    clang, not metal meeting metal). `weight` lowers it (2 is twice as heavy); `seal` adds the
+    short sigh of air pushed out of a gasket as it closes."""
+    rng = random.Random(seed)
     first = int(SAMPLE_RATE * start)
-    for i in range(first, min(len(samples), first + int(SAMPLE_RATE * 0.35 * decay))):
-        t = (i - first) / SAMPLE_RATE
-        crack = bp.process(noise[i]) * math.exp(-t * 160.0 / decay) * 1.8
-        thud = math.sin(2.0 * math.pi * thud_hz * t) * math.exp(-t * 32.0 / decay) * 1.3
-        ring = math.sin(2.0 * math.pi * ring_hz * t + 0.3) * math.exp(-t * 45.0 / decay) * 0.45
-        samples[i] += (crack + thud + ring) * gain
+    n = min(len(samples) - first, int(SAMPLE_RATE * 0.3))
+    knock_lp = Biquad.lowpass(900 / weight ** 0.5, q=0.7)
+    bands = [(Biquad.bandpass(55 / weight, q=2.0), 1.0), (Biquad.bandpass(110 / weight, q=3.0), 0.7),
+             (Biquad.bandpass(230 / weight, q=3.5), 0.4)]
+    air_bp = Biquad.bandpass(700, q=0.8)
+    for k in range(n):
+        t = k / SAMPLE_RATE
+        knock = knock_lp.process(rng.random() * 2.0 - 1.0) * math.exp(-t * 400.0)
+        body = sum(bp.process(knock) * w for bp, w in bands) * 7.0
+        air = air_bp.process(rng.random() * 2.0 - 1.0) * seal * math.exp(-t * 30.0) * min(1.0, t / 0.004) * 0.5
+        samples[first + k] += (body + knock * 0.4 + air) * gain
 
 
 def _creak(samples, start, length, noise, seed, low=62.0, high=48.0, gain=1.0):
@@ -1114,13 +1089,13 @@ def generate_hatch_sounds():
     samples = [0.0] * n
     noise = pink_noise(n, seed=1201)
     for k, at in enumerate((0.05, 0.19, 0.33, 0.47)):
-        _clunk(samples, at, noise, thud_hz=95.0 - k * 4, crack_hz=1500.0 + k * 90, ring_hz=700.0, gain=0.75)
+        _thunk(samples, at, 1210 + k, weight=0.7, gain=1.8)
     bp_hiss = Biquad.bandpass(3200, q=1.2)
     for i in range(int(SAMPLE_RATE * 0.58), int(SAMPLE_RATE * 0.95)):
         t = i / SAMPLE_RATE - 0.58
         samples[i] += bp_hiss.process(noise[i]) * math.exp(-t * 9.0) * 1.1
     _creak(samples, 0.7, 1.45, noise, 77, low=66.0, high=50.0, gain=0.9)
-    _clunk(samples, 2.12, noise, thud_hz=58.0, crack_hz=900.0, ring_hz=310.0, gain=1.3, decay=1.4)
+    _thunk(samples, 2.12, 1215, weight=1.6, gain=2.6)
     samples = Biquad.highpass(40, q=0.7).process_all(samples)
     samples = Biquad.lowpass(4400, q=0.8).process_all(samples)
     samples = apply_corridor_echo(samples, echo_delay_ms=52, feedback=0.3, lp_cutoff=1500)
@@ -1130,9 +1105,9 @@ def generate_hatch_sounds():
     samples = [0.0] * n
     noise = pink_noise(n, seed=1202)
     _creak(samples, 0.0, 1.25, noise, 78, low=52.0, high=64.0, gain=0.9)
-    _clunk(samples, 1.2, noise, thud_hz=52.0, crack_hz=1100.0, ring_hz=280.0, gain=1.7, decay=1.6)
+    _thunk(samples, 1.2, 1216, weight=1.8, gain=1.4, seal=1.0)
     for k, at in enumerate((1.42, 1.55, 1.68, 1.81)):
-        _clunk(samples, at, noise, thud_hz=92.0 + k * 3, crack_hz=1600.0 - k * 80, ring_hz=720.0, gain=0.7)
+        _thunk(samples, at, 1220 + k, weight=0.7, gain=1.6)
     samples = Biquad.highpass(38, q=0.7).process_all(samples)
     samples = Biquad.lowpass(4400, q=0.8).process_all(samples)
     samples = apply_corridor_echo(samples, echo_delay_ms=52, feedback=0.3, lp_cutoff=1500)
@@ -1171,7 +1146,7 @@ def generate_airlock_sounds():
             if not filling and 3.0 < t:
                 samples[i] += math.sin(2.0 * math.pi * (1900.0 - 300.0 * (t - 3.0)) * t) * 0.05 * math.sin((t - 3.0) / 1.5 * math.pi)
         if filling:
-            _clunk(samples, 4.06, noise, thud_hz=88.0, crack_hz=1400.0, ring_hz=660.0, gain=0.9)
+            _thunk(samples, 4.06, 1310, weight=0.9, gain=0.7)
         samples = Biquad.highpass(45, q=0.7).process_all(samples)
         samples = Biquad.lowpass(5200, q=0.8).process_all(samples)
         samples = apply_corridor_echo(samples, echo_delay_ms=48, feedback=0.25, lp_cutoff=1700, wet=0.45)
@@ -1212,7 +1187,7 @@ def generate_dock_sounds():
         for i in range(int(SAMPLE_RATE * at), int(SAMPLE_RATE * (at + 0.2))):
             t = i / SAMPLE_RATE - at
             samples[i] += bp.process(noise[i]) * (t / 0.2) ** 2 * 0.9
-        _clunk(samples, at + 0.2, noise, thud_hz=66.0 + k * 3, crack_hz=1200.0, ring_hz=420.0, gain=1.2, decay=1.2)
+        _thunk(samples, at + 0.2, 1410 + k, weight=1.4, gain=1.0)
     samples = Biquad.highpass(35, q=0.7).process_all(samples)
     samples = Biquad.lowpass(4200, q=0.8).process_all(samples)
     samples = apply_corridor_echo(samples, echo_delay_ms=60, feedback=0.3, lp_cutoff=1400)
@@ -1234,8 +1209,8 @@ def generate_dock_sounds():
         teeth = 0.5 + 0.5 * math.sin(phase * 0.25)
         gear = bp_gear.process(noise[i]) * teeth ** 4 * 0.9
         samples[i] = (whine * 0.8 + gear + bp_hiss.process(noise[i]) * 0.35) * spin
-    _clunk(samples, 0.0, noise, thud_hz=90.0, crack_hz=1500.0, ring_hz=700.0, gain=0.6)
-    _clunk(samples, 2.82, noise, thud_hz=70.0, crack_hz=1200.0, ring_hz=500.0, gain=1.0)
+    _thunk(samples, 0.0, 1420, weight=0.8, gain=0.35)
+    _thunk(samples, 2.82, 1421, weight=1.2, gain=0.6)
     samples = Biquad.highpass(40, q=0.7).process_all(samples)
     samples = Biquad.lowpass(4600, q=0.8).process_all(samples)
     samples = apply_corridor_echo(samples, echo_delay_ms=50, feedback=0.25, lp_cutoff=1600, wet=0.4)

@@ -150,6 +150,10 @@ Still to come: creature behaviour.
   - Docking: the derelict 16 s coming in (and going), the tube 3 s, the clamps 4.5 s, the siren 10 s,
     an airlock cycle 5.5 s; where the derelict waits; the tractor beam's colour, width and bands; the
     jolt at contact; the tube's light (dim).
+  - Sounds: the clang is out (2026-10-14). Every impact in the door, hatch, airlock and docking
+    sounds is now a dull, unpitched thunk (`_thunk` in `tools/build_audio.py`: a short knock rung
+    through low noise-fed resonances, a gasket's sigh on the heavy ones). Listen for whether it
+    reads as weight meeting metal now, and the levels: the hatch's locking dogs, its stop.
   - Bodies: how a ragdoll falls and lies (joint limits are loose; limbs can hang straight), how a
     carried body shows in first person (its chest across the bottom of the view, the head off to
     the right) and in a teammate's arms; revive 10 s, clone 30 s.
@@ -163,10 +167,6 @@ Still to come: creature behaviour.
 
 ## Known issues and polish
 
-- **Sounds: the "clang" doesn't read as metal meeting metal.** The new docking and airlock sounds
-  share a clunk (`_clunk` in `tools/build_audio.py`: a crack, a thud, a ring) at their starts and
-  ends, from the door's stop and slam, which has it too. Take it out of all of them and find
-  something better. (Raised in review; circle back.)
 - **The collar tube is 1,328 triangles**, over the kit pieces' 50–400; it's a one-off, closer to the
   exterior's budget.
 - **The dock panel's small stencils** don't survive the texel density; only COLLAR and EXT remain.
