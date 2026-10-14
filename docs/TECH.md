@@ -149,6 +149,8 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - **Poses solved for what they achieve** (`rig.solve`, Nelder–Mead over FK), within each joint's natural reach:
     - The wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view, the hand past it relaxed (the wrist only droops palm-ward). The cuff sits square to the forearm it's on.
     - The suit's holds: the torch out in front of the belly, level, elbow bent; a tool low at the side, 35° up. Each is set by where the grip goes and which way the held thing points, with the elbow a hinge and the wrist in range.
+    - The first-person tool hold: the fist low in the right of the view, a tool's handle running up across it (a hammer grip) and leaning in, diagonal across the view and clear of the crosshair. The flashlight keeps the resting arms, pointing ahead out of the fist.
+    - **Wrists never bend back** (toward the knuckles) holding something: they tilt toward the thumb or little finger, and bend palm-ward. A bent-back wrist was the giveaway in earlier holds.
   - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
   - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and a torch held out with the gaze (the torch arm about the chest's axis, so it tips as far as the gaze; the torch then turns the last bit about its grip to point exactly where they look). The camera's bob follows the same stride.
   - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye; `--hold=<model>:<tilt>` puts an item in the rig's hand as the game does.
@@ -268,3 +270,4 @@ deep-space/
   - Teammates' flashlights show a beam in the air and glare when pointed at you.
   - The suit's hold poses are solved (torch at the belly, tools low and ready), and each item has its own tilt in the glove; the flare is held a third of the way up.
   - The first-person left hand is relaxed when reading the cuff, and the cuff is square to its forearm.
+  - First-person tools have their own solved hold (a hammer grip, diagonal across the view); no hold bends a wrist back.

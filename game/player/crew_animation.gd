@@ -56,15 +56,17 @@ func setup(player: AnimationPlayer) -> void:
 		tree.connect_node("posture", 0, stand)
 		tree.connect_node("posture", 1, "low")
 		top = "posture"
-	var right_arm := ["upper_arm.R", "forearm.R", "hand.R"]
+	# The first-person arms' upper arms are arm.*, the suit's upper_arm.*.
+	var first_person := player.get_animation("idle").find_track(NodePath("%s:arm.R" % skeleton), Animation.TYPE_ROTATION_3D) >= 0
+	var upper := "arm" if first_person else "upper_arm"
+	var right_arm := [upper + ".R", "forearm.R", "hand.R"]
 	for style in ["torch", "tool"]:
 		if _has("hold_" + style):
 			tree.add_node(style, _clip("hold_" + style))
 			top = _layer(tree, top, style, "with_" + style, skeleton, right_arm)
 	if _has("cuff"):
 		tree.add_node("cuff", _clip("cuff"))
-		var reading := ["arm.L", "forearm.L", "hand.L"] if player.get_animation("cuff").find_track(NodePath("%s:arm.L" % skeleton), Animation.TYPE_ROTATION_3D) >= 0 \
-				else ["upper_arm.L", "forearm.L", "hand.L", "head", "chest"]
+		var reading := [upper + ".L", "forearm.L", "hand.L"] + ([] if first_person else ["head", "chest"])
 		top = _layer(tree, top, "cuff", "reading", skeleton, reading)
 	tree.connect_node("output", 0, top)
 	tree_root = tree

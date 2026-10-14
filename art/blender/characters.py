@@ -295,7 +295,7 @@ def _hold_pose(skeleton, at, aim, tilt):
 
     def angles(x):
         # Shoulder free; elbow a hinge with a little forearm twist; wrist tilt (x, toward the little
-        # finger +) and bend (z).
+        # finger +) and bend (z, - toward the palm: a wrist hardly bends back holding something).
         return {"upper_arm.R": tuple(x[0:3]), "forearm.R": (x[3], x[4], 0.0), "hand.R": (x[5], 0.0, x[6])}
 
     def cost(x):
@@ -306,7 +306,8 @@ def _hold_pose(skeleton, at, aim, tilt):
         place = (g - Vector(at)).length_squared / 0.01 ** 2
         pointing = (1 - d.dot(aim)) * 400
         hinge = max(0.0, x[3]) ** 2 + x[4] ** 2 / 4
-        wrist = (max(0.0, x[5] - 35) ** 2 + max(0.0, -x[5] - 20) ** 2 + max(0.0, abs(x[6]) - 15) ** 2) / 4
+        wrist = (max(0.0, x[5] - 35) ** 2 + max(0.0, -x[5] - 20) ** 2 + max(0.0, x[6] - 3) ** 2 * 10
+                 + max(0.0, -x[6] - 20) ** 2) / 4
         body = max(0.0, elbow.x + 0.25) ** 2 / 0.01 ** 2
         ease = sum(a * a for a in x) / 20000
         return place + pointing + hinge + wrist + body + ease
@@ -479,7 +480,9 @@ def arms():
     axes = cuff_frame.to_3x3()
     reach = _arm_cuff_pose(skeleton, cuff_top, axes @ Vector((0, -1, 0)), axes @ Vector((0, 0, 1)))
     print(f"ch_arms cuff pose: {reach}")
-    _arm_clips(skeleton, reach)
+    tool = _arm_hold_pose(skeleton, **ARM_TOOL)
+    print(f"ch_arms tool hold: {tool}")
+    _arm_clips(skeleton, reach, tool)
     return Model(low=low, decals=[d.to_object()], extras=[skeleton, screen, grip])
 
 
@@ -514,6 +517,52 @@ def _digit(m, material, knuckle, lengths, curl, width):
         at = at @ Matrix.Rotation(math.radians(curl * (0.4 if i == 0 else 0.6)), 4, "X")
         _part(m, (width, length + 0.004, width * 1.05), material, at @ Matrix.Translation((0, -length / 2, 0)), bevel=0.004)
         at = at @ Matrix.Translation((0, -length, 0))
+
+
+# Holding a tool in first person, by what it achieves, as the suit's holds are: the fist low in the
+# right of the view, the tool angled up and in across it. A torch lies along the fist, as the fist
+# is modelled (thumb along the top); a tool's handle runs up across it, the way a fist holds a
+# hammer: pitched up `tilt` degrees in it (game/items/items.gd: each tool's `tilt` is this, give or
+# take a few). The flashlight keeps the resting arms: it points ahead out of the fist as it is.
+ARM_TOOL = dict(at=(-0.23, -0.4, -0.27), aim=(0.28, -0.5, 0.82), tilt=75)
+
+
+def _arm_hold_pose(skeleton, at, aim, tilt):
+    """The right arm holding a tool in first person: the fist's grip at `at`, the handle (pitched up
+    `tilt` degrees in the fist) along `aim`. The elbow only bends, the forearm may turn, the wrist
+    stays within its reach, and the elbow stays low, out of the view. Solved for what it achieves."""
+    grip = Vector(GRIP)
+    along = Matrix.Rotation(math.radians(-tilt), 3, "X") @ Vector((0, -1, 0))
+    aim = Vector(aim).normalized()
+    elbow_rest = Vector(next(b[1] for b in ARM_BONES if b[0] == "forearm.R"))
+
+    def angles(x):
+        # Shoulder free; elbow a hinge (x) with the forearm's turn (y); wrist tilt (x, + toward the
+        # thumb, which is on top) and bend (z, + toward the palm: a wrist hardly bends back holding
+        # something).
+        return {"arm.R": tuple(x[0:3]), "forearm.R": (x[3], x[4], 0.0), "hand.R": (x[5], 0.0, x[6])}
+
+    def cost(x):
+        m = rig.pose_matrices(skeleton, angles(x))
+        g = rig.deform(skeleton, m, "hand.R", grip)
+        d = rig.deform(skeleton, m, "hand.R", along, direction=True)
+        elbow = rig.deform(skeleton, m, "forearm.R", elbow_rest)
+        place = (g - Vector(at)).length_squared / 0.01 ** 2
+        pointing = (1 - d.dot(aim)) * 400
+        hinge = max(0.0, -x[3]) ** 2 + max(0.0, abs(x[4]) - 60) ** 2
+        wrist = (max(0.0, x[5] - 20) ** 2 + max(0.0, -x[5] - 25) ** 2 + max(0.0, -x[6] - 3) ** 2 * 10
+                 + max(0.0, x[6] - 25) ** 2) / 4
+        low = max(0.0, elbow.z + 0.3) ** 2 / 0.01 ** 2
+        ease = sum(a * a for a in x) / 20000
+        return place + pointing + hinge + wrist + low + ease
+
+    best = None
+    for start in ([0, 0, 0, 20, 0, 20, 0], [10, 0, 10, 40, -30, 10, 0], [-10, 10, 0, 30, 30, 30, 10]):
+        x, score = rig.solve(cost, start, step=20.0, iterations=4000)
+        if best is None or score < best[1]:
+            best = (x, score)
+    print(f"ch_arms tool hold: score {best[1]:.4f}")
+    return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
 def _arm_cuff_pose(skeleton, centre, normal, up):
@@ -559,7 +608,7 @@ def _arm_cuff_pose(skeleton, centre, normal, up):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
-def _arm_clips(skeleton, reach):
+def _arm_clips(skeleton, reach, tool):
     def idle(t):
         b = rig.wave(t)
         return {"root": (0.8 * b, 0, 0), "arm.L": (1.5 * b, 0, 0), "arm.R": (1.5 * rig.wave(t, 1, 0.2), 0, 0)}
@@ -584,6 +633,10 @@ def _arm_clips(skeleton, reach):
         pose["arm.R"] = (-6, 0, 0)
         return pose
 
+    def hold_tool(t):
+        b = rig.wave(t)
+        return {name: (rot[0] + b * 0.8, *rot[1:]) for name, rot in tool.items()}
+
     def carry(t):
         b = rig.wave(t, 2)
         return {"arm.L": (-10 + 2 * b, 0, -18), "arm.R": (-10 + 2 * b, 0, 18), "forearm.L": (15, 0, -25), "forearm.R": (15, 0, 25),
@@ -598,5 +651,6 @@ def _arm_clips(skeleton, reach):
     rig.clip(skeleton, "walk", 1.0, walk, smooth=True)
     rig.clip(skeleton, "run", 1.0, run, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, cuff, smooth=True)
+    rig.clip(skeleton, "hold_tool", 3.0, hold_tool, smooth=True)
     rig.clip(skeleton, "carry", 1.0, carry, smooth=True)
     rig.clip(skeleton, "swing", 0.6, swing, loop=False, smooth=True)

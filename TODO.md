@@ -26,16 +26,11 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   - the suit's hold poses are solved (torch level in front of the belly, tools low and ready)
   - the first-person left hand is relaxed when reading the cuff, and the cuff sits square on its
     forearm
+  - first-person tools (crowbar, shock prod, flare) have their own solved hold: a hammer grip,
+    diagonal across the view and clear of the crosshair; no hold bends a wrist back
 
 The **gameplay loop doesn't exist yet**: no pickups, O2, jumps, docking, creature behaviour or
 death. The consoles and cuff show placeholder numbers.
-
-## Now (before the loop)
-
-- [ ] **First-person tool grips.** The crowbar, shock prod and flare sit oddly in the
-      first-person fist, as the suit's did. Give them the treatment the suit got: solve the
-      view-model hold for where the grip goes and where the tool points, with natural wrist limits,
-      and review each in first person (`--hold=<kind>`).
 
 ## Next: the gameplay loop (proposed order)
 
@@ -100,6 +95,10 @@ death. The consoles and cuff show placeholder numbers.
   turn hasn't been checked in-game.
 - **SSIL intensity** could be raised if rooms want more fill.
 - **The torch beam shows 15-bit banding** up close. This is accepted as the PSX look.
+- **Single-player screenshots sometimes start in the wrong spot:** a `--host --at=… --look=…`
+  shot now and then shows a different place or angle. Rerun it; the cause hasn't been found.
+- **The first-person right arm doesn't sway while walking with a tool:** the hold layer overrides
+  it. The view still bobs.
 
 ## Working rules
 
