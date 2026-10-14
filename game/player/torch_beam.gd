@@ -10,19 +10,16 @@ const BEAM_SHADER := preload("res://game/rendering/torch_beam.gdshader")
 const FLARE_SHADER := preload("res://game/rendering/torch_flare.gdshader")
 ## Metres the cone shows before it fades (the light itself reaches further).
 const BEAM_RANGE := 7.0
-## Seconds the glare takes to come and go as the lens passes in and out of sight.
-const SIGHT_FADE := 0.08
-## Bodies and walls that stop the beam and hide the lens.
+## Bodies and walls that stop the beam.
 const SOLID := 1 | 2
 
-## The crew member holding the light, left out of the beam's and the lens's line-of-sight checks.
+## The crew member holding the light, which doesn't stop its own beam.
 var holder: CollisionObject3D
 
 var _light: SpotLight3D
 var _energy := 1.0
 var _cone := MeshInstance3D.new()
 var _flare := MeshInstance3D.new()
-var _seen := 0.0
 
 
 func _ready() -> void:
@@ -48,9 +45,8 @@ func _ready() -> void:
 	add_child(_flare)
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if not is_visible_in_tree():
-		_seen = 0.0
 		return
 	var space := get_world_3d().direct_space_state
 	var lens := global_position
@@ -63,7 +59,8 @@ func _process(delta: float) -> void:
 	var hit := space.intersect_ray(PhysicsRayQueryParameters3D.create(lens, lens + forward * BEAM_RANGE, SOLID, exclude))
 	_cone.set_instance_shader_parameter(&"reach", lens.distance_to(hit.position) if not hit.is_empty() else BEAM_RANGE)
 	_cone.set_instance_shader_parameter(&"power", power)
-	# The glare: how squarely the lens faces this eye, if the lens is in sight of it.
+	# The glare: how squarely the lens faces this eye. (The flare hides itself behind whatever's
+	# drawn in front of the lens.)
 	var camera := get_viewport().get_camera_3d()
 	if camera == null:
 		return
@@ -72,13 +69,8 @@ func _process(delta: float) -> void:
 	var facing := forward.dot((eye - lens) / maxf(distance, 0.001))
 	var edge := cos(deg_to_rad(_light.spot_angle))
 	var glare := clampf((facing - edge) / (1.0 - edge), 0.0, 1.0)
-	var viewer := get_tree().get_first_node_in_group(&"local_player") as CollisionObject3D
-	if viewer != null:
-		exclude.append(viewer.get_rid())
-	var blocked := space.intersect_ray(PhysicsRayQueryParameters3D.create(eye, lens, SOLID, exclude))
-	_seen = move_toward(_seen, 1.0 if blocked.is_empty() else 0.0, delta / SIGHT_FADE)
-	_flare.set_instance_shader_parameter(&"glow", smoothstep(-0.2, 0.6, facing) * _seen * minf(power, 1.0))
-	_flare.set_instance_shader_parameter(&"glare", glare * glare * _seen * power / (1.0 + distance * 0.06))
+	_flare.set_instance_shader_parameter(&"glow", smoothstep(-0.2, 0.6, facing) * minf(power, 1.0))
+	_flare.set_instance_shader_parameter(&"glare", glare * glare * power / (1.0 + distance * 0.06))
 
 
 ## An open tube `sides` round: unit directions in xy, z 0 at one end and -1 at the other. The beam
