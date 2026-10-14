@@ -64,7 +64,10 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   into an empty bay.
 - **Tests:** `tools/test.sh` runs sector map rules, determinism and a smoke test that plays a jump.
 
-Still to come: the chart table at the bridge's centre, docking, creature behaviour, death.
+- **The chart table:** in place of the captain's chair, on the dais; its green hologram is the
+  sector chart, for the whole crew.
+
+Still to come: docking, creature behaviour, death.
 
 ## Next: the gameplay loop (proposed order)
 
@@ -74,9 +77,6 @@ Still to come: the chart table at the bridge's centre, docking, creature behavio
      sealant (with suit integrity), weapons in use (slice wrap-up)
    - suit integrity and breaches (with hazards)
 2. **Rest of M3, navigation:**
-   - a chart table (hologram or big flat screen) in place of the captain's chair and dais at the
-     bridge's centre: the sector chart for the whole crew to stand round (the user's idea,
-     2026-10-14)
    - the boss node is only a name and a way on to the next sector (its greybox is M5); saving
      between jumps
    - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
@@ -112,6 +112,8 @@ Still to come: the chart table at the bridge's centre, docking, creature behavio
   - Fuel: 3 cells, 8 jumps a sector; a cell from each derelict (if carried back) and one per gas
     giant (about 4 fuel stops a map). Scan 8 s, survey 5 s, skim 20 s, jumps 10–20 s.
   - The hyperspace tunnel's look, and the shake's strength.
+  - The chart table's hologram: its size and height over the table, how readable its marks are
+    from across the bridge, how often it drops out.
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
 - **The beam in the air:** teammates' beams show everywhere, faintly. GDD §14 says haze makes beams
   visible in derelicts. It could be made stronger there and fainter aboard the station.

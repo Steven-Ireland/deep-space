@@ -148,7 +148,7 @@ func _seal_hatches() -> void:
 
 
 ## The bridge stations (GDD §5): helm and science face the viewport; ops and engineering stand
-## against the aft wall; the captain's chair on its dais between them, facing fore.
+## against the aft wall; the chart table on its dais between them, its hologram the sector chart.
 func _furnish_bridge() -> void:
 	var helm := _prop("br_helm", Vector3(-3.0, 0, -4.3), 0.0, [["screen_nav", "nav_screen", Vector2i(320, 240), GREEN]])
 	JumpLever.fit(helm)
@@ -161,7 +161,8 @@ func _furnish_bridge() -> void:
 	_prop("br_ops", Vector3(-3.4, 0, 5.3), 180.0, ops)
 	_prop("br_engineering", Vector3(3.4, 0, 5.3), 180.0, [["screen_power", "power_screen", Vector2i(320, 240), AMBER]])
 	_prop("br_dais", Vector3(0, 0, -0.4), 0.0, [])
-	_prop("br_chair", Vector3(0, 0.16, -0.2), 180.0, [])
+	var table := _prop("br_chart_table", Vector3(0, 0.16, -0.4), 0.0, [])
+	table.find_child("SOCKET_holo", true, false).add_child(ChartTable.new())
 
 
 ## A bridge prop at `at`, turned `yaw` degrees, with live terminals on its screens:
