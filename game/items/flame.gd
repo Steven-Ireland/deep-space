@@ -12,6 +12,9 @@ const LIFT := 0.03
 
 ## 0..1: how much of the flare is left to burn. The last of it dims the flame.
 var strength := 1.0
+## Metres above the flame its light hangs: a flare lying on the floor lights the room from its
+## burning glow and smoke, not from a point at floor level that only grazes it.
+var rise := 0.0
 
 var _light := OmniLight3D.new()
 var _glow := MeshInstance3D.new()
@@ -57,6 +60,7 @@ func _process(_delta: float) -> void:
 	var flicker := 0.82 + 0.1 * sin(t * 31.0) + 0.06 * sin(t * 17.3 + 1.0) + randf() * 0.07
 	var left := clampf(strength * 10.0, 0.0, 1.0) # the last tenth of the burn dies away
 	_light.light_energy = ENERGY * flicker * left
+	_light.global_position = global_position + Vector3.UP * rise
 	_glow.scale = Vector3.ONE * (0.75 + 0.35 * flicker) * maxf(left, 0.2)
 
 

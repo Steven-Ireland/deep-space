@@ -14,7 +14,7 @@ func _draw_screen() -> void:
 	var h := size.y
 	var o2 := player.o2 / Player.O2_CAPACITY
 	var integrity := 1.0
-	var battery := 1.0
+	var battery := player.battery
 	# O2 blinks when it's nearly gone.
 	var o2_colour := GREEN if o2 > 0.25 else (RED if o2 > 0.1 or blink(0.5) else DIM)
 	_bar(Rect2(4, 6, w - 8, 7), o2, o2_colour)

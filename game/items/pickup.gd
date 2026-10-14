@@ -16,6 +16,8 @@ const HANDLE_MIN := 0.22
 var record: Dictionary
 ## How it's moving as it appears (thrown), set before it enters the tree.
 var launch := Vector3.ZERO
+## Whether it's racked: held where it hangs, not falling, until it's taken.
+var racked := false
 ## Where it is and how it's turned, from the host.
 var at := Vector3.ZERO
 var turn := Quaternion.IDENTITY
@@ -51,11 +53,18 @@ func _ready() -> void:
 	add_child(handle)
 	handle.used.connect(func(peer: int): LooseItems.of(self).take(self, peer))
 	if Items.burning(record):
+		# A burning flare casts no shadow, so its tube can't shade its own flame.
+		for mesh: GeometryInstance3D in model.find_children("*", "GeometryInstance3D", true, false):
+			mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_flame = Flame.light(model)
+		_flame.rise = 0.3
 	if multiplayer.is_server():
 		linear_velocity = launch
 		at = position
 		turn = quaternion
+		if racked:
+			freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+			freeze = true
 	else:
 		freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
 		freeze = true

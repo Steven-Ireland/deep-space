@@ -74,6 +74,10 @@ func _dress() -> void:
 	stock(&"cartridge", Vector3(19.0, 0.82, 9.4), 60.0)
 	stock(&"sealant", Vector3(23.8, 0.02, 9.4), 0.0)
 	stock(&"fuel_cell", Vector3(20.4, 0.02, 7.3), -10.0)
+	# Kit the LANTERN didn't bring: a shock prod in the side room, flares left behind.
+	stock(&"shock_prod", Vector3(27.6, 0.02, 5.3), 120.0)
+	stock(&"flare", Vector3(17.3, 0.02, 1.2), 70.0)
+	stock(&"flare", Vector3(23.1, 0.02, 7.1), -40.0)
 
 
 func _prop(model: String, at: Vector3, yaw: float) -> Node3D:

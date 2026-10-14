@@ -39,7 +39,7 @@ var _time := 0.0
 var _belt_age := 0.0
 var _icons := {}
 var _o2_shown := 0.0
-var _o2_age := 0.0 # seconds since O2 last mattered
+var _o2_age := 99.0 # seconds since O2 last mattered
 var _last_o2 := 0.0
 
 

@@ -22,14 +22,15 @@ func _ready() -> void:
 
 func _stock() -> void:
 	for spot: Node3D in get_tree().get_nodes_in_group(&"loot"):
-		put(Items.make(spot.get_meta(&"kind")), spot.global_transform)
+		put(Items.make(spot.get_meta(&"kind")), spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
 
 
-## Host: puts `record` loose at `where`, moving at `velocity`.
-func put(record: Dictionary, where: Transform3D, velocity := Vector3.ZERO) -> void:
+## Host: puts `record` loose at `where`, moving at `velocity`; or `racked`, held where it is until
+## someone takes it.
+func put(record: Dictionary, where: Transform3D, velocity := Vector3.ZERO, racked := false) -> void:
 	if record.is_empty():
 		return
-	spawn({"id": _next_id, "record": record, "at": where, "velocity": velocity})
+	spawn({"id": _next_id, "record": record, "at": where, "velocity": velocity, "racked": racked})
 	_next_id += 1
 
 
@@ -72,4 +73,5 @@ func _make(data: Dictionary) -> Node:
 	pickup.record = data.record
 	pickup.transform = data.at
 	pickup.launch = data.velocity
+	pickup.racked = data.get("racked", false)
 	return pickup

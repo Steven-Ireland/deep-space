@@ -42,6 +42,10 @@ const SPRINT_BREATH := 3.0
 const SUFFOCATION := 20.0
 ## Where the suit takes its breath, above the feet: in the chest, for which zone it's in.
 const CHEST_HEIGHT := 1.2
+## The helmet lamp's battery (GDD §9.3): LAMP_LIFE seconds lit on a full charge. Below LAMP_LOW it
+## flickers; flat, it goes out until it's charged in the suit room.
+const LAMP_LIFE := 360.0
+const LAMP_LOW := 0.15
 ## Using things (LMB): a swing takes SWING_TIME and lands SWING_HIT in, on whatever's within
 ## SWING_REACH, knocking loose things with SWING_IMPULSE (N·s). A canister gives CANISTER_O2
 ## seconds of O2; a struck flare burns FLARE_BURN seconds.
@@ -73,6 +77,8 @@ var swings := 0
 var o2 := O2_CAPACITY
 var health := 1.0
 var in_vacuum := false
+## The helmet lamp's charge, 0..1.
+var battery := 1.0
 
 ## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
 ## one drawn into the hand.
@@ -113,11 +119,13 @@ var _swings_seen := 0
 var _shown_lit := false
 var _flame: Flame
 var _spine_material: ShaderMaterial
+var _lamp_energy := 0.0
+var _lamp_phase := 0.0
 
 
 func _init() -> void:
-	for kind in Items.STARTING_BELT:
-		belt.append(Items.make(kind))
+	for i in Items.BELT_SLOTS:
+		belt.append({})
 
 
 func _enter_tree() -> void:
@@ -132,6 +140,8 @@ func _ready() -> void:
 	view_model.visible = local
 	look.x = rotation.y
 	lamp.top_level = true
+	_lamp_energy = lamp.light_energy
+	_lamp_phase = randf() * 100.0
 	if local:
 		add_to_group(&"local_player")
 		_equip_view_model()
@@ -183,7 +193,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event.is_action_pressed("lamp"):
-		lamp_on = not lamp_on
+		lamp_on = not lamp_on and battery > 0.0
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
 		aimed_at.request_use()
 	elif event.is_action_pressed("use") and not cuff_up:
@@ -261,11 +271,17 @@ func _land_swing() -> void:
 		LooseItems.of(self).whack(hit.collider, (forward + Vector3.UP * 0.3).normalized() * SWING_IMPULSE, hit.position)
 
 
-## The host tells this crew member's machine they've refilled at an O2 rack.
+## The host tells this crew member's machine they've topped up at the station: "o2" at the O2
+## rack, "lamp" at the lamp charger.
 @rpc("any_peer", "call_local", "reliable")
-func refill_from_rack() -> void:
-	if multiplayer.get_remote_sender_id() <= 1 and is_multiplayer_authority():
-		refill()
+func top_up(what: String) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority():
+		return
+	match what:
+		"o2":
+			refill()
+		"lamp":
+			battery = 1.0
 
 
 ## Moves the crew member straight to `at`, without smoothing the jump (owner only).
@@ -453,6 +469,9 @@ func _tick(delta: float, _tick_number: int) -> void:
 	move_and_slide()
 	velocity /= NetworkTime.physics_factor
 	_breathe(delta)
+	if lamp_on:
+		battery = maxf(0.0, battery - delta / LAMP_LIFE)
+		lamp_on = battery > 0.0
 
 
 ## The suit breathes for its wearer wherever there's no air (GDD §9.2): O2 runs down, faster at a
@@ -554,10 +573,11 @@ func _apply_dev_flags() -> void:
 		look = Vector2(deg_to_rad(angles[0]), deg_to_rad(angles[1] if angles.size() > 1 else 0.0))
 
 
-## `--o2=<seconds>` and `--health=<0..1>`: how the suit starts.
+## `--o2=<seconds>`, `--health=<0..1>` and `--battery=<0..1>`: how the suit starts.
 func _dev_suit() -> void:
 	o2 = float(Args.value("--o2", str(O2_CAPACITY)))
 	health = float(Args.value("--health", "1"))
+	battery = float(Args.value("--battery", "1"))
 
 
 ## `--hold`: a `kind` in hand: drawn from the belt if it's there, carried if it's big, otherwise put
@@ -689,8 +709,10 @@ func _show_held() -> void:
 ## Everyone else also sees its beam in the air and its glare (LampBeam, riding the light).
 func _place_lamp() -> void:
 	lamp.visible = lamp_on
+	var power := _lamp_flicker() if lamp_on else 0.0
+	lamp.light_energy = _lamp_energy * power
 	if _lens_material != null:
-		_lens_material.set_shader_parameter("energy", 2.0 if lamp_on else 0.15)
+		_lens_material.set_shader_parameter("energy", lerpf(0.15, 2.0, power))
 	if not lamp_on:
 		return
 	var view := head.global_transform
@@ -705,6 +727,20 @@ func _place_lamp() -> void:
 		lens = blocked.position + (view.origin - lens).normalized() * 0.06
 	var target := view.origin - view.basis.z * LAMP_CONVERGE
 	lamp.global_transform = Transform3D(Basis.looking_at(target - lens, view.basis.y), lens)
+
+
+## How bright the lamp burns, 0..1: steady until the battery's low, then dropping out in stutters,
+## more often as it runs down. (Everyone works it out from the synced charge, so a teammate's lamp
+## flickers too, if not in step.)
+func _lamp_flicker() -> float:
+	if battery >= LAMP_LOW:
+		return 1.0
+	var t := Time.get_ticks_msec() / 1000.0 + _lamp_phase
+	var noise := sin(t * 7.3) * sin(t * 2.9 + 1.7) * sin(t * 13.1)
+	var failing := 1.0 - battery / LAMP_LOW # 0 just low .. 1 flat
+	if noise > 0.35 - failing * 0.6:
+		return 0.12
+	return 0.85 + 0.15 * sin(t * 40.0)
 
 
 ## The spine lights down a suit's back (GDD §10) tell the crew how its wearer is: green, amber,

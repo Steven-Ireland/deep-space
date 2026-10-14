@@ -44,6 +44,9 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
 - **Use (`LMB`):** tools swing (everyone sees it, and it knocks loose things about), an O2
   canister tops up the suit, a flare is struck and burns red for 60 s in the hand or thrown.
+- **Starting kit and lamp battery:** belts start empty; the crew's one crowbar and one flare hang
+  on the kit rack in the docking port. The lamp runs 6 minutes, flickers when low and recharges at
+  the suit room's charger.
 
 Still to come: jumps, docking, creature behaviour, death. The nav, scan, survey and power screens
 show placeholder numbers.
@@ -54,8 +57,7 @@ show placeholder numbers.
    - the Prize and a body as two-handed carries (with M4; the fuel cell's done)
    - what a swing does to creatures and hatches (with M4), the shock prod's stun and charge,
      sealant (with suit integrity), weapons in use (slice wrap-up)
-   - the helmet lamp's battery (6 minutes a cell, flicker when low, lamp cells as loot: needs a
-     lamp cell model), suit integrity and breaches
+   - suit integrity and breaches (with hazards)
 2. **M3, navigation:**
    - sector map generation (all of Sector 1, the boss node a greybox)
    - the Nav Chart terminal and the Jump Lever
@@ -91,11 +93,7 @@ show placeholder numbers.
 
 ## Decisions needed
 
-- **A9 (GDD §17): where the starting kit starts.** On the belt (as now: crowbar, shock prod and
-  flare, one slot free), or racked in the Suit Room so each crew member chooses what to take?
 - **To judge in play (2026-10-14):**
-  - A teammate's lamp glares whenever they look at you, so talking face to face is blinding.
-    Realistic; it could be softened at close range.
   - Carrying in first person shows only the top of the fuel cell across the bottom of the view;
     the hands stay below the frame. Higher would show the hands but hide more of the view.
   - Numbers: 6 minutes of O2, 3 a canister, 20 s to suffocate, 1.6 m/s carrying, throws of 3–9

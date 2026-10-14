@@ -7,7 +7,9 @@ safety orange, lit lamps, stencils. Props face -Y in Blender (+Z in Godot).
 
 import math
 
-from mathutils import Vector
+import bpy
+
+from mathutils import Matrix, Vector
 
 import bridge as br
 from lib import Model, asset, geo, mats
@@ -146,6 +148,99 @@ def bench():
     low = m.to_object()
     collider = br._console_collider("rm_bench", (1.8, 0.42, 0.47), (0, 0, 0.235))
     return Model(low=low, decals=[d.to_object()], extras=[collider])
+
+
+# Kit and charge (GDD §5, §9) ----------------------------------------------------------------------
+
+# How a tool hangs in a rack clip: its point (-Y) up and its top (+Z) out from the wall (-Y), so a
+# crowbar's claw bends away from the board. game/station/lantern.gd racks the real things here.
+HANG = Matrix(((-1, 0, 0), (0, 0, -1), (0, -1, 0)))
+
+
+def _rack_socket(name, at):
+    socket = bpy.data.objects.new(f"SOCKET_rack_{name}", None)
+    socket.empty_display_size = 0.03
+    bpy.context.scene.collection.objects.link(socket)
+    socket.matrix_world = Matrix.Translation(Vector(at)) @ HANG.to_4x4()
+    return socket
+
+
+@asset("rm_kit_rack", "rooms", texture=256, colors=32, ao=0.5)
+def kit_rack():
+    """The KIT RACK (GDD §9.4): a shadow board on the docking port's wall, the last thing the crew
+    passes on the way out to a derelict. A dark board in a steel frame under a hazard band and a
+    stencilled KIT; a crowbar's and a flare's shapes painted on it in cream behind the spring
+    clips and the cup that hold the real things (racked by the game at `SOCKET_rack_crowbar` and
+    `SOCKET_rack_flare`), so a gap shows what's been taken. Back against the wall at +Y 0.2."""
+    k = br._materials()
+    dk = br._decals()
+    m = Mesh("rm_kit_rack")
+    d = Mesh("rm_kit_rack_decals")
+    texts = []
+    board = 0.159  # the board's face
+    m.box((0.5, 0.04, 1.0), k["casing_dark"], at=(0, 0.18, 1.25), bevel=0.008)
+    for z in (0.75, 1.75):
+        m.box((0.54, 0.05, 0.035), k["steel"], at=(0, 0.175, z))
+    _stripes(d, dk, Vector((0, board, 1.67)), FRONT, 0.46, 0.08, pitch=0.06)
+    texts.append(geo.text("KIT", 0.075, dk["cream"], matrix=frame((0.065, board, 1.55), FRONT, lift=0.002)))
+    # The crowbar: hung claw-up in two spring clips over its painted shape.
+    cx, fx = -0.1, 0.13
+    f = frame((0, board, 0), FRONT, lift=0.001)
+    d.polygon([(cx - 0.017, 0.79), (cx + 0.017, 0.79), (cx + 0.017, 1.5), (cx + 0.024, 1.575), (cx - 0.024, 1.575),
+               (cx - 0.017, 1.5)], dk["cream"], f)
+    for z in (0.95, 1.36):
+        m.box((0.05, 0.026, 0.026), k["steel"], at=(cx, 0.145, z))
+        for side in (-1, 1):
+            m.box((0.01, 0.045, 0.024), k["steel"], at=(cx + side * 0.021, 0.122, z))
+    # The flare: standing in a cup, a clip round its middle.
+    d.polygon([(fx - 0.023, 1.05), (fx + 0.023, 1.05), (fx + 0.023, 1.31), (fx + 0.016, 1.33), (fx - 0.016, 1.33),
+               (fx - 0.023, 1.31)], dk["cream"], f)
+    m.cylinder(0.027, 0.06, k["dark_steel"], sides=8, at=(fx, 0.12, 1.085))
+    m.box((0.04, 0.04, 0.02), k["dark_steel"], at=(fx, 0.145, 1.085))
+    m.box((0.05, 0.026, 0.022), k["steel"], at=(fx, 0.145, 1.24))
+    for side in (-1, 1):
+        m.box((0.01, 0.045, 0.02), k["steel"], at=(fx + side * 0.026, 0.122, 1.24))
+    low = m.to_object()
+    collider = br._console_collider("rm_kit_rack", (0.54, 0.06, 1.04), (0, 0.17, 1.25))
+    sockets = [_rack_socket("crowbar", (cx, 0.12, 0.86)), _rack_socket("flare", (fx, 0.12, 1.06))]
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider] + sockets)
+
+
+@asset("rm_lamp_charger", "rooms", texture=256, colors=32, ao=0.5)
+def lamp_charger():
+    """The LAMP CHARGER (GDD §9.3): beside the suit room's O2 rack. A cream wall cabinet with a dark
+    face: a tall amber charge gauge, LAMP stencilled over a port ringed in the helmet lamp's orange,
+    a green READY lamp; a coiled lead hangs from its foot to a plug. A crew member plugs their lamp
+    in and its battery charges full. Back against the wall at +Y 0.2."""
+    k = br._materials()
+    dk = br._decals()
+    m = Mesh("rm_lamp_charger")
+    d = Mesh("rm_lamp_charger_decals")
+    texts = []
+    face = 0.0645
+    m.box((0.42, 0.12, 0.62), k["casing"], at=(0, 0.14, 1.4), bevel=0.015)
+    m.box((0.36, 0.02, 0.54), k["casing_dark"], at=(0, 0.075, 1.41), bevel=0.006)
+    # The gauge: eight cells up the left, six lit.
+    _plate(d, dk["black"], Vector((-0.1, face, 1.375)), FRONT, 0.08, 0.43)
+    for i in range(8):
+        _plate(d, dk["amber_lit"] if i < 6 else dk["unlit"], Vector((-0.1, face, 1.2 + i * 0.05)), FRONT, 0.06, 0.036,
+               lift=0.0015)
+    # The port, ringed in orange like the lamp's bezel, under its stencil; READY beside.
+    texts.append(geo.text("LAMP", 0.05, dk["cream"], matrix=frame((0.065, face, 1.535), FRONT, lift=0.002)))
+    _plate(d, dk["green_lit"], Vector((0.065, face, 1.63)), FRONT, 0.05, 0.022)
+    m.cylinder(0.042, 0.02, k["orange"], sides=8, at=(0.065, 0.058, 1.38), rot=(90, 0, 0))
+    m.cylinder(0.028, 0.024, k["bezel"], sides=8, at=(0.065, 0.054, 1.38), rot=(90, 0, 0))
+    # The lead: coiled from the cabinet's foot to a plug.
+    coil = [(0.07, 0.12, 1.09)]
+    for i in range(5):
+        coil.append((0.07 + (0.03 if i % 2 == 0 else -0.03), 0.1, 1.05 - i * 0.035))
+    coil.append((0.07, 0.1, 0.86))
+    m.pipe(coil, 0.006, k["cable"], sides=4)
+    m.box((0.032, 0.032, 0.05), k["dark_steel"], at=(0.07, 0.1, 0.835), bevel=0.005)
+    m.cylinder(0.018, 0.012, k["orange"], sides=6, at=(0.07, 0.1, 0.804))
+    low = m.to_object()
+    collider = br._console_collider("rm_lamp_charger", (0.42, 0.14, 0.62), (0, 0.13, 1.4))
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider])
 
 
 @asset("rm_cycle_panel", "rooms", texture=128, colors=32, ao=0.5)
@@ -486,8 +581,8 @@ def crate():
 
 @asset("rm_shelf", "rooms", texture=256, colors=32, ao=0.5)
 def shelf():
-    """Stores shelving (GDD §5): a steel rack of four shelves stocked with spares: lamp cells in
-    trays, folded blankets, a labelled bin on each shelf. The bottom shelf's left side and the third
+    """Stores shelving (GDD §5): a steel rack of four shelves stocked with spares: parts in trays,
+    folded blankets, a labelled bin on each shelf. The bottom shelf's left side and the third
     shelf's right side are left clear for loose O2 canisters and sealant the crew can take (placed
     by the game). Its collider follows the shelves and stock, so loose things rest on them."""
     k = br._materials()

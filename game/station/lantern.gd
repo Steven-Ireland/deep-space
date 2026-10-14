@@ -121,7 +121,8 @@ func _furnish_rooms() -> void:
 	# airlock's cycle panel beside the hatch stays in clear view of the room.
 	for i in 4:
 		_prop("rm_suit_locker", Vector3(-9.125 + i * 0.75, 0, 1.55), 180.0, [])
-	_refill_point(_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, []))
+	_wall_point(_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, []), "REFILL", Vector3(0, 1.1, 0.16), Vector2(1.4, 1.4), "o2")
+	_wall_point(_prop("rm_lamp_charger", Vector3(-6.6, 0, -1.67), 0.0, []), "CHARGE", Vector3(0, 1.4, -0.03), Vector2(0.4, 0.6), "lamp")
 	_prop("rm_bench", Vector3(-8.0, 0, -0.85), 0.0, [])
 	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
@@ -132,6 +133,10 @@ func _furnish_rooms() -> void:
 	_prop("rm_crate", Vector3(6.9, 0, -1.2), 10.0, [])
 	_prop("rm_crate", Vector3(7.75, 0, -1.25), -6.0, [])
 	_prop("rm_crate", Vector3(7.3, 0.8, -1.2), 25.0, [])
+	# The kit rack on the aft wall, passed on the way out: the crew's one crowbar and one flare.
+	var kit := _prop("rm_kit_rack", Vector3(8.4, 0.3, 1.67), 180.0, [])
+	for kind in [&"crowbar", &"flare"]:
+		rack(kind, (kit.find_child("SOCKET_rack_%s" % kind, true, false) as Node3D).global_transform)
 	stock(&"power_cell", Vector3(8.6, 0.0, -1.35), -20.0)
 	stock(&"fuel_cell", Vector3(6.9, 0.02, 1.3), 15.0)
 	_beacon(Vector3(12, 2.6, 0))
@@ -171,23 +176,25 @@ func _furnish_rooms() -> void:
 			{"title": "MED POD", "lines": [["OFFLINE", "RED"], ["UPGRADE REQUIRED", "DIM"]]}]])
 
 
-## Crew refill their suit's O2 at the rack (GDD §5, §9.2): REFILL across its front.
-func _refill_point(rack: Node3D) -> void:
-	var refill := Interactable.new()
-	refill.name = "Refill"
-	refill.verb = "REFILL"
-	refill.housing = rack
-	refill.position = Vector3(0, 1.1, 0.16)
+## Where crew top up their suit (GDD §5, §9): `verb` across the front of `fitting` (`size`, at
+## `centre` in its own space), topping up `what` (Player.top_up: "o2" at the O2 rack, "lamp" at
+## the lamp charger).
+func _wall_point(fitting: Node3D, verb: String, centre: Vector3, size: Vector2, what: String) -> void:
+	var point := Interactable.new()
+	point.name = verb.capitalize()
+	point.verb = verb
+	point.housing = fitting
+	point.position = centre
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = Vector3(1.4, 1.4, 0.06)
+	box.size = Vector3(size.x, size.y, 0.06)
 	shape.shape = box
-	refill.add_child(shape)
-	rack.add_child(refill)
-	refill.used.connect(func(peer: int):
+	point.add_child(shape)
+	fitting.add_child(point)
+	point.used.connect(func(peer: int):
 		var player := Player.of_peer(get_tree(), peer)
 		if player != null:
-			player.refill_from_rack.rpc_id(peer))
+			player.top_up.rpc_id(peer, what))
 
 
 ## The hull's hero pieces: the comms mast over the bridge, the name, and thruster pods on the aft

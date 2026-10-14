@@ -82,13 +82,13 @@ The forward viewport looks out onto the system.
 
 | Room | Where | Function | Interfaces |
 |---|---|---|---|
-| **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, go outside | Suit lockers, O2 refill rack, airlock cycle panel (pressure gauge, warning lights) |
-| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | Docking collar control lever, pressure-equalization gauge, hatch |
+| **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, charge lamps, go outside | Suit lockers, O2 refill rack, lamp charger, airlock cycle panel (pressure gauge, warning lights) |
+| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | Docking collar control lever, pressure-equalization gauge, hatch; the kit rack (the crew's one crowbar and one flare), passed on the way out |
 | **Drive Room** | Off the bridge | Fuel and jump drive | **Fuel cell slots** (physical cells are carried in and inserted); drive status gauges |
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
 | **Crew cabins** | Rear corridor | Spawn, lore, save point. One small cabin per crew member | Bunk, personal locker, log terminal |
 | **Med Bay** | Rear corridor | Healing / revive (§11) | Offline at run start; shown dark behind glass until it's upgraded |
-| **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters, lamp cells, sealant |
+| **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters and sealant |
 
 - **The jump procedure:**
   1. A route is selected at the Helm, a fuel cell is loaded in the Drive Room, and the outer hatches are sealed.
@@ -214,7 +214,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **Helmet lamp:** the main light, on every suit from the start. `F` turns it on and off.
   - It sits on the left of the helmet and points where you look, so both hands stay free: the crew can carry a fuel cell or the Prize and still see.
   - It's offset from the eye, so the shadows it casts are visible.
-  - Its battery runs about 6 minutes of continuous use per cell. It flickers when low, and spare cells are loot.
+  - Its battery runs about 6 minutes of continuous use. It flickers when low and goes out when flat, until it's recharged at the charger in the Suit Room. There are no spare cells.
 - **Flares:** struck with `LMB`, then held or thrown. One burns red for about 60 s, throws hard shadows, hisses and draws attention.
 
 ### 9.4 Inventory
@@ -226,7 +226,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   - A carry takes both hands. The belt keeps its items, but nothing can be drawn from it, and the cuff can't be raised, until the carry is set down.
   - Heavy carries slow you down and stop you sprinting. The helmet lamp keeps shining.
 - **Drop and throw:** `Q` sets down what's in your hands. Hold `Q` to throw it: the longer you hold, the farther it goes. A heavy carry only goes a short way. Dropped and thrown things make noise.
-- **Starting kit (Tier 0):** the helmet lamp on the suit, and a crowbar, shock prod and flares on the belt, which leaves one slot free (see A9).
+- **Starting kit (Tier 0):** the helmet lamp on every suit, and an empty belt. The whole crew shares one crowbar and one flare, racked in the Docking Port on the way out. Shock prods, more flares and everything else are found.
 - **Everyone can see it:** what's in each crew member's hands, their lamp's beam, and when they raise their cuff.
 - **On death:** everything drops on the body.
 
@@ -335,7 +335,7 @@ Death is frequent and specific.
 
 | Tier | Where it turns up | Weapons | Character |
 |---|---|---|---|
-| **0: Improvised** | Starting kit | Crowbar, shock prod (recharges at the station), flares | Stun, deter and buy time. Killing even a Crawler is a messy, risky fight |
+| **0: Improvised** | One crowbar and one flare aboard; the rest in derelicts | Crowbar, shock prod (recharges at the station), flares | Stun, deter and buy time. Killing even a Crawler is a messy, risky fight |
 | **1: Industrial** | Sector 1 | Plasma cutter (mining tool: precise, slow, also cuts hatches), rivet driver (single heavy bolts, loud) | One-handed tools pressed into service. A Crawler dies to a few good hits |
 | **2: Security** | Sector 2 | Pulse carbine (standard security issue from the earlier waves), arc projector (chains between targets, including teammates) | Two-handed and loud |
 | **3: Heavy / exotic** | Sector 3 | Mass driver, incinerator, a weapon grown from alien tissue | Heavy, slow to ready and devastating; they drain cartridges fast |
@@ -354,7 +354,6 @@ Death is frequent and specific.
 
 | Tool | Use |
 |---|---|
-| Lamp cell | Recharges the helmet lamp |
 | Sealant patch | Fixes a suit breach |
 | O2 canister | Refills suit O2 |
 | Power cell | Powers a derelict zone |
@@ -452,6 +451,7 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 
 5. **The light is a helmet lamp from the start** (was A8). Both hands stay free, so the crew can still see while carrying something two-handed. There is no Helmet Lamp upgrade, and no handheld flashlight.
 6. **The belt holds loot as well as gear**, as in *Lethal Company* (§9.4). Two-handed carries stay out of the belt and take both hands.
+7. **The crew starts with one crowbar and one flare between them**, racked in the Docking Port (was A9). Everything else is found. The helmet lamp recharges at a charger in the Suit Room, with no cells.
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.
@@ -461,7 +461,6 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 - **A5.** Friendly fire is on.
 - **A6.** Encounter interiors are procedurally assembled from hand-built rooms. Boss arenas are fully hand-built.
 - **A7.** Difficulty scales with crew size. Solo must be viable.
-- **A9.** The starting kit (crowbar, shock prod, flares) starts on the belt, so a crew member heads out with one free slot and drops gear to make room for more. (The alternative: the kit is racked in the Suit Room and each crew member chooses what to take.)
 
 **TODO:**
 - What Survey Data is used for (§7).

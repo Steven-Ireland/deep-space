@@ -37,8 +37,9 @@ const KINDS := {
 	&"fuel_cell": {"name": "FUEL CELL", "model": "res://assets/models/items/fuel_cell.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 30.0},
 }
 
-## The Tier 0 starting kit (GDD §9.4, §13), in belt order, with a slot to spare.
-const STARTING_BELT: Array[StringName] = [&"crowbar", &"shock_prod", &"flare", &""]
+## Slots on the belt (GDD §9.4). Everyone starts with it empty: the crew's one crowbar and one
+## flare are racked in the docking port, and the rest is found.
+const BELT_SLOTS := 4
 
 
 ## A new record of `kind` (or nothing, for &"").

@@ -183,6 +183,17 @@ func stock(kind: StringName, at: Vector3, yaw := 0.0) -> void:
 	add_child(spot)
 
 
+## Racks a loose `kind` at `where`: held there (not falling) until someone takes it.
+func rack(kind: StringName, where: Transform3D) -> void:
+	var spot := Marker3D.new()
+	spot.name = "Rack_%s" % kind
+	add_child(spot)
+	spot.global_transform = where
+	spot.set_meta(&"kind", kind)
+	spot.set_meta(&"racked", true)
+	spot.add_to_group(&"loot")
+
+
 static func _mark_interior(node: Node) -> void:
 	for mesh: VisualInstance3D in node.find_children("*", "VisualInstance3D", true, false):
 		mesh.layers = INTERIOR_LAYER
