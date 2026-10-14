@@ -15,6 +15,7 @@ extends Node
 ##   --scanned, --route, --jump  start with the departure scanned; and the first jump plotted; and
 ##                         jumping along it a second in (Run)
 ##   --derelict            dock the sample derelict at the departure too (Run)
+##   --fuel=<n>            start the run with n cells loaded (Run)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)
 ##   --belt=<kind>,...     what's on their belt, slot by slot (blank for empty), e.g.

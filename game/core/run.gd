@@ -100,7 +100,8 @@ func _begin() -> void:
 	at = SectorMap.start()
 	charted.assign([at, SectorMap.boss()])
 	visited.assign([at])
-	fuel.assign([true, true, true])
+	var loaded := int(Args.value("--fuel", str(BAYS)))
+	fuel.assign(range(BAYS).map(func(bay: int) -> bool: return bay < loaded))
 	started = true
 	print("Run: seed %d." % seed)
 	_broadcast()
@@ -108,7 +109,8 @@ func _begin() -> void:
 
 
 ## Dev flags (Dev): `--scanned` starts with this system scanned; `--route` with the first jump
-## plotted too; `--jump` jumps along it a second in (whoever's where).
+## plotted too; `--jump` jumps along it a second in (whoever's where); `--fuel=<n>` starts with n
+## cells loaded (in _begin).
 func _dev_flags() -> void:
 	if Args.flag("--scanned") or Args.flag("--route") or Args.flag("--jump"):
 		_finish_scan()
@@ -189,7 +191,7 @@ func jump_blocker() -> String:
 		return "NO ROUTE"
 	if fuel_left() == 0:
 		return "NO FUEL"
-	if _refuelling:
+	if refuelling():
 		return "REFUELLING"
 	if not _crew_aboard():
 		return "CREW OFF STATION"
