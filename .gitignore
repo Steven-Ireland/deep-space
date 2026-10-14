@@ -20,3 +20,6 @@ art/textures_src/
 # Python
 __pycache__/
 *.pyc
+
+# Worktrees
+.worktrees/
