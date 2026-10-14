@@ -95,8 +95,9 @@ death. The consoles and cuff show placeholder numbers.
   turn hasn't been checked in-game.
 - **SSIL intensity** could be raised if rooms want more fill.
 - **The torch beam shows 15-bit banding** up close. This is accepted as the PSX look.
-- **Single-player screenshots sometimes start in the wrong spot:** a `--host --at=… --look=…`
-  shot now and then shows a different place or angle. Rerun it; the cause hasn't been found.
+- **Test shots pick up keyboard and mouse input:** the game window takes focus and captures the
+  mouse, so input at the machine during a run can move a `--screenshot` shot. Keep hands off while
+  one runs. (Shot runs could ignore input later, if it becomes a nuisance.)
 - **The first-person right arm doesn't sway while walking with a tool:** the hold layer overrides
   it. The view still bobs.
 
