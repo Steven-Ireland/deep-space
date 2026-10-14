@@ -62,7 +62,7 @@ func _ready() -> void:
 ## allows with all of it in frame, so its texels land about one-to-one on the 3D's few pixels
 ## (the screen's resolution is at most the 3D's 240-270 lines) and every stroke of text survives.
 func view_transform(fov_degrees: float) -> Transform3D:
-	var centre := mesh.global_transform * (_origin + _u * 0.5 + _v * 0.5)
+	var centre := screen_centre()
 	var height := (mesh.global_basis * _v).length()
 	var width := (mesh.global_basis * _u).length()
 	var half_v := deg_to_rad(fov_degrees) * 0.5
@@ -109,6 +109,16 @@ func push(event: InputEvent, at: Vector2) -> void:
 	viewport.push_input(event)
 
 
+## The middle of the screen, in world space.
+func screen_centre() -> Vector3:
+	return mesh.global_transform * (_origin + _u * 0.5 + _v * 0.5)
+
+
+## The way the screen faces, in world space.
+func screen_normal() -> Vector3:
+	return _normal()
+
+
 func _normal() -> Vector3:
 	var n := (mesh.global_basis * _u).cross(mesh.global_basis * _v).normalized()
 	# Face the console's operator side (+Z of the console).
@@ -151,13 +161,14 @@ func _add_panel() -> void:
 	var panel := TerminalPanel.new()
 	panel.terminal = self
 	panel.verb = verb
+	panel.housing = get_parent()
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()
 	box.size = Vector3(_u.length(), _v.length(), 0.05)
 	shape.shape = box
 	panel.add_child(shape)
 	add_child(panel)
-	var centre := mesh.global_transform * (_origin + _u * 0.5 + _v * 0.5)
+	var centre := screen_centre()
 	var normal := _normal()
 	panel.global_transform = Transform3D(Basis.looking_at(-normal, -(mesh.global_basis * _v).normalized()), centre + normal * 0.03)
 
@@ -170,8 +181,7 @@ func _add_glow() -> void:
 	light.omni_attenuation = 1.6
 	light.layers = Deck.INTERIOR_LAYER
 	add_child(light)
-	var centre := mesh.global_transform * (_origin + _u * 0.5 + _v * 0.5)
-	light.global_position = centre + _normal() * 0.35
+	light.global_position = screen_centre() + _normal() * 0.35
 
 
 ## The interactable over a terminal's screen: using it is local (the player's camera moves to the

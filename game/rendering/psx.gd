@@ -34,6 +34,11 @@ func set_dithered(dithered: bool) -> void:
 	RenderingServer.global_shader_parameter_set(&"psx_dithered", dithered)
 
 
+## How much affine texture swim to show, 0..1 (psx.gdshaderinc). Off by default.
+func set_affine(amount: float) -> void:
+	RenderingServer.global_shader_parameter_set(&"psx_affine_amount", amount)
+
+
 func _fit() -> void:
 	var window := get_window()
 	block = pixelate(window, window.size)

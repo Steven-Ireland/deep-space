@@ -15,9 +15,15 @@ from lib import Model, asset, geo, mats
 from lib.geo import Mesh, clip, frame
 
 WIDTH = 4.0
-HALF_WALL = 0.15
-OUT = 0.45          # the hull's outer face, metres out from the wall's centre line
+# The hull stands clear of the deck inside it: a plane shared with a wall, floor or ceiling, or a
+# wall detail poking through the plating, flickers as vertices snap to pixels.
+HALF_WALL = 0.15 + 0.02  # the plating's inner edge: the wall's outer face, plus a gap
+OUT = 0.56          # the hull's outer face, metres out from the wall's centre line (clear of the
+                    # wall's outer chamfer, which reaches 0.47)
 BOTTOM, TOP = -0.6, 3.7
+ROOF = 3.1 + 0.03   # the roof plate's underside: the ceiling's top, plus a gap
+BELLY = -0.1 - 0.03  # the belly plate's top: the floor's underside, less a gap
+THRUSTER_REACH = 0.95  # a thruster pod's origin, out from the plating it's mounted on
 
 
 def _materials():
@@ -181,18 +187,18 @@ def roof():
     walk = mats.metal("hl_walk", (0.3, 0.31, 0.32), grime=0.5, brushed=False, detail="DiamondPlate008A")
     m = Mesh("hl_roof")
     d = Mesh("hl_roof_decals")
-    m.box((WIDTH, WIDTH, 0.35), k["armour"], at=(0, 0, 3.1 + 0.175))
-    m.box((1.0, WIDTH, 0.04), walk, at=(0, 0, 3.47))
-    m.box((1.0, 0.8, 0.25), k["dark"], at=(1.3, -0.9, 3.57), bevel=0.03)
+    m.box((WIDTH, WIDTH, 0.35), k["armour"], at=(0, 0, ROOF + 0.175))
+    m.box((1.0, WIDTH, 0.04), walk, at=(0, 0, ROOF + 0.37))
+    m.box((1.0, 0.8, 0.25), k["dark"], at=(1.3, -0.9, ROOF + 0.47), bevel=0.03)
     for i in range(5):
-        m.box((0.9, 0.04, 0.1), k["steel"], at=(1.3, -1.25 + i * 0.17, 3.73), bevel=0.01)
+        m.box((0.9, 0.04, 0.1), k["steel"], at=(1.3, -1.25 + i * 0.17, ROOF + 0.63), bevel=0.01)
     up = Vector((0, 0, 1))
     for x in (-2.0, 0.0, 2.0):
-        d.polygon([(-0.015, -2), (0.015, -2), (0.015, 2), (-0.015, 2)], dk["dark"], frame((x, 0, 3.45), up, up=(0, 1, 0)))
+        d.polygon([(-0.015, -2), (0.015, -2), (0.015, 2), (-0.015, 2)], dk["dark"], frame((x, 0, ROOF + 0.35), up, up=(0, 1, 0)))
     for y in (-2.0, 0.0, 2.0):
-        d.polygon([(-2, -0.015), (2, -0.015), (2, 0.015), (-2, 0.015)], dk["dark"], frame((0, y, 3.45), up, up=(0, 1, 0)))
+        d.polygon([(-2, -0.015), (2, -0.015), (2, 0.015), (-2, 0.015)], dk["dark"], frame((0, y, ROOF + 0.35), up, up=(0, 1, 0)))
     for x in (-0.5, 0.5):
-        f = frame((x, 0, 3.49), up, up=(0, 1, 0))
+        f = frame((x, 0, ROOF + 0.39), up, up=(0, 1, 0))
         d.polygon([(-0.04, -2), (0.04, -2), (0.04, 2), (-0.04, 2)], dk["orange"], f)
     m.subdivide(1.0)
     low = m.to_object()
@@ -206,11 +212,11 @@ def belly():
     dk = _decals()
     m = Mesh("hl_belly")
     d = Mesh("hl_belly_decals")
-    m.box((WIDTH, WIDTH, 0.35), k["armour"], at=(0, 0, -0.1 - 0.175))
-    m.box((0.3, WIDTH, 0.16), k["dark"], at=(0, 0, -0.53), bevel=0.02)
+    m.box((WIDTH, WIDTH, 0.35), k["armour"], at=(0, 0, BELLY - 0.175))
+    m.box((0.3, WIDTH, 0.16), k["dark"], at=(0, 0, BELLY - 0.43), bevel=0.02)
     down = Vector((0, 0, -1))
     for x in (-2.0, 0.0, 2.0):
-        d.polygon([(-0.015, -2), (0.015, -2), (0.015, 2), (-0.015, 2)], dk["dark"], frame((x, 0, -0.45), down, up=(0, 1, 0)))
+        d.polygon([(-0.015, -2), (0.015, -2), (0.015, 2), (-0.015, 2)], dk["dark"], frame((x, 0, BELLY - 0.35), down, up=(0, 1, 0)))
     m.subdivide(1.0)
     low = m.to_object()
     return Model(low=low, decals=[d.to_object()], extras=[])
@@ -243,20 +249,21 @@ def mast():
 
 @asset("hl_thruster", "hull", texture=128, colors=32, ao=0.45)
 def thruster():
-    """A manoeuvring thruster pod for the hull's aft corners: an armoured housing on a pylon, a
-    bell nozzle with a scorched lip, a faintly glowing throat."""
+    """A manoeuvring thruster pod for an aft face of the hull: an armoured housing standing off the
+    plating on a pylon, a bell nozzle with a scorched lip pointing aft (-Y, so +Z in Godot), a
+    faintly glowing throat. The pylon's end (+Y) meets the hull: place the origin THRUSTER_REACH
+    out from the plating."""
     k = _materials()
-    dk = _decals()
     throat = mats.glowing("hl_throat", (1.0, 0.55, 0.2), base=(0.3, 0.12, 0.05), flicker=0.3)
     scorch = mats.metal("hl_scorch", (0.16, 0.14, 0.12), grime=0.6, brushed=False)
     m = Mesh("hl_thruster")
     d = Mesh("hl_thruster_decals")
-    m.box((0.5, 0.9, 0.6), k["dark"], at=(0, 0.2, 0), bevel=0.04)
-    m.lathe([(0.25, 0.0), (0.42, 0.25), (0.7, 0.9), (0.66, 0.92), (0.22, 0.12)], scorch, sides=10, at=(0, 0.7, 0), rot=(-90, 0, 0),
+    m.box((0.5, 0.9, 0.6), k["dark"], at=(0, 0.0, 0), bevel=0.04)
+    m.lathe([(0.25, 0.0), (0.42, 0.25), (0.7, 0.9), (0.66, 0.92), (0.22, 0.12)], scorch, sides=10, at=(0, -0.5, 0), rot=(90, 0, 0),
             cap_start=False, cap_end=False)
-    m.cylinder(0.24, 0.06, throat, sides=10, at=(0, 0.62, 0), rot=(90, 0, 0))
-    m.box((1.2, 0.3, 0.3), k["armour"], at=(-0.7, 0.0, 0), bevel=0.03)
-    _ = dk
+    m.cylinder(0.24, 0.06, throat, sides=10, at=(0, -0.42, 0), rot=(90, 0, 0))
+    m.box((0.34, THRUSTER_REACH - 0.45, 0.34), k["armour"], at=(0, (THRUSTER_REACH + 0.45) / 2, 0), bevel=0.03)
+    m.box((0.6, 0.06, 0.6), k["dark"], at=(0, THRUSTER_REACH - 0.03, 0), bevel=0.01)  # the mounting plate
     low = m.to_object()
     return Model(low=low, decals=[d.to_object()], extras=[])
 

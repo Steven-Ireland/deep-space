@@ -1,5 +1,5 @@
 // The unlit PSX material: screens, lamps, signage and anything that glows by itself. Drawn at its
-// texture's colour regardless of light, still snapped and affine (psx.gdshaderinc).
+// texture's colour regardless of light, still snapped (psx.gdshaderinc).
 shader_type spatial;
 render_mode unshaded, cull_back, shadows_disabled;
 
@@ -19,6 +19,6 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv = mix(UV, affine_uv.xy / affine_uv.w, affine_amount);
+	vec2 uv = mix(UV, affine_uv.xy / affine_uv.w, affine_amount * psx_affine_amount);
 	ALBEDO = albedo.rgb * texture(albedo_texture, uv).rgb * energy;
 }

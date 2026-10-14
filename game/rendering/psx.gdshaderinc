@@ -1,9 +1,14 @@
 // How the PlayStation drew, shared by every PSX material (approach from ultraskeletal's psx-look):
-// each triangle corner lands on a whole pixel, so geometry wobbles as it moves, and textures are
-// laid across a triangle as it lies on screen (affine), so they swim as the camera turns.
+// each triangle corner lands on a whole pixel, so geometry wobbles as it moves. The PlayStation
+// also laid textures across a triangle as it lay on screen (affine), so they swam as the camera
+// turned. That's here but off (psx_affine_amount): on the kit's big wall and floor triangles it
+// slid textures out of their atlas islands, into dark wedges.
 
 // Whether the screen is dithered (Psx.set_dithered(), a player setting), for psx_dither().
 global uniform bool psx_dithered;
+// How much of the PlayStation's affine texture swim to show, 0..1, scaling each material's
+// affine_amount (Psx.set_affine()). Off by default.
+global uniform float psx_affine_amount;
 
 // A clip-space position moved to the middle of the pixel it falls in, on a screen `size` pixels.
 // A shader that writes POSITION must write it in every pass, shadow passes too, or Godot sends

@@ -2,7 +2,8 @@ class_name Player
 extends CharacterBody3D
 ## A crew member (GDD §9). The owning peer moves it on netfox's tick: slow, weighty movement with
 ## real acceleration, short jumps, crouching under pipes. Everyone else sees it through its
-## StateSynchronizer, with TickInterpolator smoothing its position (TECH §2). Mouse look is
+## StateSynchronizer, with TickInterpolator smoothing its position (TECH §2): its suit walking in
+## step, whatever's in its hand, its flashlight's beam, its wrist cuff when raised. Mouse look is
 ## applied immediately every frame, never smoothed.
 
 const WALK_SPEED := 2.2
@@ -20,35 +21,55 @@ const CROUCH_EYE_HEIGHT := 1.0
 const HEIGHT := 1.8
 const CROUCH_HEIGHT := 1.2
 const REACH := 2.2
+## The flashlight's bounce off whatever it's pointed at (GDD §14): a soft fill at the spot, so a
+## lit wall lights the room a little the way a real one does.
+const BOUNCE_ENERGY := 0.55
+## Render layer for crew bodies: walls shade a flashlight's bounce, so it can't light the next
+## room, but bodies don't; a bounce is broad, and a hard body-shaped shadow from it looks wrong.
+const CREW_LAYER := 1 << 4
+
+## Emitted on the owner's machine when the belt or the held slot changes (the visor shows it).
+signal belt_changed
 
 ## Synced from the owner (StateSynchronizer).
 var look := Vector2.ZERO # yaw, pitch in radians
 var flashlight_on := false
 var crouching := false
 var sprinting := false
+## The item kind in the right hand (Items), and whether the wrist cuff is raised to read.
+var held := &""
+var cuff_up := false
+
+## The belt (GDD §9.4) on the owner's machine: four slots of item kinds, `slot` the one in hand.
+var belt: Array[StringName] = Items.STARTING_BELT.duplicate()
+var slot := 0
 
 ## The Interactable under the crosshair, on the owner's machine.
 var aimed_at: Interactable
 ## The terminal this crew member is working at, if any (GDD §10).
 var operating: Terminal
-var _terminal_cursor := Vector2(-1, -1)
 var _camera_tween: Tween
-
-var _bob := 0.0
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
 @onready var flashlight: SpotLight3D = $Head/Flashlight
 @onready var body_visual: Node3D = $Body
 @onready var shape: CollisionShape3D = $Shape
-@onready var aim: RayCast3D = $Head/Camera3D/Aim
 @onready var view_model: Node3D = $Head/Camera3D/ViewModel
-@onready var arms_anim: AnimationPlayer = $Head/Camera3D/ViewModel/Arms.find_child("AnimationPlayer", true, false)
-@onready var body_anim: AnimationPlayer = $Body.find_child("AnimationPlayer", true, false)
 
-const FLASHLIGHT := preload("res://assets/models/items/it_flashlight.glb")
-var _cuff_up := false
-var _torch: Node3D
+var _animation: CrewAnimation # the arms (owner) or the suit (everyone else)
+var _pose: CrewPose
+var _held_item: Node3D
+var _shown := &"-"
+var _lens: Node3D
+var _lens_material: ShaderMaterial
+var _bounce: OmniLight3D
+var _cuff_screen: MeshInstance3D
+var _stride := 0.0 # stride cycles walked, for the head bob
+var _bob := 0.0
+var _legs_yaw := 0.0
+var _crouch := 0.0
+var _cuff := 0.0
 
 
 func _enter_tree() -> void:
@@ -61,19 +82,39 @@ func _ready() -> void:
 	camera.current = local
 	body_visual.visible = not local
 	view_model.visible = local
-	if local:
-		_equip_view_model()
 	look.x = rotation.y
-	aim.target_position = Vector3(0, 0, -REACH)
-	aim.enabled = local
+	flashlight.top_level = true
+	_bounce = OmniLight3D.new()
+	_bounce.top_level = true
+	_bounce.light_color = flashlight.light_color
+	_bounce.shadow_enabled = true
+	_bounce.light_cull_mask = ~Deck.HULL_LAYER
+	_bounce.shadow_caster_mask = ~CREW_LAYER
+	for mesh: VisualInstance3D in body_visual.find_children("*", "VisualInstance3D", true, false):
+		mesh.layers = CREW_LAYER
+	_bounce.visible = false
+	add_child(_bounce)
 	if local:
 		add_to_group(&"local_player")
+		_equip_view_model()
+		_animation = _animate_rig(view_model)
+		held = belt[slot]
 		_apply_dev_flags()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		var hud := preload("res://game/player/visor_hud.tscn").instantiate()
 		hud.player = self
 		add_child(hud)
+	else:
+		_animation = _animate_rig(body_visual)
+		_pose = CrewPose.new()
+		body_visual.find_child("Skeleton3D", true, false).add_child(_pose)
+		_cuff_screen = body_visual.find_child("cuff_screen", true, false) as MeshInstance3D
 	NetworkTime.on_tick.connect(_tick)
+
+
+func _exit_tree() -> void:
+	if NetworkTime.on_tick.is_connected(_tick):
+		NetworkTime.on_tick.disconnect(_tick)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -92,15 +133,53 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event.is_action_pressed("flashlight"):
-		flashlight_on = not flashlight_on
+		_flashlight_key()
 	elif event.is_action_pressed("interact") and aimed_at != null:
 		aimed_at.request_use()
+	elif event.is_action_pressed("slot_next"):
+		select_slot(posmod(slot + 1, belt.size()))
+	elif event.is_action_pressed("slot_prev"):
+		select_slot(posmod(slot - 1, belt.size()))
+	else:
+		for i in belt.size():
+			if event.is_action_pressed("slot_%d" % (i + 1)):
+				select_slot(i)
+
+
+## Moves the crew member straight to `at`, without smoothing the jump (owner only).
+func teleport(at: Vector3) -> void:
+	global_position = at
+	velocity = Vector3.ZERO
+	# netfox restores its last recorded state before each tick: record this one as both ends.
+	var interpolator: TickInterpolator = $TickInterpolator
+	interpolator.push_state()
+	interpolator.push_state()
+	interpolator.teleport()
+
+
+## Takes the item in belt slot `index` in hand (GDD §9.4).
+func select_slot(index: int) -> void:
+	slot = index
+	held = belt[slot]
+	belt_changed.emit()
+
+
+## F: the flashlight on or off, drawing it from the belt first if something else is in hand.
+func _flashlight_key() -> void:
+	if held == &"flashlight":
+		flashlight_on = not flashlight_on
+		return
+	var index := belt.find(&"flashlight")
+	if index >= 0:
+		select_slot(index)
+		flashlight_on = true
 
 
 func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		rotation.y = look.x
 		head.rotation.x = look.y
+		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null
 		if operating == null:
 			_update_aim()
 		else:
@@ -109,8 +188,10 @@ func _process(delta: float) -> void:
 		var follow := 1.0 - exp(-delta * 18.0)
 		rotation.y = lerp_angle(rotation.y, look.x, follow)
 		head.rotation.x = lerp_angle(head.rotation.x, look.y, follow)
-	flashlight.visible = flashlight_on
-	_animate()
+	if held != _shown:
+		_show_held()
+	_animate(delta)
+	_place_flashlight()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -120,12 +201,16 @@ func _tick(delta: float, _tick_number: int) -> void:
 	if not is_multiplayer_authority():
 		_fit_shape()
 		return
-	crouching = Input.is_action_pressed("crouch") or (crouching and not _can_stand())
+	crouching = Input.is_action_pressed("crouch") or Args.flag("--crouch") or (crouching and not _can_stand())
 	_fit_shape()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var moving := Args.value("--move", "")
+	if moving != "":
+		var v := moving.split_floats(",")
+		input = Vector2(v[0], v[1])
 	if operating != null:
 		input = Vector2.ZERO
-	sprinting = Input.is_action_pressed("sprint") and not crouching and input.y < -0.1
+	sprinting = (Input.is_action_pressed("sprint") or Args.flag("--sprint")) and not crouching and input.y < -0.1
 	var speed := CROUCH_SPEED if crouching else (SPRINT_SPEED if sprinting else WALK_SPEED)
 	var wish := (Basis(Vector3.UP, look.x) * Vector3(input.x, 0, input.y)).limit_length(1.0) * speed
 
@@ -145,24 +230,42 @@ func _tick(delta: float, _tick_number: int) -> void:
 	velocity /= NetworkTime.physics_factor
 
 
+## The usable thing under the crosshair: the nearest Interactable within reach, unless something
+## solid stands in front of it, other than its own housing (a console's box round its screens).
 func _update_aim() -> void:
 	aimed_at = null
-	if aim.is_colliding() and aim.get_collider() is Interactable:
-		var target := aim.get_collider() as Interactable
-		if target.enabled:
-			aimed_at = target
+	var from := camera.global_position
+	var to := from - camera.global_basis.z * REACH
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, to, Interactable.LAYER)
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	var hit := space.intersect_ray(query)
+	var thing := hit.get("collider") as Interactable
+	if thing == null or not thing.enabled:
+		return
+	var reach := from.distance_to(hit.position)
+	var exclude: Array[RID] = [get_rid()]
+	for i in 4:
+		var solid := space.intersect_ray(PhysicsRayQueryParameters3D.create(from, to, 1, exclude))
+		if solid.is_empty() or from.distance_to(solid.position) >= reach - 0.02:
+			aimed_at = thing
+			return
+		var body := solid.collider as Node
+		if thing.housing == null or not (body == thing.housing or thing.housing.is_ancestor_of(body)):
+			return
+		exclude.append(solid.rid)
 
 
+## The camera dips at each footfall and sways with the stride, in step with the arms and legs.
 func _head_bob(delta: float) -> void:
 	if not is_multiplayer_authority() or camera.top_level:
 		return
 	var speed := Vector2(velocity.x, velocity.z).length()
-	if is_on_floor() and speed > 0.3:
-		_bob += delta * speed * 2.6
-	else:
-		_bob = lerpf(_bob, roundf(_bob / PI) * PI, 1.0 - exp(-delta * 6.0))
-	var amount := clampf(speed / SPRINT_SPEED, 0.0, 1.0)
-	camera.position = Vector3(cos(_bob) * 0.012, absf(sin(_bob)) * 0.03, 0) * amount
+	var target := clampf(speed / SPRINT_SPEED, 0.0, 1.0) if is_on_floor() and speed > 0.3 else 0.0
+	_bob = lerpf(_bob, target, 1.0 - exp(-delta * 6.0))
+	var dip := 0.5 + 0.5 * cos(_stride * TAU * 2.0)
+	camera.position = Vector3(sin(_stride * TAU) * 0.012, -dip * 0.03, 0) * _bob
 
 
 func _fit_shape() -> void:
@@ -184,10 +287,18 @@ func _can_stand() -> bool:
 
 
 ## Dev flags (Dev): `--flashlight` starts with the light on; `--look=<yaw>,<pitch>` (degrees)
-## sets the starting view. For checking builds unattended.
+## sets the starting view; `--at=<x>,<y>,<z>` the starting spot; `--hold=<kind>` puts an item
+## in hand. For checking builds unattended.
 func _apply_dev_flags() -> void:
 	if Args.flag("--flashlight"):
 		flashlight_on = true
+	var at := Args.value("--at", "")
+	if at != "":
+		var v := at.split_floats(",")
+		teleport(Vector3(v[0], v[1], v[2]))
+	var kind := StringName(Args.value("--hold", ""))
+	if belt.has(kind):
+		select_slot(belt.find(kind))
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)
@@ -253,13 +364,11 @@ func _operate_when_ready(screen_mesh: String) -> void:
 			return
 
 
-
-## The first-person arms: the flashlight in the right hand, the wrist cuff's screen live.
+## The first-person arms: shadowless (they'd shade the flashlight in them), the wrist cuff's
+## screen live.
 func _equip_view_model() -> void:
-	var grip := view_model.find_child("SOCKET_grip", true, false) as Node3D
-	if grip != null:
-		_torch = FLASHLIGHT.instantiate()
-		grip.add_child(_torch)
+	for mesh: GeometryInstance3D in view_model.find_children("*", "GeometryInstance3D", true, false):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var cuff := Terminal.new()
 	cuff.screen_mesh_name = "screen_cuff"
 	cuff.screen_script = preload("res://game/terminals/screens/cuff_screen.gd")
@@ -268,35 +377,106 @@ func _equip_view_model() -> void:
 	view_model.find_child("Arms", true, false).add_child(cuff)
 
 
-## Arms (owner) and body (everyone else) play the clip that matches what the crew member's doing.
-func _animate() -> void:
-	var speed := Vector2(velocity.x, velocity.z).length()
-	if is_multiplayer_authority():
-		if arms_anim == null:
-			return
-		if _torch != null:
-			# The torch follows the hand but always points where the crew member looks.
-			_torch.global_basis = camera.global_basis * Basis(Vector3.UP, PI)
-		var raise := (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null
-		if raise and not _cuff_up:
-			_cuff_up = true
-			arms_anim.play("cuff_raise")
-			arms_anim.queue("cuff_hold")
-		elif not raise and _cuff_up:
-			_cuff_up = false
-			arms_anim.play_backwards("cuff_raise")
-		elif not _cuff_up and not arms_anim.is_playing() or (not _cuff_up and arms_anim.current_animation in ["idle", "walk"]):
-			var wanted := "walk" if speed > 0.4 and is_on_floor() else "idle"
-			if arms_anim.current_animation != wanted:
-				arms_anim.play(wanted)
-	elif body_anim != null:
-		var wanted := "idle"
-		if crouching:
-			wanted = "crouch"
-		elif speed > 3.0:
-			wanted = "run"
-		elif speed > 0.4:
-			wanted = "walk"
-		if body_anim.current_animation != wanted:
-			body_anim.play(wanted)
-		body_anim.speed_scale = clampf(speed / (SPRINT_SPEED if wanted == "run" else WALK_SPEED), 0.5, 1.5) if wanted in ["walk", "run"] else 1.0
+func _animate_rig(rig: Node3D) -> CrewAnimation:
+	var player := rig.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if player == null:
+		return null
+	var tree := CrewAnimation.new()
+	player.get_parent().add_child(tree)
+	tree.setup(player)
+	return tree
+
+
+## Puts what's held in the hand: the first-person fist for the owner, the suit's glove for the rest.
+func _show_held() -> void:
+	if _held_item != null:
+		_held_item.queue_free()
+		_held_item = null
+	_shown = held
+	if Args.flag("--debug-crew"):
+		print("Crew %s (%s): holds %s" % [name, "own" if is_multiplayer_authority() else "remote", held])
+	var rig := view_model if is_multiplayer_authority() else body_visual
+	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D)
+	if _held_item != null:
+		for mesh: VisualInstance3D in _held_item.find_children("*", "VisualInstance3D", true, false):
+			mesh.layers = CREW_LAYER
+	_lens = null
+	_lens_material = null
+	if _held_item != null:
+		_lens = _held_item.find_child("SOCKET_light", true, false) as Node3D
+		var glass := _held_item.find_child("lens", true, false) as MeshInstance3D
+		if glass != null and glass.get_active_material(0) is ShaderMaterial:
+			_lens_material = glass.get_active_material(0).duplicate()
+			glass.material_override = _lens_material
+
+
+## The flashlight shines from the torch's lens, where the torch points; the owner's from the torch
+## in their fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks.
+## Never through a wall the lens has been pushed into. Its bounce fills in around the spot.
+func _place_flashlight() -> void:
+	var on := flashlight_on and held == &"flashlight" and _lens != null
+	flashlight.visible = on
+	_bounce.visible = on and not Args.flag("--no-gi")
+	if _lens_material != null:
+		_lens_material.set_shader_parameter("energy", 2.0 if on else 0.15)
+	if _held_item != null and not is_multiplayer_authority() and held == &"flashlight":
+		_held_item.global_basis = head.global_basis * Basis(Vector3.UP, PI)
+	if not on:
+		return
+	var forward := _held_item.global_basis.z.normalized()
+	var eye := head.global_position
+	var lens := _lens.global_position + forward * 0.04
+	var space := get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(eye, lens, 1, [get_rid()])
+	var blocked := space.intersect_ray(query)
+	if not blocked.is_empty():
+		lens = blocked.position + (eye - lens).normalized() * 0.06
+	flashlight.global_transform = Transform3D(Basis.looking_at(forward, _held_item.global_basis.y), lens)
+	query = PhysicsRayQueryParameters3D.create(lens, lens + forward * flashlight.spot_range, 1, [get_rid()])
+	var hit := space.intersect_ray(query)
+	if hit.is_empty():
+		_bounce.visible = false
+		return
+	var reach := clampf(lens.distance_to(hit.position) / flashlight.spot_range, 0.0, 1.0)
+	_bounce.global_position = hit.position + hit.normal * 0.4
+	_bounce.light_energy = BOUNCE_ENERGY * pow(1.0 - reach, 1.5)
+	_bounce.omni_range = lerpf(2.6, 5.0, reach)
+	_bounce.omni_attenuation = 1.2
+
+
+## Arms (owner) and suit (everyone else) blend their clips by what the crew member's doing.
+func _animate(delta: float) -> void:
+	var ease := 1.0 - exp(-delta * 8.0)
+	_crouch = lerpf(_crouch, 1.0 if crouching else 0.0, ease)
+	_cuff = move_toward(_cuff, 1.0 if cuff_up else 0.0, delta / 0.3)
+	var horizontal := Vector3(velocity.x, 0, velocity.z)
+	var speed := horizontal.length()
+	var local := global_basis.inverse() * horizontal # forward -Z, left -X
+	var backward := local.z > 0.35 * speed and speed > 0.3
+	var rate := CrewAnimation.stride_rate(speed, clampf((speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0))
+	if crouching:
+		rate = 1.0 / CrewAnimation.SNEAK_PERIOD
+	if speed > 0.3:
+		_stride += delta * rate
+	if _cuff_screen != null:
+		_cuff_screen.visible = _cuff > 0.3
+	if _animation == null:
+		return
+	_animation.move = clampf(speed / (CROUCH_SPEED if crouching else WALK_SPEED), 0.0, 1.0)
+	_animation.run = clampf((speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
+	_animation.crouch = _crouch
+	_animation.cuff = _cuff
+	_animation.hold = Items.hold_style(held)
+	_animation.direction = -1.0 if backward else 1.0
+	_animation.step(delta, speed)
+	if _pose != null:
+		# The legs face the way they're going (backwards: the way they're backing), the body the
+		# way it looks.
+		var wanted := 0.0
+		if speed > 0.3:
+			wanted = atan2(local.x, local.z) if backward else atan2(-local.x, -local.z)
+			wanted = clampf(wanted, -1.2, 1.2)
+		_legs_yaw = lerp_angle(_legs_yaw, wanted, ease)
+		_pose.legs_yaw = _legs_yaw
+		_pose.pitch = head.rotation.x
+		_pose.torch = 1.0 if Items.hold_style(held) == "torch" else 0.0

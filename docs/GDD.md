@@ -216,8 +216,10 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **Flares:** thrown light that burns for about 60 s, hisses and draws attention.
 
 ### 9.4 Inventory
-- **Belt:** 4 slots for small items.
-- **Hands:** the held item, or one large two-handed carry. Heavy items such as fuel cells, the Prize or a body slow you down and take your handheld light.
+- **Belt:** 4 slots for small items. `1–4` or the wheel takes one in hand; `F` draws the flashlight and switches it on.
+- **Hands:** one item drawn from the belt, or one large two-handed carry. The flashlight is a held item too, so light and tool compete for the hand until the helmet lamp frees it (see A8). Heavy items such as fuel cells, the Prize or a body slow you down and take your handheld light.
+- **Starting kit (Tier 0):** flashlight, crowbar, shock prod and flares, on the belt.
+- **Everyone can see it:** what's in each crew member's hand, their flashlight beam, and when they raise their cuff.
 - **On death:** everything drops on the body.
 
 ### 9.5 Controls (KB+M first)
@@ -235,11 +237,11 @@ Most information lives in the world. A small **visor HUD** fills the gaps, and i
 |---|---|---|
 | Health | **Wrist cuff** ECG (left forearm; `Tab` raises it to read), heartbeat audio | A warning when vitals are critical |
 | O2 and suit integrity | Wrist cuff; hiss and visor frost on a breach | Small gauges in vacuum, when low, or after damage |
-| Held item and belt | The item in your hands; the cuff lists the belt | The item's name, briefly, when switching |
-| Interaction | — | A small centre dot and a one-word verb ("OPEN", "TAKE") when looking at something usable |
+| Held item and belt | The item in your hands; the cuff lists the belt | The belt in the lower right: four slots with icons, the one in hand raised and named. Bright when it changes, then dim |
+| Interaction | — | A small centre dot, and the one-word verb ("OPEN", "TAKE") in a bordered box that floats beside the thing, tied to it by a jointed leader line that fades toward it |
 | Damage | **Visor:** cracks, frost and condensation when O2 is low, a blood spatter | Readouts flicker and distort |
 | Your stress | Breathing and heartbeat audio, tied to vitals and threat proximity | — |
-| Other players' state | **Spine lights** on each suit (Dead Space-style) visible from behind, their breathing on the radio, the station's Vitals board | — |
+| Other players' state | **Spine lights** on each suit (Dead Space-style) visible from behind; the item in their hand and their beam; their cuff's screen lighting up as they raise it to read; their breathing on the radio; the station's Vitals board | — |
 | Flashlight battery | An LED on the flashlight itself, plus flicker | — |
 | Tool and weapon state | Each tool's own screen or indicator (scanner CRT, motion tracker, charge LEDs) | — |
 | Map, route, fuel, salvage | The station's terminals and gauges (§5) | — |
@@ -376,11 +378,11 @@ Death is frequent and specific.
 | Resolution | The world is drawn at about 270 lines (roughly the PS1's 320 × 240), shown as big square pixels with no smoothing |
 | Colour | 15-bit colour with a 4×4 ordered dither; players can turn the dither off |
 | Wobble | Geometry snaps to whole pixels, so objects jitter as they move |
-| Textures | Textures warp across surfaces as the camera turns (no perspective correction). They're unfiltered: 64×64 or 128×128 with ≤16–32 colours each |
+| Textures | Unfiltered: 64×64 or 128×128 with ≤16–32 colours each. Perspective-correct: the PS1's affine swim tore the big wall and floor triangles into dark wedges, so it's off (a setting can bring it back) |
 | Poly budgets (triangles) | Characters 600–1,200 · creatures 400–900 · view-model tools 150–400 · props 20–300 · kit pieces 50–400 · LANTERN exterior 2–4k |
 | Bodies | Characters and creatures are built from **segmented rigid parts** that don't stretch or bend at the joints, PSX style |
-| Animation | 12–15 fps, stepped |
-| No modern polish | No ambient occlusion, reflections or motion blur; little or no bloom |
+| Animation | Creatures move at 12 fps, stepped. The crew's motion is smooth so feet stay planted as they walk, and it blends between standing, walking, running and crouching |
+| A little modern light (PSX+) | Light bounces: a flashlight's spot spills a soft fill around it, lit surfaces light their neighbours, and glossy surfaces and glass show screen-space reflections. Still no motion blur, little or no bloom, and no ambient occlusion beyond the baked vertex AO |
 
 **Lighting (the main atmospheric tool):**
 - **LANTERN:** warm sodium-amber practicals, off-white panels, CRT green and amber screens. It reads as home.
@@ -447,6 +449,7 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 - **A5.** Friendly fire is on.
 - **A6.** Encounter interiors are procedurally assembled from hand-built rooms. Boss arenas are fully hand-built.
 - **A7.** Difficulty scales with crew size. Solo must be viable.
+- **A8.** The flashlight takes the hand like any other belt item, so light and crowbar are a choice until the helmet lamp (§9.4). (The alternative: the flashlight in the off hand, alongside any one-handed tool.)
 
 **TODO:**
 - What Survey Data is used for (§7).

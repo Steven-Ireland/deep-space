@@ -1,5 +1,5 @@
 // The lit PSX material every model uses (assets/materials/*.tres, assigned on import): its
-// texture laid on affinely and unfiltered, corners snapped to pixels (psx.gdshaderinc), tinted by
+// texture unfiltered, corners snapped to pixels (psx.gdshaderinc), tinted by
 // the vertex colours the Blender pipeline bakes ambient occlusion into.
 shader_type spatial;
 render_mode diffuse_lambert, specular_schlick_ggx, cull_back;
@@ -10,7 +10,7 @@ uniform sampler2D albedo_texture : source_color, filter_nearest, repeat_enable, 
 uniform vec4 albedo : source_color = vec4(1.0);
 // How much the vertex colours (baked AO and tint) darken the texture.
 uniform float vertex_color_amount : hint_range(0.0, 1.0) = 1.0;
-// 1 for full PlayStation swim; lower for big floor triangles that warp too far.
+// 1 for full PlayStation swim, when psx_affine_amount is on; lower for big triangles that warp too far.
 uniform float affine_amount : hint_range(0.0, 1.0) = 1.0;
 uniform sampler2D emission_texture : source_color, filter_nearest, repeat_enable, hint_default_black;
 uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
@@ -29,7 +29,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 uv = mix(UV, affine_uv.xy / affine_uv.w, affine_amount);
+	vec2 uv = mix(UV, affine_uv.xy / affine_uv.w, affine_amount * psx_affine_amount);
 	vec4 tex = texture(albedo_texture, uv);
 	vec3 tint = mix(vec3(1.0), COLOR.rgb, vertex_color_amount);
 	ALBEDO = albedo.rgb * tex.rgb * tint;

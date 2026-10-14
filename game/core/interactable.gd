@@ -12,10 +12,17 @@ signal used(peer: int)
 ## The one word the visor shows ("OPEN", "TAKE", "PULL").
 @export var verb := "USE"
 @export var enabled := true
+## The solid this is set into, which doesn't hide it from a crew member's aim: a console's
+## collision box encloses its own screens.
+var housing: Node3D
+
+
+## The physics layer interactables are on.
+const LAYER := 1 << 2
 
 
 func _init() -> void:
-	collision_layer = 1 << 2 # interact
+	collision_layer = LAYER # interact
 	collision_mask = 0
 	monitoring = false
 

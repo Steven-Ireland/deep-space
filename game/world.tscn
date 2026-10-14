@@ -13,6 +13,16 @@ ambient_light_color = Color(0.02, 0.022, 0.03, 1)
 ambient_light_energy = 1.0
 tonemap_mode = 0
 reflected_light_source = 1
+ssr_enabled = true
+ssr_max_steps = 48
+ssr_fade_in = 0.1
+ssr_fade_out = 1.5
+ssr_depth_tolerance = 0.3
+ssil_enabled = true
+ssil_radius = 4.0
+ssil_intensity = 1.6
+ssil_sharpness = 0.9
+ssil_normal_rejection = 0.8
 
 [node name="World" type="Node3D"]
 

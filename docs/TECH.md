@@ -29,7 +29,7 @@
 
 | Thing | Authority | Sync |
 |---|---|---|
-| Player body, look, flashlight, animation state | **Owning client** | `StateSynchronizer` at the tick rate; `TickInterpolator` on remote peers |
+| Player body, look, flashlight, held item, cuff, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `flashlight_on`, `crouching`, `sprinting`, `held`, `cuff_up`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
 | Player actions (hits, interactions, pickups, throws) | **Owning client reports**; host applies | Reliable RPC to the host → host applies it to the target's state → state is broadcast |
 | Run state (map, fuel, salvage, upgrades, crew status) | Host | Reliable RPCs on change. Saved by the host to `user://` between jumps |
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
@@ -84,17 +84,19 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - A `global uniform bool psx_dithered` toggles it.
 - **`psx.gdshaderinc`:**
   - `psx_snap(clip, VIEWPORT_SIZE)` snaps vertices to the pixel grid.
-  - `psx_affine()` gives affine (non-perspective) UVs: multiply by w in the vertex shader, divide in the fragment shader.
+  - `psx_affine()` gives affine (non-perspective) UVs: multiply by w in the vertex shader, divide in the fragment shader. Scaled by `global uniform float psx_affine_amount`, **default 0 (off)**: on the kit's big triangles it slid UVs out of their atlas islands into dark wedges. `Psx.set_affine()` can bring it back.
   - `psx_dither()` does the 15-bit conversion.
 - **Gotcha:** a shader that writes `POSITION` must write it in every pass, so use `POSITION = IN_SHADOW_PASS ? clip : psx_snap(...)`. Otherwise shadows collapse to a point.
 - **Materials:** a small set of shared materials: PSX lit, unlit/emissive, CRT screen, skybox, planet, hyperspace tunnel.
   - Textures use nearest filtering.
-  - Affine warp gets a strength uniform, in case large floor polygons warp too much.
+  - Each material's `affine_amount` scales the global one, for when it's on.
 - **Lighting:**
   - Real-time per-pixel lights only, with no baked GI (layouts are procedural).
-  - Flashlights are `SpotLight3D`s with a projector texture for the lens pattern.
+  - **Flashlights** are `SpotLight3D`s at the held torch's lens (`SOCKET_light`): the owner's from the torch in their first-person fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks. The light is pulled back if the lens is pushed into a wall. Held items and the first-person arms cast no shadows, so a torch can't shade its own beam. (A projector texture for the lens pattern is still to come.)
+  - **PSX+ bounce (GDD §14):** the environment runs SSIL and SSR. Each lit flashlight also places an `OmniLight3D` just off the spot its beam hits, dimmer with distance: a soft fill around the spot. It's shadowed by walls only (`shadow_caster_mask` leaves out crew bodies on `Player.CREW_LAYER`), so it can't light the next room or throw a hard body silhouette. `--no-gi` turns all three off for comparison.
   - **Shadow budget:** the local player's flashlight always casts shadows. Teammates' lights cast shadows only within about 12 m, with at most 4 shadowed spots at once. Room practicals are unshadowed apart from hand-picked key lights.
-  - No SSAO, SSIL, SSR or SDFGI. Environment ambient is near black in derelicts.
+  - No SSAO or SDFGI. Environment ambient is near black in derelicts.
+- **Hull clearance:** hull plating stands 2 cm off the walls' outer faces and 3 cm off the ceiling and floor, and its outer face (0.56 m out from the wall line) clears the walls' outer chamfer. A plane shared with the deck, or a wall detail poking through, flickers as vertices snap.
 - **Fog:**
   - Distance fog closes in early.
   - Volumetric fog (Forward+ only) at low density in derelicts, to be judged in look-dev against cost at 270 lines.
@@ -138,8 +140,14 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - Every module scene declares its sockets, size in cells, zone volumes, and spawn markers (loot, hazards, creatures, lore).
 - **Rigs:**
   - Segmented rigid meshes, each one parented wholly to one bone, so no weight painting is needed.
-  - Armatures and keyframed clips are written in the generator scripts.
-  - Clips play stepped at 12–15 fps.
+  - Armatures and keyframed clips are written in the generator scripts (`lib/rig.py`). Bones run along the body, so a positive X turn pitches any bone forward over its head; `root_location` is in the model's axes.
+  - Creature clips play stepped at 12 fps. **Crew clips are keyed every frame and interpolated:** with stepped keys a planted foot rides along with the body between keys and snaps back, which reads as sliding.
+  - **Crew locomotion** (`characters.py`): walk, run and crouch-walk are each one stride cycle in one second, left heel strike first, generated from a gait. Each foot is planted for its stance and rides back under the body at exactly the gait's speed, with a heel-to-toe roll. The legs reach their ankle targets by two-bone IK (`rig.leg_ik`), and the hips drop as far as the planted feet need.
+  - **Poses solved for what they achieve** (`rig.solve`, Nelder–Mead over FK): e.g. the wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view.
+  - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
+  - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and a raised torch with the gaze. The camera's bob follows the same stride.
+  - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye.
+- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("torch" or "tool") and tilt. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
 - **Textures:**
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
@@ -192,7 +200,8 @@ deep-space/
   - sector map rules
   - a scene smoke test that loads every scene
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
-- **Assets:** turntable previews are reviewed for every generated model.
+- **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--flashlight` set up a shot; `--shots`/`--shot-gap` take a burst of screenshots, e.g. of a teammate walking past.
 
 ## 9. Milestones
 
@@ -232,3 +241,10 @@ deep-space/
 - **2026-10-13: Git.** A local repo; Claude commits at each meaningful step. Nothing is pushed.
 - **2026-10-13: Networking trust.** Clients report their own actions and the host applies them (§2).
 - **2026-10-13: Voice and connection.** Direct IP; voice through Discord.
+- **2026-10-13: Review fixes.**
+  - Affine texture swim is off by default.
+  - Light bounces (PSX+): SSIL, SSR, and a flashlight bounce light.
+  - The crew's clips are interpolated, and locomotion is a generated, blended gait.
+  - Held items and the cuff are mirrored to everyone.
+  - One hand item at a time, the flashlight included (GDD A8, to confirm).
+  - The aim ignores an interactable's own housing (`Interactable.housing`). A console's collision box enclosed its screens, so the bridge terminals couldn't be used.

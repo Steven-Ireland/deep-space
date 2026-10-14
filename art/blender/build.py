@@ -4,7 +4,8 @@
 
 A target is a generator module (`items` builds everything in art/blender/items.py) or a model
 name (`fuel_cell`); with none, everything is built. Each model goes: build -> bake -> .blend ->
-.glb + .tres -> preview sheet, and prints a line of stats to check against its budget.
+.glb + .tres -> (a belt icon, for things carried) -> preview sheet, and prints a line of stats to
+check against its budget.
 """
 
 import importlib
@@ -18,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bpy  # noqa: E402
 
 import lib  # noqa: E402
-from lib import bake, output, preview  # noqa: E402
+from lib import bake, icon, output, preview  # noqa: E402
 
 
 def main():
@@ -49,8 +50,11 @@ def main():
         output.save_blend(spec.name)
         output.export_glb(spec, model)
         output.write_material(spec, albedo, glow)
+        shown = [model.low] + [e for e in model.extras if e.type == "MESH" and not e.name.endswith("-colonly")]
+        if spec.category in ("items", "weapons"):
+            icon.render(spec.name, shown)
         if "--no-preview" not in args:
-            preview.render(spec.name, [model.low] + [e for e in model.extras if e.type == "MESH" and not e.name.endswith("-colonly")], spec.angles)
+            preview.render(spec.name, shown, spec.angles)
         stats = dict(name=spec.name, triangles=triangles, dimensions=dimensions,
                      texture=spec.texture, palette=palette, glow=glow is not None,
                      seconds=round(time.time() - started, 1))

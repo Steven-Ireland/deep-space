@@ -117,11 +117,12 @@ func _prop(model: String, at: Vector3, yaw: float, terminals: Array) -> Node3D:
 ## Every other room's furnishings (GDD §5). Positions are world metres: a cell's centre is its grid
 ## coordinate times 4; walls stand 2 m either side, 0.15 m thick.
 func _furnish_rooms() -> void:
-	# Suit room (-8, 0): lockers along the hull, the O2 rack opposite, a bench between.
+	# Suit room (-8, 0): lockers along the aft wall, the O2 rack opposite, a bench between. The
+	# airlock's cycle panel beside the hatch stays in clear view of the room.
 	for i in 4:
-		_prop("rm_suit_locker", Vector3(-9.125 + i * 0.75, 0, -1.55), 0.0, [])
-	_prop("rm_o2_rack", Vector3(-8.0, 0, 1.7), 180.0, [])
-	_prop("rm_bench", Vector3(-8.0, 0, 0.85), 0.0, [])
+		_prop("rm_suit_locker", Vector3(-9.125 + i * 0.75, 0, 1.55), 180.0, [])
+	_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, [])
+	_prop("rm_bench", Vector3(-8.0, 0, -0.85), 0.0, [])
 	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
 	_beacon(Vector3(-12, 2.6, 0))
@@ -164,14 +165,16 @@ func _furnish_rooms() -> void:
 			{"title": "MED POD", "lines": [["OFFLINE", "RED"], ["UPGRADE REQUIRED", "DIM"]]}]])
 
 
-## The hull's hero pieces: the comms mast over the bridge, thrusters at the aft corners, the name.
+## The hull's hero pieces: the comms mast over the bridge, the name, and thruster pods on the aft
+## faces of the wings and the stern (each stands 0.95 m off the plating, which is 0.56 m out from
+## the wall line; art/blender/hull.py).
 func _hull_features() -> void:
-	_hull_piece("hl_mast", Vector3(2.5, 3.45, 2.5), 30.0)
-	_hull_piece("hl_name", Vector3(0, 3.5, -1.5), 0.0)
-	_hull_piece("hl_thruster", Vector3(14.6, 1.4, 5.5), 0.0)
-	_hull_piece("hl_thruster", Vector3(-14.6, 1.4, 5.5), 0.0)
-	_hull_piece("hl_thruster", Vector3(2.6, 1.4, 22.6), 0.0)
-	_hull_piece("hl_thruster", Vector3(-2.6, 1.4, 22.6), 0.0)
+	_hull_piece("hl_mast", Vector3(2.5, 3.48, 2.5), 30.0)
+	_hull_piece("hl_name", Vector3(0, 3.53, -1.5), 0.0)
+	for x in [11.0, -11.0]:
+		_hull_piece("hl_thruster", Vector3(x, 1.4, 6.0 + 0.56 + 0.95), 0.0)
+	for x in [2.6, -2.6]:
+		_hull_piece("hl_thruster", Vector3(x, 1.4, 22.0 + 0.56 + 0.95), 0.0)
 
 
 func _hull_piece(model: String, at: Vector3, yaw: float) -> void:

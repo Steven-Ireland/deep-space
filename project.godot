@@ -156,6 +156,19 @@ slot_prev={
 ])
 }
 
+[layer_names]
+
+3d_physics/layer_1="world"
+3d_physics/layer_2="players"
+3d_physics/layer_3="interact"
+3d_physics/layer_4="items"
+3d_physics/layer_5="creatures"
+
+[netfox]
+
+extras/auto_tile_windows=false
+extras/auto_tile_windows.debug=true
+
 [physics]
 
 3d/physics_engine="Jolt Physics"
@@ -173,16 +186,7 @@ psx_dithered={
 "type": "bool",
 "value": true
 }
-
-[layer_names]
-
-3d_physics/layer_1="world"
-3d_physics/layer_2="players"
-3d_physics/layer_3="interact"
-3d_physics/layer_4="items"
-3d_physics/layer_5="creatures"
-
-[netfox]
-
-extras/auto_tile_windows=false
-extras/auto_tile_windows.debug=true
+psx_affine_amount={
+"type": "float",
+"value": 0.0
+}

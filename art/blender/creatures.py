@@ -190,10 +190,12 @@ def _crawler_clips(skeleton):
 
     def death(t):
         e = min(1.0, t * 1.5)
-        return {"upper_arm.L": (40 * e, 0, 30 * e), "upper_arm.R": (40 * e, 0, -30 * e), "forearm.L": (30 * e, 0, 0),
-                "forearm.R": (30 * e, 0, 0), "thigh.L": (20 * e, 0, 20 * e), "thigh.R": (20 * e, 0, -20 * e),
+        # Collapsing flat: limbs splayed out from under it, belly down on the deck.
+        return {"upper_arm.L": (30 * e, 0, 70 * e), "upper_arm.R": (30 * e, 0, -70 * e), "forearm.L": (40 * e, 0, 0),
+                "forearm.R": (40 * e, 0, 0), "thigh.L": (20 * e, 0, 65 * e), "thigh.R": (20 * e, 0, -65 * e),
+                "shin.L": (-30 * e, 0, 0), "shin.R": (-30 * e, 0, 0),
                 "neck": (25 * e, 20 * e, 0), "head": (15 * e, 0, 20 * e), "jaw": (30 * e, 0, 0),
-                "root_location": (0, 0, -0.35 * e), "chest": (0, 0, 10 * e)}
+                "root_location": (0, 0, -0.3 * e), "chest": (0, 0, 10 * e)}
 
     rig.clip(skeleton, "idle", 2.4, idle)
     rig.clip(skeleton, "crawl", 1.0, crawl)
