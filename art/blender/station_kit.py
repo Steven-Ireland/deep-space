@@ -232,6 +232,31 @@ def _wall_backing_around(m, k, x_left, x_right, z_bottom, z_top):
         m.box((ow, THICK, z_bottom), k["backing"], at=((x_left + x_right) / 2, 0, z_bottom / 2))
 
 
+def _ring_flange(m, material, radius, half, cz, y, sides=16):
+    """Flat plates on both faces (at ±y) filling a square opening (±half, centred at height cz)
+    out from a ring of `sides` sides (as Mesh.lathe turns them, half a side off the axes) whose
+    outer corners are at `radius`."""
+    def ring(a):
+        return (math.cos(a) * radius, math.sin(a) * radius)
+
+    def square(a):
+        c, s = math.cos(a), math.sin(a)
+        reach = half / max(abs(c), abs(s))
+        return (c * reach, s * reach)
+
+    corners = [math.pi / 4 + i * math.pi / 2 for i in range(4)]
+    for side in (-1, 1):
+        # The ring is symmetric side to side, so the frame's mirroring on the +Y face doesn't matter.
+        f = frame((0, side * y, cz), Vector((0, side, 0)), lift=0.0)
+        for i in range(sides):
+            a0 = math.pi / sides + i / sides * math.tau
+            a1 = a0 + math.tau / sides
+            pts = [ring(a0), square(a0)]
+            pts += [(math.copysign(half, math.cos(c)), math.copysign(half, math.sin(c))) for c in corners if a0 < c < a1]
+            pts += [square(a1), ring(a1)]
+            m.polygon(pts, material, f)
+
+
 def _hazard_column(d, k, x, y, z0, z1, side, width):
     """Bold black-on-orange diagonal stripes up a jamb face."""
     normal = Vector((0, side, 0))
@@ -534,9 +559,10 @@ def wall_hatch():
                   rot=(0, -math.degrees(a), 0), bevel=0.01)
         # Beacon above.
         m.box((0.16, 0.08, 0.06), k["frame"], at=(0, side * (HALF + 0.04), cz + r + 0.45), bevel=0.01)
-    # Fill the square between the ring and the opening.
-    for x, z, w, h in ((-1.0, cz, 0.2, 2.2), (1.0, cz, 0.2, 2.2), (0, cz + 1.0, 1.8, 0.2), (0, cz - 1.0, 1.8, 0.2)):
-        m.box((w, THICK, h), k["backing"], at=(x, 0, z))
+    # A flange plate filling the square opening out from the ring, flush with the wall's core on
+    # both faces: its inner edge follows the ring's sixteen sides, its outer edge the opening (each
+    # side's piece reaches out along its corners' rays; the four that span a corner take it in).
+    _ring_flange(m, k["frame"], r + 0.3, 1.1, cz, HALF)
     # The hatch itself: baked with the wall, split off after (hatch_door) so it can swing open.
     m.cylinder(r - 0.01, 0.16, k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0))
     for side in (-1, 1):
