@@ -519,7 +519,7 @@ def fabricator():
         _plate(d, dk["black"], Vector((0.62, -0.401, 0.5 + i * 0.05)), FRONT, 0.2, 0.015)
     low = m.to_object()
     collider = br._console_collider("rm_fabricator", (1.5, 0.95, 2.1), (0, 0.03, 1.05))
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, glass_obj, collider])
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, glass_obj, collider, lamp.to_object()])
 
 
 @asset("rm_workbench", "rooms", texture=128, colors=32, ao=0.5)
@@ -700,8 +700,9 @@ def shelf():
 @asset("rm_med_pod", "rooms", texture=256, colors=32, ao=0.5)
 def med_pod():
     """The med bay's pod (GDD §5, §11): a horizontal capsule on a plinth where the dead are brought
-    back, offline until it's upgraded. A tinted glass canopy over a padded bed, a side console with
-    its own screen (`screen_med`), feed tubes into the floor, a red OFFLINE lamp."""
+    back, revived from their body or cloned. A tinted glass canopy over a padded bed, a side console
+    with its own screen (`screen_med`) and a status lamp (`pod_lamp`, lit by Godot), feed tubes into
+    the floor."""
     k = br._materials()
     dk = br._decals()
     pad = mats.plain("rm_med_pad", (0.7, 0.75, 0.72), grime=0.35)
@@ -725,10 +726,11 @@ def med_pod():
     for i in range(3):
         m.pipe([(-1.15, 0.2 - i * 0.2, 0.35), (-1.35, 0.25 - i * 0.2, 0.2), (-1.4, 0.3 - i * 0.2, 0.0)], 0.03,
                k["cable_red"] if i == 1 else k["cable"], sides=5)
-    _plate(d, dk["red_lit"], Vector((1.35, -0.351, 0.75)), FRONT, 0.1, 0.04)
-    texts.append(geo.text("OFFLINE", 0.03, dk["red"], matrix=frame((1.35, -0.351, 0.68), FRONT, lift=0.002)))
+    m.cylinder(0.042, 0.02, k["bezel"], sides=8, at=(1.35, -0.355, 0.75), rot=(90, 0, 0))
+    lamp = Mesh("pod_lamp")
+    lamp.cylinder(0.032, 0.03, mats.plain("lk_lamp", (0.2, 0.9, 0.3)), sides=8, at=(1.35, -0.37, 0.75), rot=(90, 0, 0))
     texts.append(geo.text("MED POD", 0.07, dk["black"], matrix=frame((-0.4, -0.501, 0.28), FRONT, lift=0.002)))
     _stripes(d, dk, Vector((0, -0.501, 0.08)), FRONT, 2.3, 0.08)
     low = m.to_object()
     collider = br._console_collider("rm_med_pod", (2.4, 1.1, 1.0), (0.1, 0, 0.5))
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, glass_obj, collider])
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, glass_obj, collider, lamp.to_object()])

@@ -107,9 +107,15 @@ func _process(delta: float) -> void:
 	quaternion = quaternion.slerp(turn, follow)
 
 
-## What crew aim at: TAKE, or CARRY for a big thing, when they have room for it.
+## Where it lies.
+func centre() -> Vector3:
+	return global_position
+
+
+## What crew aim at: TAKE, or CARRY for a big thing, when they have room for it. (A Pickup's, or a
+## LooseBody's: anything loose with a `record`.)
 class Handle extends Interactable:
-	var pickup: Pickup
+	var pickup: Node3D
 
 	func prompt(player: Player) -> String:
 		var kind := Items.kind_of(pickup.record)

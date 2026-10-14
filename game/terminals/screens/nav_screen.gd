@@ -91,7 +91,7 @@ func _drive_colour(run: Run) -> Color:
 	var blocker := run.jump_blocker()
 	if blocker == "":
 		return GREEN if blink() else WHITE
-	return RED if blocker in ["NO FUEL", "CREW OFF STATION"] else DIM
+	return RED if blocker == "NO FUEL" else DIM
 
 
 func _draw_chart(run: Run) -> void:

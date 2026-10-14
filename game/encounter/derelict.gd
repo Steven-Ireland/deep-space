@@ -59,15 +59,15 @@ func vent() -> void:
 		zone.pressurized = false
 
 
-## Moves it to `where` (in its parent's space), taking everything loose aboard with it (the host's
-## to move; everyone else sees them follow).
+## Moves it to `where` (in its parent's space), taking everything loose aboard with it: the host
+## moves its Pickups (everyone else's follow the host's), and every peer its own copies of bodies.
 func pose_to(where: Transform3D) -> void:
 	if where.is_equal_approx(transform):
 		return
 	var moved := where * transform.affine_inverse()
-	if multiplayer.is_server() and is_inside_tree():
+	if is_inside_tree():
 		var items := LooseItems.of(self)
-		for pickup: Pickup in items.loose() if items != null else []:
-			if Derelict.at(get_world_3d(), pickup.global_position + Vector3.UP * 0.05) == self:
-				pickup.carry(moved)
+		for thing in items.loose() if items != null else []:
+			if (thing is LooseBody or multiplayer.is_server()) and Derelict.at(get_world_3d(), thing.centre() + Vector3.UP * 0.05) == self:
+				thing.carry(moved)
 	transform = where

@@ -45,8 +45,10 @@ func _draw_screen() -> void:
 	text(0.5, 8.2, _where(player), AMBER)
 
 
-## Where a crew member is: a room aboard, a derelict, or outside in space.
+## Where a crew member is: a room aboard, a derelict, or outside in space; or LOST, left behind.
 func _where(player: Player) -> String:
+	if player.cause == &"lost":
+		return "LOST"
 	var zone := Zone.at(player.get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT)
 	if zone == null:
 		return "OUTSIDE"

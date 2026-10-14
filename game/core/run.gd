@@ -186,8 +186,8 @@ func in_tunnel() -> bool:
 	return jumping() and jump_elapsed() >= SPOOL and jump_left > ARRIVAL
 
 
-## Why the Jump Lever won't engage now, or "" when it will (GDD §5): a route plotted, a cell
-## loaded, and everyone aboard (the collar seals behind them).
+## Why the Jump Lever won't engage now, or "" when it will (GDD §5): a route plotted and a cell
+## loaded. It doesn't wait for anyone: crew still out there are left behind (GDD §8.3).
 func jump_blocker() -> String:
 	if not started:
 		return "NO DRIVE"
@@ -199,8 +199,6 @@ func jump_blocker() -> String:
 		return "NO FUEL"
 	if refuelling():
 		return "REFUELLING"
-	if not _crew_aboard():
-		return "CREW OFF STATION"
 	return ""
 
 
@@ -409,14 +407,6 @@ func _arrive() -> void:
 	surveyed.clear()
 	refuelled = false
 	_broadcast()
-
-
-func _crew_aboard() -> bool:
-	var lantern := get_tree().get_first_node_in_group(&"lantern")
-	for player: Player in get_tree().get_nodes_in_group(&"crew"):
-		if lantern != null and lantern.room_at(player.global_position) == "OUTSIDE":
-			return false
-	return true
 
 
 # --- Keeping peers in step -------------------------------------------------------------------

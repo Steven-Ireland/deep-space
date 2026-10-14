@@ -60,11 +60,7 @@ var _cycle_panel: Node3D
 
 func _ready() -> void:
 	add_to_group(&"lantern")
-	build(PackedStringArray(ROWS), ORIGIN, OPENINGS, "M")
-	# The med bay is offline until it's upgraded (GDD §5): sealed and dark.
-	var med_bay: Door = doors.get("1,5,v")
-	if med_bay != null:
-		med_bay.sealed = true
+	build(PackedStringArray(ROWS), ORIGIN, OPENINGS)
 	_furnish_bridge()
 	_furnish_rooms()
 	_place_cameras()
@@ -213,9 +209,8 @@ func _furnish_rooms() -> void:
 	for i in 3:
 		stock(&"o2_canister", Vector3(-5.1 + i * 0.25, 0.17, 18.42), 10.0 * i)
 		stock(&"sealant", Vector3(-4.25 + i * 0.16, 1.17, 18.45), -15.0 * i)
-	# Med bay (4, 20): the pod, offline and dark until it's upgraded.
-	_prop("rm_med_pod", Vector3(4.2, 0, 20.0), 0.0, [["screen_med", "status_screen", Vector2i(160, 120), Color(1, 0.3, 0.2),
-			{"title": "MED POD", "lines": [["OFFLINE", "RED"], ["UPGRADE REQUIRED", "DIM"]]}]])
+	# Med bay (4, 20): the pod, where the dead come back (online from the start, for now: GDD §17).
+	MedBay.make(_prop("rm_med_pod", Vector3(4.2, 0, 20.0), 0.0, [["screen_med", "med_screen", Vector2i(160, 120), GREEN]]))
 
 
 ## Where crew top up their suit (GDD §5, §9): `verb` across the front of `fitting` (`size`, at
@@ -266,11 +261,14 @@ func _beacon(at: Vector3) -> void:
 	add_child(beacon)
 
 
-## Fixed station cameras (OPS's camera monitor; dead crew's eyes later).
+## Fixed station cameras (OPS's camera monitor; dead crew's eyes, GDD §11).
 func _place_cameras() -> void:
-	for spec in [["Corridor", Vector3(0, 2.5, 6.6), Vector3(0, 0.9, 16)],
+	for spec in [["Bridge", Vector3(4.8, 2.6, 5.5), Vector3(-1.5, 0.8, -3.0)],
+			["Corridor", Vector3(0, 2.5, 6.6), Vector3(0, 0.9, 16)],
 			["Docking Port", Vector3(9.5, 2.5, -1.5), Vector3(6, 0.8, 1.0)],
-			["Drive Room", Vector3(13.5, 2.5, 2.5), Vector3(8.5, 0.8, 5.0)]]:
+			["Collar", Vector3(10.6, 2.5, -1.5), Vector3(13.6, 1.0, 0.6)],
+			["Drive Room", Vector3(13.5, 2.5, 2.5), Vector3(8.5, 0.8, 5.0)],
+			["Med Bay", Vector3(2.5, 2.5, 21.5), Vector3(4.8, 0.5, 19.6)]]:
 		var camera := Marker3D.new()
 		camera.name = spec[0]
 		camera.add_to_group(&"station_camera")

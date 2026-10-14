@@ -93,6 +93,11 @@ var battery := 1.0
 ## Whether they're on the ground (only the owner's body moves, so only it knows): footfalls and
 ## landings are heard by everyone.
 var grounded := true
+## Dead (GDD §11), and why: &"suffocated", or &"lost" (left behind when the station jumped: no body
+## to bring home). Their body lies where they fell (a LooseBody); they watch through the station's
+## cameras (Spectator) until the med bay brings them back (revive).
+var dead := false
+var cause := &""
 
 ## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
 ## one drawn into the hand.
@@ -144,6 +149,7 @@ var _footfalls := 0 # heel strikes so far: two a stride cycle
 var _fall := 0.0 # m/s, while in the air
 var _was_grounded := true
 var _lamp_heard := false
+var _spectator: Spectator
 var _riding: Derelict # the derelict they're aboard, and where it was at their last tick
 var _ride_from := Transform3D()
 
@@ -203,7 +209,7 @@ func _exit_tree() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not is_multiplayer_authority():
+	if not is_multiplayer_authority() or dead:
 		return
 	if operating != null:
 		_terminal_input(event)
@@ -251,6 +257,63 @@ static func of_peer(tree: SceneTree, peer: int) -> Player:
 		if player.name == str(peer):
 			return player
 	return null
+
+
+## Which crew member they are, by the order they came aboard: CREW 1 to 4 (the Vitals board's tiles).
+func crew_name() -> String:
+	var crew := get_tree().get_nodes_in_group(&"crew")
+	crew.sort_custom(func(a, b): return int(str(a.name)) < int(str(b.name)))
+	return "CREW %d" % (crew.find(self) + 1)
+
+
+## They die (GDD §11), on their own machine: everything they had drops round their body where they
+## fell (`lost`: with no body, it's all gone with them), and their eyes go to the station.
+func die(why: StringName) -> void:
+	if dead or not is_multiplayer_authority():
+		return
+	if operating != null:
+		leave_terminal()
+	var had: Array[Dictionary] = []
+	for record in belt + [carrying]:
+		if not record.is_empty():
+			had.append(record)
+	for i in belt.size():
+		belt[i] = {}
+	carrying = {}
+	_update_held()
+	dead = true
+	cause = why
+	health = 0.0
+	lamp_on = false
+	cuff_up = false
+	if why != &"lost":
+		var body := {"kind": &"body", "peer": int(str(name)), "crew": crew_name()}
+		LooseItems.of(self).fall(body, had, Transform3D(Basis(Vector3.UP, look.x), global_position), velocity)
+	velocity = Vector3.ZERO
+	print("Crew %s: dead (%s)." % [crew_name(), why])
+	_spectator = Spectator.new()
+	_spectator.player = self
+	add_child(_spectator)
+
+
+## The host tells their machine the med bay's brought them back (GDD §11): standing at `at`, the
+## suit full, the belt empty, their eyes their own again.
+@rpc("any_peer", "call_local", "reliable")
+func revive(at: Transform3D) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority():
+		return
+	dead = false
+	cause = &""
+	health = 1.0
+	o2 = O2_CAPACITY
+	battery = 1.0
+	teleport(at.origin)
+	look = Vector2(at.basis.get_euler().y, 0.0)
+	if _spectator != null:
+		_spectator.queue_free()
+		_spectator = null
+	camera.make_current()
+	print("Crew %s: brought back." % crew_name())
 
 
 ## Beats a minute (the cuff, the Vitals board): resting, up with effort, racing as the air runs
@@ -398,6 +461,8 @@ func let_go(held_for: float) -> void:
 	var record := in_hands()
 	if record.is_empty():
 		return
+	# A body leaves the arms lying as it was carried, and falls from there.
+	var body_at := _held_item.global_transform if _held_item is Ragdoll else Transform3D()
 	if not carrying.is_empty():
 		carrying = {}
 	else:
@@ -409,7 +474,7 @@ func let_go(held_for: float) -> void:
 		push = lerpf(THROW_MIN, THROW_MAX, clampf((held_for - THROW_AFTER) / THROW_WIND, 0.0, 1.0)) * heft
 	var forward := -_view().basis.z
 	var launch := Vector3(velocity.x, 0.0, velocity.z) + forward * push + Vector3.UP * push * 0.15
-	LooseItems.of(self).let_go(record, _release_point(), launch)
+	LooseItems.of(self).let_go(record, body_at if Items.kind_of(record) == &"body" else _release_point(), launch)
 
 
 ## Where a thing let go leaves the hand: ahead of the eye and a little below it, facing the way the
@@ -453,16 +518,20 @@ func _burn_flares(delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	# The dead leave no one standing: their body's a LooseBody now.
+	shape.disabled = dead
+	body_visual.visible = not is_multiplayer_authority() and not dead
+	view_model.visible = is_multiplayer_authority() and not dead
 	if is_multiplayer_authority():
 		rotation.y = look.x
 		head.rotation.x = look.y
-		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty()
+		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty() and not dead
 		if _winding >= 0.0:
 			_winding += delta
 		_jump_wanted = maxf(0.0, _jump_wanted - delta)
 		_swing_left = maxf(0.0, _swing_left - delta)
 		_burn_flares(delta)
-		if operating == null:
+		if operating == null and not dead:
 			_update_aim()
 		else:
 			aimed_at = null
@@ -485,6 +554,9 @@ func _process(delta: float) -> void:
 func _tick(delta: float, _tick_number: int) -> void:
 	if not is_multiplayer_authority():
 		_fit_shape()
+		return
+	if dead:
+		velocity = Vector3.ZERO
 		return
 	crouching = Input.is_action_pressed("crouch") or Args.flag("--crouch") or (crouching and not _can_stand())
 	_fit_shape()
@@ -520,9 +592,20 @@ func _tick(delta: float, _tick_number: int) -> void:
 	velocity /= NetworkTime.physics_factor
 	grounded = is_on_floor()
 	_breathe(delta)
+	if health <= 0.0:
+		die(&"suffocated")
+	_left_behind()
 	if lamp_on:
 		battery = maxf(0.0, battery - delta / LAMP_LIFE)
 		lamp_on = battery > 0.0
+
+
+## Off the station as it goes into the tunnel (GDD §8.3): left behind, and lost.
+func _left_behind() -> void:
+	var run := Run.of(self)
+	var lantern := get_tree().get_first_node_in_group(&"lantern")
+	if run != null and lantern != null and run.in_tunnel() and lantern.room_at(global_position) == "OUTSIDE":
+		die(&"lost")
 
 
 ## Aboard a derelict that's moving (drifting in, or off again with them still in it), they move
@@ -661,6 +744,8 @@ func _apply_dev_flags() -> void:
 	if Args.flag("--take") or Args.flag("--use") or Args.flag("--throw"):
 		_dev_actions.call_deferred()
 	_dev_suit()
+	if Args.flag("--die"):
+		get_tree().create_timer(float(Args.value("--die", "1"))).timeout.connect(func(): die(&"suffocated"))
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)

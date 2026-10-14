@@ -87,7 +87,7 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 | **Drive Room** | Off the bridge | Fuel and jump drive | **Fuel cell slots** (physical cells are carried in and inserted); drive status gauges |
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
 | **Crew cabins** | Rear corridor | Spawn, lore, save point. One small cabin per crew member | Bunk, personal locker, log terminal |
-| **Med Bay** | Rear corridor | Healing / revive (§11) | Offline at run start; shown dark behind glass until it's upgraded |
+| **Med Bay** | Rear corridor | Revive and clone (§11) | The med pod: INSERT a body to revive whoever it was, or CLONE anyone dead from its screen. Online from the start for now (§17) |
 | **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters and sealant |
 
 - **The jump procedure:**
@@ -287,13 +287,13 @@ Death is frequent and specific.
 | Left behind | Undock or jump with someone outside | The Vitals board and the undock siren |
 
 **What happens when you die:**
-- Your body stays where it fell, and your camera moves to **LANTERN's systems**. From there you can:
-  - cycle through station cameras and teammates' body cams
+- Your body falls where you die, limp, with everything you had dropped round it, and your camera moves to **LANTERN's systems**. From there you can:
+  - cycle through station cameras and teammates' helmet cams (LMB or the wheel)
   - speak over the PA
   - read the Vitals board
   - operate station doors and airlocks
-- Crewmates can carry your body or your **biotag** back to the Med Bay (once it's upgraded) and **revive you for salvage**.
-- Crew left behind when the station jumps are lost with no body to carry home; the Med Bay **clones them back**.
+- **Revive:** crewmates carry your body back in both arms (a heavy carry, like a fuel cell) and insert it in the Med Bay's pod, which brings you back beside it in about 10 seconds.
+- **Clone:** the pod can also clone anyone dead from its screen, body or no body, more slowly (about 30 seconds). Crew left behind when the station jumps are lost with no body to carry home, so cloning is their only way back. Reviving will be the cheaper of the two once salvage can be spent.
 - The run ends when no living crew remains, the station is destroyed, or the crew is permanently stranded.
 
 ## 12. Creatures
@@ -462,6 +462,8 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 8. **A chart table replaces the captain's chair** at the bridge's centre: the chair had no use and took up the room's middle. The table's hologram gives the bridge a centrepiece the whole crew can read. The dais under it is gone too (crew caught on its step), and the table stands low on the deck.
 9. **Docking goes through an airlock** (§8.1): the collar room is the airlock, so a derelict's vacuum never reaches the station and crossing is a deliberate act. A pale tractor beam draws the derelict in.
 10. **Left behind** (§8.3): undocking carries anyone still aboard off with the derelict, on suit O2, until the crew docks again for them. The jump doesn't wait for anyone: jumping without them leaves them behind, and the Med Bay clones them back.
+11. **Bodies are ragdolls** (§11): a dead crew member's body falls limp, can be carried like any heavy item, and is inserted in the Med Bay's pod to revive them. The pod can also clone, with no body, more slowly; reviving will be cheaper once salvage is spent.
+12. **The Med Bay works from the start** (was: offline until upgraded). What reviving and cloning cost, and whether an upgrade gates them, waits for the economy.
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.

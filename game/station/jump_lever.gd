@@ -1,8 +1,8 @@
 class_name JumpLever
 extends Interactable
 ## The Jump Lever at the helm (GDD §5): held for two seconds, it jumps the station along the route
-## plotted, if the drive has a cell loaded and the whole crew is aboard; otherwise the visor says
-## why not (Run.jump_blocker). Its red T handle swings back toward whoever holds it, and stays back
+## plotted, if the drive has a cell loaded; otherwise the visor says why not (Run.jump_blocker). It
+## doesn't wait for anyone still out there. Its red T handle swings back toward whoever holds it, and stays back
 ## for everyone through the jump.
 
 ## Seconds it's held to engage.

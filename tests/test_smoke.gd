@@ -5,7 +5,9 @@ extends SceneTree
 ## is pulled, a cell is burnt, and the LANTERN arrives at a derelict waiting off the bow with its
 ## loot put out. The collar docks it; the airlock cycles out to it and back; undocking, the siren
 ## counts down while the airlock comes in, and the derelict drifts off vented, its loot aboard; it
-## docks again. Then, moved to a gas giant, the LANTERN skims the cell back.
+## docks again. A crew member dies with a crowbar in hand: their body and the crowbar lie where they
+## fell; the body goes in the med bay's pod and they're revived beside it; lost to a jump, they're
+## cloned. Then, moved to a gas giant, the LANTERN skims the cell back.
 ##   tools/godot.sh --headless -s tests/test_smoke.gd
 
 var failures := 0
@@ -57,6 +59,7 @@ func _run() -> void:
 	_check(world.get_node("Encounter").get_child_count() == 1, "no derelict alongside at the first row")
 	_check(world.get_node("Items").get_child_count() >= 10, "the derelict's loot wasn't put out")
 	await _dock(world)
+	await _death(world)
 	# At a gas giant (or a depot: every chart has one or the other), Engineering takes on a cell
 	# into the empty bay, once.
 	var stop: Vector2i = run.map.nodes().filter(func(node: Vector2i) -> bool:
@@ -81,7 +84,7 @@ func _run() -> void:
 
 ## Docking, the airlock and undocking, played through (time sped up).
 func _dock(world: Node) -> void:
-	var collar: Node = world.get_node("Lantern/Collar")
+	var collar: Node = world.get_node("Lantern/DockingCollar")
 	var lock: Node = collar.airlock
 	var derelict = collar.derelict # untyped: a test can't name Derelict (it reaches the autoloads)
 	_check(derelict != null and collar.stage == &"away", "the derelict isn't waiting for the collar")
@@ -121,6 +124,49 @@ func _dock(world: Node) -> void:
 	collar._lever_used()
 	await _until(func() -> bool: return collar.stage == &"docked", 8.0)
 	_check(collar.stage == &"docked" and collar.outside_pressure() == 0.0, "it didn't dock again, or reads air it's lost")
+
+
+## Death, a revive from the body, and a clone (time sped up).
+func _death(world: Node) -> void:
+	var player: Node = load("res://game/player/player.tscn").instantiate()
+	player.name = "1"
+	world.get_node("Players").add_child(player)
+	await _frames(3)
+	player.teleport(Vector3(-8, 0, 0))
+	player.belt[0] = {"kind": &"crowbar"}
+	await _frames(3)
+	player.die(&"suffocated")
+	await _frames(20)
+	_check(player.dead and player.belt[0].is_empty(), "the crew member didn't die, or kept their belt")
+	var bodies: Array = world.get_node("Items").get_children().filter(func(item: Node) -> bool:
+			return item.get("record") != null and item.record.get("kind") == &"body")
+	_check(bodies.size() == 1 and bodies[0].record.peer == 1, "no body lies where they fell")
+	var crowbar: Array = world.get_node("Items").get_children().filter(func(item: Node) -> bool:
+			return item.get("record") != null and item.record.get("kind") == &"crowbar" and item.global_position.distance_to(Vector3(-8, 0, 0)) < 2.0)
+	_check(crowbar.size() == 1, "what they had didn't drop by the body")
+	var bay: Node = world.find_child("MedBay", true, false)
+	_check(bay != null, "no med bay")
+	if bay == null or bodies.is_empty():
+		return
+	var record: Dictionary = bodies[0].record
+	bodies[0].queue_free()
+	bay._insert(record, Transform3D())
+	await _frames(2)
+	_check(bay.job == &"revive", "the pod wouldn't take the body")
+	await _until(func() -> bool: return not player.dead, 4.0)
+	_check(not player.dead and player.health == 1.0, "the pod didn't revive them")
+	_check(player.global_position.distance_to(bay.global_transform * bay.EXIT.origin) < 0.5, "they didn't step out beside the pod")
+	player.die(&"lost")
+	await _frames(5)
+	_check(world.get_node("Items").get_children().filter(func(item: Node) -> bool:
+			return item.get("record") != null and item.record.get("kind") == &"body").is_empty(), "the lost left a body")
+	bay._clone(1)
+	await _frames(2)
+	_check(bay.job == &"clone", "the pod wouldn't clone them")
+	await _until(func() -> bool: return not player.dead, 7.0)
+	_check(not player.dead, "the pod didn't clone them")
+	player.queue_free()
+	await _frames(3)
 
 
 func _files(folder: String, extension: String) -> Array[String]:

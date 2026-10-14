@@ -93,7 +93,7 @@ static func of(node: Node) -> Collar:
 ## `dock_panel` (an rm_dock_panel), its airlock round `chamber` behind `inner`.
 static func make(lantern: Deck, hatch_piece: Node3D, dock_panel: Node3D, inner: Door, chamber: Zone, cycle_panel: Node3D) -> Collar:
 	var collar := Collar.new()
-	collar.name = "Collar"
+	collar.name = "DockingCollar"
 	lantern.add_child(collar)
 	collar.hatch = hatch_piece.get_node("Hatch") as Hatch
 	collar._mouth = Transform3D(hatch_piece.transform.basis, hatch_piece.transform.origin + hatch_piece.transform.basis.z * LENGTH)

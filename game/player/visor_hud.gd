@@ -54,7 +54,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	visible = player.operating == null and not Args.flag("--view")
+	visible = player.operating == null and not player.dead and not Args.flag("--view")
 	_time += delta
 	_belt_age += delta
 	# O2 shows while it matters, and for a few seconds after.

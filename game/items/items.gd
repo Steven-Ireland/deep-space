@@ -33,8 +33,10 @@ const KINDS := {
 	&"salvage_pipes": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_pipes.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 2.5},
 	&"salvage_board": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_board.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 1.0},
 	&"salvage_plates": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_plates.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 3.0},
-	# Big things, carried in both hands.
+	# Big things, carried in both hands. A dead crew member's body (GDD §11) is a Ragdoll, lying
+	# loose as a LooseBody; its record says whose it is ({kind, peer, crew}).
 	&"fuel_cell": {"name": "FUEL CELL", "model": "res://assets/models/items/fuel_cell.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 30.0},
+	&"body": {"name": "BODY", "model": "res://assets/models/characters/ch_suit.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 90.0},
 }
 
 ## Slots on the belt (GDD §9.4). Everyone starts with it empty: the crew's one crowbar and one
@@ -91,13 +93,15 @@ static func icon(kind: StringName) -> Texture2D:
 ## An instance of `kind` held by `rig` (the first-person arms, or the suit with `glove`): the
 ## item's own `SOCKET_grip` on the rig's (the right hand's, or SOCKET_carry for a big thing),
 ## pitched up by its tilt for that hand. Held things never cast shadows, so they can't shade the
-## lamp's light on what's ahead.
+## lamp's light on what's ahead. A body's carried across the arms (`_carried_body`).
 static func hold(kind: StringName, rig: Node3D, glove := false) -> Node3D:
 	if not KINDS.has(kind):
 		return null
 	var grip := rig.find_child("SOCKET_carry" if two_handed(kind) else "SOCKET_grip", true, false) as Node3D
 	if grip == null:
 		return null
+	if kind == &"body":
+		return _carried_body(grip, rig, glove)
 	var item: Node3D = model(kind).instantiate()
 	item.name = "Held"
 	var tilt := Basis(Vector3.RIGHT, deg_to_rad(-float(KINDS[kind].glove if glove else KINDS[kind].tilt)))
@@ -106,6 +110,33 @@ static func hold(kind: StringName, rig: Node3D, glove := false) -> Node3D:
 	for mesh: GeometryInstance3D in item.find_children("*", "GeometryInstance3D", true, false):
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	return item
+
+
+## A body carried in both arms: lying across them face up, its middle in the hands, its head to the
+## carrier's right. Its torso's held; its head and limbs hang and swing (they touch nothing). In
+## first person it rides out ahead of the hands, so its chest and helmet show across the bottom of
+## the view (FIRST_PERSON_BODY, in the camera's space).
+const FIRST_PERSON_BODY := Vector3(0, -0.5, -0.62)
+
+
+static func _carried_body(grip: Node3D, rig: Node3D, glove: bool) -> Node3D:
+	var body := Ragdoll.new()
+	body.name = "Held"
+	grip.add_child(body)
+	# The carrier's frame: the rig's parent (the camera, or the crew member), -Z ahead.
+	var carrier := rig.get_parent_node_3d().global_basis.orthonormalized()
+	var lying := Basis(-carrier.z, carrier.x, -carrier.y)
+	var middle := Vector3(0, 1.08, 0)
+	var at := grip.global_position if glove else rig.get_parent_node_3d().global_transform * FIRST_PERSON_BODY
+	body.global_transform = Transform3D(lying, at - lying * middle)
+	for bone in body.bones:
+		bone.collision_layer = 0
+		bone.collision_mask = 0
+	for mesh: GeometryInstance3D in body.find_children("*", "GeometryInstance3D", true, false):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	body.hold_torso = true
+	body.go_limp()
+	return body
 
 
 ## Where an item's grip is, in its own space: its `SOCKET_grip`, or its origin.

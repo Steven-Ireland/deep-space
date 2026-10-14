@@ -16,7 +16,7 @@ logs="${TMPDIR:-/tmp}"
 port=$((20000 + RANDOM % 20000))
 # shellcheck disable=SC2086 # the flags are word lists
 "$GODOT" --path . --resolution 960x540 -- --host --port="$port" $host_flags \
-	--wait-crew=2 --frames="$frames" --screenshot="$out" > "$logs/deep-space-pair-host.log" 2>&1 &
+	--wait-crew=2 --frames="$frames" --screenshot="$out" ${PAIR_SHOTS:-} > "$logs/deep-space-pair-host.log" 2>&1 &
 host=$!
 sleep 1.5
 # shellcheck disable=SC2086

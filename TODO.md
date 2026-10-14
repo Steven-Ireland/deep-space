@@ -93,7 +93,17 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   hatch, airlock, docking and siren sounds.
 - **Tests:** the smoke test docks, cycles the airlock, undocks and docks again.
 
-Still to come: creature behaviour, death.
+**Death and the med bay (M4, 2026-10-14):**
+
+- **Death:** suffocating, or left off the station when the jump's tunnel opens (lost: the Jump Lever
+  no longer waits). A body falls limp where you died (a ragdoll), everything you had dropped round
+  it; your eyes go to the station's six cameras and your teammates' helmet cams.
+- **Bodies** are carried like heavy items (CARRY, both arms; Q drops or throws). Each machine lets
+  its own copy fall; only where it lies is shared.
+- **The med bay** is online and lit: INSERT a body at the pod to revive whoever it was (10 s), or
+  CLONE anyone dead from its screen (30 s), and they step out beside it.
+
+Still to come: creature behaviour.
 
 ## Next: the gameplay loop (proposed order)
 
@@ -108,9 +118,6 @@ Still to come: creature behaviour, death.
    - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
      gives a cell like a gas giant until salvage can be spent
 3. **M4, the derelict:**
-   - **next:** death, spectating through the station's cameras, and the left-behind rules (GDD
-     §8.3, decided 10): the Jump Lever stops waiting for crew off station; anyone left behind is
-     lost, and the Med Bay clones them back (with its upgrade, or offline until then: to decide)
    - the room-module generator from the derelict kit: 6–10 room types, a Prize room, an
      exterior hull
    - power zones and breakers
@@ -118,7 +125,8 @@ Still to come: creature behaviour, death.
    - the Prize and Prize events
    - hazards
    - Crawler AI (an eyeless sound hunter) and Hanger AI (a ceiling trap)
-   - death in specific ways, and revive by carrying a body or biotag to the Med Bay
+   - more ways to die (creatures, hazards), each specific; a death sound and the Vitals board's
+     flatline
 4. **Slice wrap-up:**
    - upgrades: O2 Capacity I, Med Bay
    - the Workshop's recycler and Fabricator
@@ -142,6 +150,11 @@ Still to come: creature behaviour, death.
   - Docking: the derelict 16 s coming in (and going), the tube 3 s, the clamps 4.5 s, the siren 10 s,
     an airlock cycle 5.5 s; where the derelict waits; the tractor beam's colour, width and bands; the
     jolt at contact; the tube's light (dim).
+  - Bodies: how a ragdoll falls and lies (joint limits are loose; limbs can hang straight), how a
+    carried body shows in first person (its chest across the bottom of the view, the head off to
+    the right) and in a teammate's arms; revive 10 s, clone 30 s.
+- **Upgrades and costs (later):** with the economy, whether the Med Bay needs its upgrade, and what
+  a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
     from across the bridge, how often it drops out.
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
@@ -236,4 +249,7 @@ Still to come: creature behaviour, death.
     | Prize room | (26, 0, 8.5) |
 
     `--interact=<s>` holds interact on what's aimed at, so a shot can dock (`--interact=2.4` at the
-    lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`).
+    lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`);
+    `--interact-at=<s>` delays it (to take a body once it's fallen).
+  - **Death:** `--die=<s>` kills the local crew member then; `--clone=<s>` has the host's med bay
+    clone whoever's dead. The med bay is at (4, 0, 20); its pod at (4.2, 0, 20).

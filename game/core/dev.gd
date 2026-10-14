@@ -25,6 +25,7 @@ extends Node
 ##                         e.g. crowbar (Player)
 ##   --o2=<s>, --health=<h>, --battery=<b>  their suit starts with this much O2 (seconds), health
 ##                         and lamp charge (0..1) (Player)
+##   --die=<s>             they die that many seconds in (Player): a body, the station's cameras
 ##   --take                a second in, they take whatever's under the crosshair (Player)
 ##   --use                 half a second later, they use what's in hand (LMB) (Player)
 ##   --throw=<s>           a second later, they let go of what's in hand as if Q were held that
@@ -35,8 +36,10 @@ extends Node
 ##   --check-lever         a second and a half in, hold interact 2.4 s on what's under the
 ##                         crosshair (put them at the Jump Lever with --at and --look, and plot a
 ##                         route with --route); say whether the jump began, quit
-##   --interact=<s>        a second and a half in, hold interact that long on what's under the
-##                         crosshair (the dock panel's lever: 2.4), and carry on
+##   --interact=<s>        a second and a half in (or --interact-at seconds), hold interact that
+##                         long on what's under the crosshair (the dock panel's lever: 2.4), and
+##                         carry on
+##   --clone=<s>           (host) that many seconds in, the med bay clones the first dead crew member
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-
 ##                         forward; with --sprint or --crouch (Player)
 ##   --operate=<screen>    step up to the terminal on that screen mesh, e.g. screen_survey (Player)
@@ -57,6 +60,8 @@ func _ready() -> void:
 		_check_jump()
 	if Args.flag("--check-lever"):
 		_check_lever()
+	if Args.flag("--clone"):
+		_clone(float(Args.value("--clone", "3")))
 	if Args.flag("--interact"):
 		_interact(float(Args.value("--interact", "0.2")))
 	var quit_after := float(Args.value("--quit-after", "0"))
@@ -184,13 +189,23 @@ func _check_lever() -> void:
 
 
 func _interact(seconds: float) -> void:
-	await get_tree().create_timer(1.5).timeout
+	await get_tree().create_timer(float(Args.value("--interact-at", "1.5"))).timeout
 	var player := get_tree().get_first_node_in_group(&"local_player") as Player
 	var aimed := player.aimed_at if player != null else null
 	print("Interact: %s (%s) for %.1f s." % [aimed.name if aimed != null else "nothing", aimed.prompt(player) if aimed != null else "-", seconds])
 	_press("interact", true)
 	await get_tree().create_timer(seconds).timeout
 	_press("interact", false)
+
+
+func _clone(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
+	for player: Player in get_tree().get_nodes_in_group(&"crew"):
+		if player.dead:
+			print("Clone: %s." % player.crew_name())
+			MedBay.of(self).clone(int(str(player.name)))
+			return
+	print("Clone: nobody's dead.")
 
 
 ## Presses or lets go of an input action, as the keyboard would.
