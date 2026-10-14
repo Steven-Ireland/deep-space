@@ -15,6 +15,8 @@ uniform float affine_amount : hint_range(0.0, 1.0) = 1.0;
 uniform sampler2D emission_texture : source_color, filter_nearest, repeat_enable, hint_default_black;
 uniform vec4 emission : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float emission_energy = 1.0;
+// Tints what glows (the LANTERN's ceiling fixtures go red for a jump).
+uniform vec3 emission_tint : source_color = vec3(1.0);
 uniform float roughness : hint_range(0.0, 1.0) = 0.85;
 uniform float metallic : hint_range(0.0, 1.0) = 0.0;
 uniform float specular : hint_range(0.0, 1.0) = 0.3;
@@ -41,7 +43,7 @@ void fragment() {
 	if (alpha_scissor > 0.0 && tex.a * albedo.a < alpha_scissor) {
 		discard;
 	}
-	EMISSION = (emission.rgb + texture(emission_texture, uv).rgb) * emission_energy;
+	EMISSION = (emission.rgb + texture(emission_texture, uv).rgb) * emission_energy * emission_tint;
 	ROUGHNESS = roughness;
 	METALLIC = metallic;
 	SPECULAR = specular;

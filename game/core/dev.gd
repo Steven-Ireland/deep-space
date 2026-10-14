@@ -10,7 +10,11 @@ extends Node
 ##   --lamp                the local crew member starts with their helmet lamp on (Player)
 ##   --look=<yaw>,<pitch>  their starting view, in degrees (Player)
 ##   --view=<x>,<y>,<z>,<yaw>,<pitch>  look from a fixed camera instead (degrees), e.g. for shots
-##   --system-seed=<n>     build this star system instead of the default (StarSystem)
+##   --system-seed=<n>     build this star system at the run's departure instead (Run)
+##   --run-seed=<n>        the run's seed, instead of a fresh one (Run)
+##   --scanned, --route, --jump  start with the departure scanned; and the first jump plotted; and
+##                         jumping along it a second in (Run)
+##   --derelict            dock the sample derelict at the departure too (Run)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)
 ##   --belt=<kind>,...     what's on their belt, slot by slot (blank for empty), e.g.

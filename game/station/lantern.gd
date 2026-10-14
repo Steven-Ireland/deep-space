@@ -17,6 +17,14 @@ const ROOMS := "res://assets/models/rooms/%s.glb"
 const SCREENS := "res://game/terminals/screens/%s.gd"
 const GREEN := Color(0.4, 1.0, 0.5)
 const AMBER := Color(1.0, 0.7, 0.3)
+## The lights in a jump (GDD §5): red, pulsing slowly; the fixtures' diffusers glow red with them.
+const ALARM := Color(1.0, 0.12, 0.07)
+const ALARM_GLOW := Color(1.0, 0.16, 0.1)
+## A pressure hatch's round opening in its wall (art/blender/station_kit.py: wall_hatch), closed by
+## a solid while the hatch is shut.
+const HATCH_OPENING := Vector3(2.2, 2.25, 0.3)
+## The drive core's green glow, at rest.
+const DRIVE_GLOW := 1.6
 
 const ROWS := [
 	"..BBB..",
@@ -46,6 +54,13 @@ const OPENINGS := {
 	"0,1,W": "hatch", "6,1,E": "hatch",
 }
 
+var _alarm_shown := 0.0
+var _drive_glow: OmniLight3D
+var _collar_hatch: Node3D
+var _collar_seal: CollisionShape3D
+var _dock_screen: Terminal
+var _fixtures: Array[ShaderMaterial] = []
+
 
 func _ready() -> void:
 	add_to_group(&"lantern")
@@ -54,11 +69,42 @@ func _ready() -> void:
 	var med_bay: Door = doors.get("1,5,v")
 	if med_bay != null:
 		med_bay.sealed = true
-	_open_collar()
 	_furnish_bridge()
 	_furnish_rooms()
 	_place_cameras()
 	_hull_features()
+	_seal_hatches()
+	dock(false)
+	_find_fixtures()
+
+
+## The jump, aboard (GDD §5): the lights go red and pulse while the station shakes, and the drive
+## core blazes.
+func _process(_delta: float) -> void:
+	var run := Run.of(self)
+	var alarm := run.alarm() if run != null else 0.0
+	if alarm == 0.0 and _alarm_shown == 0.0:
+		return
+	_alarm_shown = alarm
+	var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 0.7)
+	for light in lights:
+		light.light_color = light_colour.lerp(ALARM, alarm)
+		light.light_energy = light_energy * lerpf(1.0, 0.55 + 0.45 * pulse, alarm)
+	if _drive_glow != null:
+		_drive_glow.light_energy = DRIVE_GLOW * (1.0 + 2.5 * alarm * (0.7 + 0.3 * pulse))
+	for fixture in _fixtures:
+		fixture.set_shader_parameter("emission_tint", Color.WHITE.lerp(ALARM_GLOW * (0.6 + 0.4 * pulse), alarm))
+
+
+## The glowing materials of the ceiling fixtures (shared by every ceiling), to tint in a jump.
+func _find_fixtures() -> void:
+	if ceilings.is_empty():
+		return
+	for mesh: MeshInstance3D in ceilings[0].find_children("*", "MeshInstance3D", true, false):
+		for i in mesh.get_surface_override_material_count():
+			var material := mesh.get_active_material(i) as ShaderMaterial
+			if material != null and material.get_shader_parameter("emission_texture") != null and material not in _fixtures:
+				_fixtures.append(material)
 
 
 ## The room a world position is in, by name (for the vitals board), or OUTSIDE.
@@ -67,19 +113,45 @@ func room_at(at: Vector3) -> String:
 	return ROOM_NAMES.get(cells.get(cell, ""), "OUTSIDE")
 
 
-## Docked: the collar's hatch is retracted so the derelict alongside is open to walk into.
-func _open_collar() -> void:
+## Docked or not: docked, the collar's hatch is retracted, so the derelict alongside is open to
+## walk into; cast off, it's shut and sealed. The dock panel says which.
+func dock(docked: bool) -> void:
+	if _collar_hatch != null:
+		_collar_hatch.visible = not docked
+	if _collar_seal != null:
+		_collar_seal.disabled = docked
+	if _dock_screen != null and _dock_screen.screen != null:
+		var screen := _dock_screen.screen
+		screen.set("lines", [["COLLAR", "DIM"], ["EXTENDED", "GREEN"], ["HARD SEAL", "GREEN"]] if docked
+				else [["COLLAR", "DIM"], ["RETRACTED", "AMBER"], ["NO CONTACT", "DIM"]])
+		screen.set("prompt", "DOCKED" if docked else "AWAITING TARGET")
+
+
+## Every outer pressure hatch is solid while it's shut (the EVA airlock's until EVA, M5; the
+## collar's whenever nothing's docked).
+func _seal_hatches() -> void:
 	for piece in get_children():
-		if piece.name.begins_with("hatch_") and piece.position.x > 13.0:
-			var door := piece.find_child("hatch_door", true, false) as Node3D
-			if door != null:
-				door.visible = false
+		if not piece.name.begins_with("hatch_"):
+			continue
+		var seal := StaticBody3D.new()
+		seal.name = "Seal"
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = HATCH_OPENING
+		shape.shape = box
+		shape.position = Vector3(0, HATCH_OPENING.y / 2, 0)
+		seal.add_child(shape)
+		piece.add_child(seal)
+		if piece.position.x > 13.0:
+			_collar_hatch = piece.find_child("hatch_door", true, false) as Node3D
+			_collar_seal = shape
 
 
 ## The bridge stations (GDD §5): helm and science face the viewport; ops and engineering stand
 ## against the aft wall; the captain's chair on its dais between them, facing fore.
 func _furnish_bridge() -> void:
-	_prop("br_helm", Vector3(-3.0, 0, -4.3), 0.0, [["screen_nav", "nav_screen", Vector2i(320, 240), GREEN]])
+	var helm := _prop("br_helm", Vector3(-3.0, 0, -4.3), 0.0, [["screen_nav", "nav_screen", Vector2i(320, 240), GREEN]])
+	JumpLever.fit(helm)
 	_prop("br_science", Vector3(3.2, 0, -4.3), 0.0, [
 		["screen_scan", "scan_screen", Vector2i(240, 240), GREEN],
 		["screen_survey", "survey_screen", Vector2i(320, 240), GREEN]])
@@ -128,8 +200,9 @@ func _furnish_rooms() -> void:
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
 	_beacon(Vector3(-12, 2.6, 0))
 	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar door, cargo waiting.
-	_prop("rm_cycle_panel", Vector3(9.73, 0, 1.6), -90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
+	var dock_panel := _prop("rm_cycle_panel", Vector3(9.73, 0, 1.6), -90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "DOCKING", "lines": [["COLLAR", "DIM"], ["RETRACTED", "AMBER"], ["NO CONTACT", "DIM"]], "prompt": "AWAITING TARGET"}]])
+	_dock_screen = dock_panel.find_child("Terminal_screen_airlock", false, false) as Terminal
 	_prop("rm_crate", Vector3(6.9, 0, -1.2), 10.0, [])
 	_prop("rm_crate", Vector3(7.75, 0, -1.25), -6.0, [])
 	_prop("rm_crate", Vector3(7.3, 0.8, -1.2), 25.0, [])
@@ -138,17 +211,18 @@ func _furnish_rooms() -> void:
 	for kind in [&"crowbar", &"flare"]:
 		rack(kind, (kit.find_child("SOCKET_rack_%s" % kind, true, false) as Node3D).global_transform)
 	stock(&"power_cell", Vector3(8.6, 0.0, -1.35), -20.0)
-	stock(&"fuel_cell", Vector3(6.9, 0.02, 1.3), 15.0)
 	_beacon(Vector3(12, 2.6, 0))
-	# Drive room (8..12, 4): the jump drive and the fuel rack that feeds it.
+	# Drive room (8..12, 4): the jump drive and the fuel rack that feeds it, loaded with the run's
+	# cells.
 	_prop("rm_drive_core", Vector3(11.6, 0, 4.0), 0.0, [])
-	_prop("rm_fuel_rack", Vector3(8.0, 0, 5.45), 180.0, [])
-	var core := OmniLight3D.new()
-	core.light_color = Color(0.7, 1.0, 0.35)
-	core.light_energy = 1.6
-	core.omni_range = 6.0
-	core.position = Vector3(11.6, 1.6, 4.0)
-	add_child(core)
+	_prop("rm_fuel_rack", Vector3(8.0, 0, 5.45), 180.0, []).add_child(FuelRack.new())
+	_drive_glow = OmniLight3D.new()
+	_drive_glow.name = "DriveGlow"
+	_drive_glow.light_color = Color(0.7, 1.0, 0.35)
+	_drive_glow.light_energy = DRIVE_GLOW
+	_drive_glow.omni_range = 6.0
+	_drive_glow.position = Vector3(11.6, 1.6, 4.0)
+	add_child(_drive_glow)
 	# Workshop (-12..-8, 4): recycler, fabricator, workbench.
 	_prop("rm_recycler", Vector3(-13.3, 0, 3.4), 90.0, [["screen_salvage", "status_screen", Vector2i(160, 96), AMBER,
 			{"title": "SALVAGE", "figure": "0000"}]])

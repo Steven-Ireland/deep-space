@@ -91,20 +91,21 @@ The forward viewport looks out onto the system.
 | **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters and sealant |
 
 - **The jump procedure:**
-  1. A route is selected at the Helm, a fuel cell is loaded in the Drive Room, and the outer hatches are sealed.
-  2. Any player holds the Jump Lever for two seconds.
-  3. The station shakes, the lights go red, and the viewport streaks into a hyperspace tunnel.
-  4. 10–20 seconds later, the crew arrives somewhere new.
+  1. A route is plotted on the Nav Chart at the Helm, a fuel cell is loaded in the Drive Room, and the whole crew is aboard. The docking collar seals itself as the station casts off; anything left loose outside stays behind.
+  2. Any player holds the Jump Lever for two seconds. Its red handle swings back as it's held. If the jump can't happen, the visor says why (NO ROUTE, NO FUEL, CREW OFF STATION).
+  3. The drive burns a cell. The station shakes, the lights and fixtures go red and pulse, the drive core blazes, and after a few seconds the viewport flashes white into a hyperspace tunnel: streaks of light rushing out of a bright core ahead.
+  4. 10–20 seconds later, the crew arrives somewhere new: another flash, and the new system's star and planets.
+- **The Engineering station** shows the drive's state and the cells loaded. At a Gas Giant it offers to skim fuel: 20 seconds to fill one empty bay, once per visit.
 
 ## 6. Navigation: Sectors & the Map
 
-- **Structure:** each sector has 7 rows of nodes plus a boss row, with 2–4 nodes per row. Paths branch and merge without crossing, as in Slay the Spire.
+- **Structure:** each sector has 7 rows of nodes plus a boss row, with 2–4 nodes per row. Paths branch and merge without crossing, as in Slay the Spire. The station starts each sector at a **departure point** below the first row, with nothing to explore; every first-row node can be reached from it. Past a sector's boss, the next jump leads to the next sector's departure point.
 - **Charting:**
   - The sector starts uncharted. Only its exit, the boss, is known.
-  - The route is discovered jump by jump: on arrival, the crew runs the **long-range scan** from the Science station.
-  - The scan identifies the **oddity** in this system and reveals the **next jumpable systems** with their node types. Signals show only as unidentified signals.
-  - The Nav Chart keeps everything charted so far.
-- **Fuel:** each jump costs one fuel cell. The run starts with 3 cells.
+  - The route is discovered jump by jump: on arrival, the crew runs the **long-range scan** from the Science station (a few seconds of the scope's beam racing round).
+  - The scan names the **oddity** in this system (a derelict's hull and name, an outpost, a relay's code) and reveals the **next jumpable systems** with their node types. Signals show only as unidentified signals.
+  - The Nav Chart draws the sector from the departure point (bottom) to the boss (top). It shows everything charted so far, with the way the station came drawn bright. The crew plots the next jump by clicking one of the systems the scan revealed.
+- **Fuel:** each jump costs one fuel cell. The run starts with 3 cells, loaded in the Drive Room's three-bay fuel rack. Cells found on the way are carried back and loaded into an empty bay; a full rack means a spare cell waits loose aboard. A Gas Giant tops up one bay (see §5). Until salvage can be spent, a Depot does the same.
 - **Stranding:** with no fuel the station is adrift. A "drift" event offers desperate options, such as re-entering a picked-over oddity or answering an unknown signal.
 
 | Node | Weight | Description |
@@ -132,7 +133,7 @@ The forward viewport looks out onto the system.
 
 ## 7. Survey
 
-Every system has planets to scan from the Science station's **Survey Console**. A scan fills in that planet's trait readout (atmosphere, temperature, gravity, water, biosignatures) and yields **Survey Data**. **Data cores** recovered from derelicts yield more.
+Every system has planets to scan from the Science station's **Survey Console**. The crew selects a planet and surveys it; a few seconds later its trait readout fills in (atmosphere, temperature, gravity, water, biosignatures) and it yields **Survey Data**: one for any planet, one more for water, and two or four more for ambiguous or detected biosignatures. **Data cores** recovered from derelicts yield more.
 
 > **TODO: what Survey Data is used for.** It should tie into the goal of finding a habitable world. Candidates include unlocking information on the map and shaping the end of the run. Decide after the slice.
 

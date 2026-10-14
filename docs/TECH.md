@@ -31,7 +31,7 @@
 |---|---|---|
 | Player body, look, helmet lamp, held item, cuff, suit, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `held_lit`, `swings`, `cuff_up`, `o2`, `health`, `in_vacuum`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
 | Player actions (hits, interactions, pickups, throws) | **Owning client reports**; host applies | Reliable RPC to the host → host applies it to the target's state → state is broadcast |
-| Run state (map, fuel, salvage, upgrades, crew status) | Host | Reliable RPCs on change. Saved by the host to `user://` between jumps |
+| Run state (map, fuel, salvage, upgrades, crew status) | Host | `Run` (`game/core/run.gd`) holds the seed, the sector, where the station is, what's charted and visited, the route, the fuel rack's bays, scan, survey and refuel progress, Survey Data and the jump under way. The whole of it goes out in one reliable RPC on every change, and to each crew member who joins; timers run down on every peer, and the host finishes them. Crew report station actions (plot, scan, survey, refuel, load a cell) by RPC to the host. To be saved by the host to `user://` between jumps |
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
 | Doors, power, terminals, hazards | Host owns the state | Changed by client-reported interactions (above); the host rejects only conflicting requests |
 | Creatures | Host | Host runs the AI and its attacks on players; clients get `StateSynchronizer` and `TickInterpolator`. Player hits on creatures are client-reported, as above. If creature attacks feel unfair at higher latency, the victim's client can confirm the hit instead |
@@ -55,13 +55,15 @@
 - **Scene tree:**
   ```
   World
+    System      sky, star, planets; swapped on each jump (hyperspace in the middle of one)
+    Run         the run state; shows the world where the run says the station is
     Lantern     always loaded
-    System      sky, star, planets; swapped on each jump
     Encounter   loaded on arrival, freed on departure
     Players
-    Creatures
     Items
   ```
+- **Showing where the run is:** each peer's `Run` builds the world for the node the station is at: `StarSystem.generate(node seed)` (a Gas Giant node puts a gas giant ahead), and at a Derelict node the sample derelict docked at the collar (a stand-in until the generator and docking, M4; `--derelict` docks it at the departure point too). In a jump, the old system stays while the drive spools (3 s), then it's hyperspace (`StarSystem.hyperspace()`, a sky shader) until the last 2 s, then the new system. Casting off frees the encounter, seals the collar, and the host clears everything loose that isn't aboard (`LooseItems.clear_outside`); docking, the host stocks the derelict (`LooseItems.stock`).
+- **Pressure hatches** are solid while shut (a box over the opening; the hatch model has no collider of its own): the EVA airlock's always, for now, and the collar's whenever nothing's docked.
 - **Zones:**
   - `Area3D` volumes carry the zone's gravity override, pressure state (drives O2 drain and the vacuum audio low-pass) and power state.
   - Built now: a `Zone` per deck room cell, floor to ceiling, on the "zones" layer, with `pressurized` (a deck's `vacuum` lists its airless rooms; the sample derelict's breached rooms). A crew member's suit looks up the zone at their chest each tick (a point query); outside every zone is space. Gravity and power come later.
@@ -172,7 +174,12 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
 - **Seeded throughout:**
   - All generation uses explicit `RandomNumberGenerator` seeds derived from the run seed and a stable label, for example `hash(run_seed, "sector1/row3/node2/layout")`.
   - Never use global randomness.
-- **Sector map:** rows and nodes with weighted types, and edges that connect without crossing. Rule checks (GDD §6) run as a validation pass, with a retry on failure.
+- **Sector map** (`SectorMap`, `game/map/sector_map.gd`): a departure node (row 0), 7 rows of 2–4 nodes, the boss (row 8). A node is `Vector2i(index, row)`, with a type, an x across the chart and its system's seed (`Seeds.of(run_seed, "sector%d/row%d/node%d")`).
+  - Edges: a single node joins all of the next row; otherwise a staircase from the first pair to the last, each step moving on in one row or both, so edges branch and merge, never cross, and every node is on one.
+  - Types: weighted (GDD §6), the first row all derelicts. Two repairs follow: the third EVA in any run becomes a non-EVA type, then while some route reaches the boss without fuel, a node in rows 3–7 on such routes becomes a Gas Giant or Depot, weighted by how many of those routes pass through it.
+  - `problems()` validates every rule; a map that fails is redrawn with the next attempt's label (`sector1/map/<n>`). With the repairs this doesn't happen in the test's 1,200 maps.
+  - Each peer reports its chart's checksum to the host, which warns on a mismatch.
+- **Star systems:** 1–5 planets; each has survey traits (`PlanetTraits`) from its own seed, so the look never depends on them. The scan's oddity names (`Oddities`) come from the system seed.
 - **Derelict layouts:**
   1. Grow a room graph from the entry module.
   2. Add loops where sockets line up.
@@ -192,7 +199,7 @@ deep-space/
     player/               controller, suit, helmet lamp, cuff, interaction, carry
     station/              LANTERN scenes and its consoles
     space/                sky, star, planets, hyperspace
-    map/                  sector generation, nav chart UI
+    map/                  sector generation, oddity names
     encounter/            derelict generator, room modules, loot, power
     creatures/            crawler, hanger, AI
     items/                tools and pickups
@@ -205,17 +212,19 @@ deep-space/
     previews/             turntable renders
   tools/                  launch scripts (host + N clients), asset build, QA shots and sheets
   docs/                   GDD.md, TECH.md
+  tests/                  headless tests (tools/test.sh)
 ```
 
 ## 8. Testing
 
-- **Headless scripts** (`godot --headless --path . -s <script>`):
-  - generation determinism (the same seed gives the same hash)
-  - sector map rules
-  - a scene smoke test that loads every scene
+- **Headless tests** (`tests/`, all run by `tools/test.sh`, each by `godot --headless --path . -s <script>`):
+  - `test_sector_map.gd`: 400 seeds × 3 sectors, every route walked from departure to boss against the GDD's rules, independently of the generator's own checks; determinism of the chart.
+  - `test_determinism.gd`: derived seeds, charts and star systems (planets and traits) hash the same when built again, and differently for other seeds.
+  - `test_smoke.gd`: every scene and built model loads and instances; then the world runs a jump on its own (scan, plot, lever, a cell burnt, the tunnel, arrival at a derelict, docked and stocked), with no error logged.
+  - A test script can't name classes that reach the game's autoloads (they aren't there when it's compiled): it loads them at run time.
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
-- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--belt`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--take`, `--use` and `--throw` act a second or two in; `--o2`, `--health` and `--battery` set the suit; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--belt`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--take`, `--use` and `--throw` act a second or two in; `--run-seed` picks the run, `--scanned`, `--route` and `--jump` start with the scan done, the first jump plotted, or jumping a second in, and `--derelict` docks the sample derelict at the departure point; `--o2`, `--health` and `--battery` set the suit; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
 - **QA tools** (`tools/`), for checking changes by eye in the real game and in Blender:
   - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--lamp] --screenshot=<out> --frames=150`.
   - `pair.sh <out> "<host flags>" "<client flags>"`: a host and a client on one machine; the host shoots once the client is aboard. With `--view` in the host flags it's the way to see a teammate's suit, held item, beam or glare.
@@ -299,3 +308,12 @@ deep-space/
   - The helmet lamp drains over 360 s lit (`battery`, synced), flickers below 15% (each peer works out the flicker from the charge, so beam and glare flicker too) and goes out when flat. The lamp charger (`rm_lamp_charger`) beside the suit room's O2 rack charges it full (CHARGE; `Player.top_up`, as the rack's REFILL).
   - A burning flare casts no shadow, so its tube can't shade its own flame; loose, its light hangs 0.3 m above it (a light at floor level only grazed the floor).
   - Wall props stand clear of the wall line by 0.13 m plus their own back: the wall kit's panels stand proud.
+- **2026-10-14: Navigation, first part (M3).**
+  - The run state is `Run`, host-owned and sent whole on every change (§2). Run seeds come from `--run-seed` or a fresh random one; every generated thing derives its seed from it and a label (`Seeds`).
+  - Sector maps (§6): a departure node below the first row, so the first jump picks among the first row's derelicts, and the boss's way on leads to the next sector.
+  - Stations: the Nav Chart plots a route (click a charted jump), the long-range scan (8 s) names the oddity and charts the next row, the Survey Console (5 s a planet) fills in traits and adds Survey Data, Engineering skims fuel at a Gas Giant or draws it at a Depot (20 s, one bay, once a system). The scan screen is round, so its findings are centred lines under the scope.
+  - The Jump Lever takes a hold (`Interactable.hold`, 2 s): the visor's prompt gets a gauge, and the lever's handle is split onto a pivot that swings. It won't engage without a route, a loaded cell, or with anyone off the station (`Run.jump_blocker`).
+  - The jump (§3): the camera shakes (`Run.shake`), the deck's lights and the fixtures' glow (`emission_tint` on the PSX material) go red and pulse (`Run.alarm`), the drive core blazes; hyperspace is a sky shader (`hyperspace.gdshader`) with a flash at each end.
+  - Fuel is the Run's three bays; the fuel rack shows a cell in each loaded bay and loads a carried cell (the carrier's machine hands it over, `Player.take_from_hands`; if the bay's been filled meanwhile, the host sets the cell down in front). The docking port's spare cell is gone: the run starts with the GDD's 3.
+  - The collar seals when nothing's docked, and both outer hatches are now solid while shut (they had no collider).
+  - Tests (§8): sector map rules, determinism and a smoke test that plays a jump; `tools/test.sh` runs them.

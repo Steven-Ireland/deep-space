@@ -2,8 +2,9 @@ class_name LooseItems
 extends MultiplayerSpawner
 ## Everything loose in the world (GDD §9.4, TECH §2). Only the host adds or removes a Pickup, and
 ## the spawner makes it on every peer, late joiners included. Crew report taking things and letting
-## go of them; the host applies it. On a fresh start the host puts out what the station and the
-## derelict are stocked with (Deck.stock: markers in the "loot" group).
+## go of them; the host applies it. On a fresh start the host puts out what the station is stocked
+## with (Deck.stock: markers in the "loot" group), and what each derelict is stocked with as it
+## docks. Casting off, the host clears away whatever's loose outside the station: left behind.
 
 const PICKUP := preload("res://game/items/pickup.tscn")
 
@@ -21,8 +22,25 @@ func _ready() -> void:
 
 
 func _stock() -> void:
+	stock(get_tree().root)
+
+
+## Host: puts out what's stocked under `root`, once.
+func stock(root: Node) -> void:
 	for spot: Node3D in get_tree().get_nodes_in_group(&"loot"):
-		put(Items.make(spot.get_meta(&"kind")), spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
+		if root == spot or root.is_ancestor_of(spot):
+			spot.remove_from_group(&"loot")
+			put(Items.make(spot.get_meta(&"kind")), spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
+
+
+## Host: takes away everything loose that isn't aboard the station.
+func clear_outside() -> void:
+	var lantern := get_tree().get_first_node_in_group(&"lantern")
+	if lantern == null:
+		return
+	for pickup in get_node(spawn_path).get_children():
+		if pickup is Pickup and lantern.room_at(pickup.global_position) == "OUTSIDE":
+			pickup.queue_free()
 
 
 ## Host: puts `record` loose at `where`, moving at `velocity`; or `racked`, held where it is until

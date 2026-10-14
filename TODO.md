@@ -48,8 +48,23 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   on the kit rack in the docking port. The lamp runs 6 minutes, flickers when low and recharges at
   the suit room's charger.
 
-Still to come: jumps, docking, creature behaviour, death. The nav, scan, survey and power screens
-show placeholder numbers.
+**Navigation, first part (M3, 2026-10-14):**
+
+- **The run:** a seed per run, host-owned run state sent to everyone. Sectors are charted from the
+  seed: a departure point, 7 rows of 2–4 systems, the boss; routes branch and merge, never cross;
+  the GDD's rules hold on every route (tested).
+- **The bridge works:** the long-range scan names the system's oddity and charts the next row;
+  the Nav Chart shows the sector and plots a route; the Survey Console reads a planet's traits and
+  adds Survey Data; Engineering shows the drive and the fuel, and skims a cell at a gas giant.
+- **The jump:** hold the Jump Lever 2 s (route, a loaded cell, everyone aboard). The station
+  shakes, the lights go red, the viewport flashes into a hyperspace tunnel, and 10–20 s later
+  it's a new system. A derelict node docks the sample derelict, stocked; leaving casts it off with
+  anything loose left in it.
+- **Fuel:** three cells loaded in the drive room's rack; a jump burns one; a carried cell loads
+  into an empty bay.
+- **Tests:** `tools/test.sh` runs sector map rules, determinism and a smoke test that plays a jump.
+
+Still to come: the chart table at the bridge's centre, docking, creature behaviour, death.
 
 ## Next: the gameplay loop (proposed order)
 
@@ -58,14 +73,14 @@ show placeholder numbers.
    - what a swing does to creatures and hatches (with M4), the shock prod's stun and charge,
      sealant (with suit integrity), weapons in use (slice wrap-up)
    - suit integrity and breaches (with hazards)
-2. **M3, navigation:**
-   - sector map generation (all of Sector 1, the boss node a greybox)
-   - the Nav Chart terminal and the Jump Lever
-   - the jump sequence and hyperspace tunnel
-   - long-range scan and progressive charting
-   - the Survey Console
-   - fuel economy: a cell per jump
-   - star systems are already seeded (`StarSystem`); the screens exist as mock-ups
+2. **Rest of M3, navigation:**
+   - a chart table (hologram or big flat screen) in place of the captain's chair and dais at the
+     bridge's centre: the sector chart for the whole crew to stand round (the user's idea,
+     2026-10-14)
+   - the boss node is only a name and a way on to the next sector (its greybox is M5); saving
+     between jumps
+   - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
+     gives a cell like a gas giant until salvage can be spent
 3. **M4, the derelict:**
    - docking
    - the room-module generator from the derelict kit: 6–10 room types, a Prize room, an
@@ -84,12 +99,6 @@ show placeholder numbers.
    - placeholder Signal and Anomaly nodes
    - the EVA airlock and hull exterior
    - an audio pass
-5. **Tests TECH §8 promises but that don't exist yet:**
-   - headless generation determinism
-   - sector map rules
-   - a scene smoke test
-
-   Write them alongside M3.
 
 ## Decisions needed
 
@@ -98,6 +107,11 @@ show placeholder numbers.
     the hands stay below the frame. Higher would show the hands but hide more of the view.
   - Numbers: 6 minutes of O2, 3 a canister, 20 s to suffocate, 1.6 m/s carrying, throws of 3–9
     m/s.
+  - The run starts at a departure point with nothing docked: the first derelict is one scan and
+    one jump away. (`--derelict` docks the sample at the start for checks.)
+  - Fuel: 3 cells, 8 jumps a sector; a cell from each derelict (if carried back) and one per gas
+    giant (about 4 fuel stops a map). Scan 8 s, survey 5 s, skim 20 s, jumps 10–20 s.
+  - The hyperspace tunnel's look, and the shake's strength.
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
 - **The beam in the air:** teammates' beams show everywhere, faintly. GDD §14 says haze makes beams
   visible in derelicts. It could be made stronger there and fainter aboard the station.
@@ -159,13 +173,16 @@ show placeholder numbers.
   | `tools/clip_angles.py` | A clip's bone turns. |
   | `tools/sheet.py` | Contact sheets and crisp crops. |
   | `--check-aim` | Checks every terminal can be used. |
+  | `tools/test.sh [name]` | The headless tests: sector map rules, determinism, the smoke test. |
+  | `--run-seed=n`, `--scanned`, `--route`, `--jump`, `--derelict` | The run: its seed; scanned, a route plotted, jumping a second in; the sample derelict docked at the start. `--operate=screen_nav` steps up to a terminal. |
 - **Getting around:**
   - **Grid and directions:** a 4 m grid, with the bridge's centre at the origin. Fore is -Z,
     port is -X.
   - **Look direction:** `--look` yaw 0 faces fore (-Z), 90 faces port (-X), -90 starboard, 180 aft.
   - **The station:** open bridge floor at (-3, 0, 0.5); cabin 4 at (4.4, 0, 18.3). The station's
     doors start shut.
-  - **The derelict:** its doors start open.
+  - **The derelict:** docked only at a Derelict node (the first row is all derelicts), or with
+    `--derelict`. Its doors start open.
 
     | Area | Position |
     |---|---|

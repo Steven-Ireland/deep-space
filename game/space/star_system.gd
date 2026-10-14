@@ -3,10 +3,13 @@ extends Node3D
 ## A star system as seen from the LANTERN (GDD §6, §14): its star (a sun light and a glaring disc
 ## in the sky), a nebula-tinted starfield, and a few planets hanging in the dark, all made from a
 ## seed so every peer builds the same system (TECH §6). The station stays at the origin; the system
-## is built around it and swapped on each jump.
+## is built around it and swapped on each jump; in the middle of a jump it's hyperspace, a tunnel
+## of streaking light (hyperspace.gdshader). Every planet has traits for the Survey Console to
+## read (GDD §7).
 
 const SKY := preload("res://game/space/space_sky.gdshader")
 const PLANET := preload("res://game/space/planet.gdshader")
+const TUNNEL := preload("res://game/space/hyperspace.gdshader")
 
 const STARS := {
 	"yellow dwarf": {"weight": 3, "colour": Color(1.0, 0.92, 0.78), "energy": 1.5, "size": 0.014},
@@ -48,9 +51,17 @@ const NEBULAE := [
 var star_type := ""
 ## The system's catalogue name, e.g. "GJ-0042"; planets are this plus a letter (b, c, ...).
 var designation := ""
-## Each planet: {"kind", "radius", "distance", "direction", "node"}.
+## Each planet: {"kind", "radius", "distance", "direction", "node", "name", "traits"}.
 var planets: Array[Dictionary] = []
 var sun: DirectionalLight3D
+## How bright hyperspace flashes, 0..1, at the tunnel's mouth (set by the Run).
+var tunnel_flash := 0.0:
+	set(value):
+		tunnel_flash = value
+		if _tunnel != null:
+			_tunnel.set_shader_parameter("flash", value)
+
+var _tunnel: ShaderMaterial
 
 
 func _ready() -> void:
@@ -58,12 +69,11 @@ func _ready() -> void:
 	generate(int(Args.value("--system-seed", str(seed))))
 
 
-## Rebuilds the system from `new_seed`.
-func generate(new_seed: int) -> void:
+## Rebuilds the system from `new_seed`; `primary`, if given, is the kind of planet that hangs
+## ahead of the viewport (a gas giant node's giant).
+func generate(new_seed: int, primary := "") -> void:
 	seed = new_seed
-	for child in get_children():
-		child.queue_free()
-	planets.clear()
+	_clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(["system", new_seed])
 
@@ -106,14 +116,49 @@ func generate(new_seed: int) -> void:
 		environment.environment.background_mode = Environment.BG_SKY
 		environment.environment.sky = sky
 
-	var count := rng.randi_range(1, 4)
+	var count := rng.randi_range(1, 5)
 	for i in count:
-		_add_planet(rng, sun_direction, ahead if i == 0 else Vector3.ZERO)
+		_add_planet(rng, sun_direction, ahead if i == 0 else Vector3.ZERO, primary if i == 0 else "")
 
 
-## Adds a planet; `ahead`, if not zero, is the primary's direction (it's drawn large there).
-func _add_planet(rng: RandomNumberGenerator, sun_direction: Vector3, ahead: Vector3) -> void:
-	var kind := _pick(rng, PLANETS)
+## The middle of a jump: no star, no planets, only the tunnel.
+func hyperspace() -> void:
+	_clear()
+	designation = ""
+	star_type = ""
+	if _tunnel == null:
+		_tunnel = ShaderMaterial.new()
+		_tunnel.shader = TUNNEL
+	_tunnel.set_shader_parameter("flash", tunnel_flash)
+	if environment != null:
+		var sky := Sky.new()
+		sky.sky_material = _tunnel
+		sky.radiance_size = Sky.RADIANCE_SIZE_32
+		environment.environment.background_mode = Environment.BG_SKY
+		environment.environment.sky = sky
+
+
+## A hash of what was generated, for checking peers built the same system (TECH §2).
+func checksum() -> int:
+	var parts := [seed, designation, star_type]
+	for planet in planets:
+		parts.append([planet.kind, planet.radius, planet.distance, planet.traits])
+	return hash(parts)
+
+
+func _clear() -> void:
+	for child in get_children():
+		child.queue_free()
+	planets.clear()
+	sun = null
+
+
+## Adds a planet; `ahead`, if not zero, is the primary's direction (it's drawn large there), and
+## `kind`, if given, what it is.
+func _add_planet(rng: RandomNumberGenerator, sun_direction: Vector3, ahead: Vector3, kind := "") -> void:
+	var rolled := _pick(rng, PLANETS)
+	if kind == "":
+		kind = rolled
 	var spec: Dictionary = PLANETS[kind]
 	var radius := rng.randf_range(spec.radius[0], spec.radius[1])
 	var distance := rng.randf_range(900.0, 2600.0) * (1.0 + radius / 400.0)
@@ -158,7 +203,7 @@ func _add_planet(rng: RandomNumberGenerator, sun_direction: Vector3, ahead: Vect
 	add_child(planet)
 	var letter := "bcdefg"[planets.size()]
 	planets.append({"kind": kind, "radius": radius, "distance": distance, "direction": direction, "node": planet,
-			"name": "%s %s" % [designation, letter]})
+			"name": "%s %s" % [designation, letter], "traits": PlanetTraits.of(kind, radius, distance, star_type, hash(["traits", seed, planets.size()]))})
 
 
 ## A random unit direction between two elevations (degrees) at any azimuth.

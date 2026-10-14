@@ -55,6 +55,9 @@ const SWING_REACH := 1.5
 const SWING_IMPULSE := 5.0
 const CANISTER_O2 := 180.0
 const FLARE_BURN := 60.0
+## The camera's shake at full strength in a jump: metres, and radians.
+const SHAKE_MOVE := 0.012
+const SHAKE_TURN := 0.012
 
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
@@ -90,6 +93,9 @@ var carrying := {}
 
 ## The Interactable under the crosshair, on the owner's machine.
 var aimed_at: Interactable
+## The thing interact is being held on (one that takes a hold, like the Jump Lever), and how long.
+var _holding: Interactable
+var _hold_time := 0.0
 ## The terminal this crew member is working at, if any (GDD §10).
 var operating: Terminal
 var _camera_tween: Tween
@@ -195,7 +201,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("lamp"):
 		lamp_on = not lamp_on and battery > 0.0
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
-		aimed_at.request_use()
+		if aimed_at.hold > 0.0:
+			_holding = aimed_at
+			_hold_time = 0.0
+		else:
+			aimed_at.request_use()
 	elif event.is_action_pressed("use") and not cuff_up:
 		use_held()
 	elif event.is_action_pressed("drop") and not in_hands().is_empty():
@@ -346,6 +356,18 @@ func receive(record: Dictionary) -> void:
 	_update_held()
 
 
+## Takes what's in the hands out of them without letting go of it into the world (it's gone into
+## something: a cell into the fuel rack), and returns it.
+func take_from_hands() -> Dictionary:
+	var record := in_hands()
+	if not carrying.is_empty():
+		carrying = {}
+	else:
+		belt[slot] = {}
+	_update_held()
+	return record
+
+
 ## Q: sets down what's in the hands, or throws it if Q was held longer than a tap: the longer, the
 ## harder, though heavy things don't go far. It leaves from just ahead of the eye, never through a
 ## wall, carrying the crew member's own speed.
@@ -420,6 +442,7 @@ func _process(delta: float) -> void:
 			_update_aim()
 		else:
 			aimed_at = null
+		_keep_holding(delta)
 	else:
 		var follow := 1.0 - exp(-delta * 18.0)
 		rotation.y = lerp_angle(rotation.y, look.x, follow)
@@ -485,6 +508,25 @@ func _breathe(delta: float) -> void:
 		health = maxf(0.0, health - delta / SUFFOCATION)
 
 
+## Interact held on a thing that takes a hold: used once it's been held long enough, given up if
+## interact is let go or the crosshair leaves it.
+func _keep_holding(delta: float) -> void:
+	if _holding == null:
+		return
+	if not Input.is_action_pressed("interact") or aimed_at != _holding or not _holding.usable_by(self):
+		_holding = null
+		return
+	_hold_time += delta
+	if _hold_time >= _holding.hold:
+		_holding.request_use()
+		_holding = null
+
+
+## How far through its hold `thing` is, 0..1 (0 when it isn't being held).
+func hold_progress(thing: Interactable) -> float:
+	return clampf(_hold_time / thing.hold, 0.0, 1.0) if _holding == thing and thing.hold > 0.0 else 0.0
+
+
 ## The usable thing under the crosshair: the nearest Interactable within reach, unless something
 ## solid stands in front of it, other than its own housing (a console's box round its screens).
 func _update_aim() -> void:
@@ -512,7 +554,8 @@ func _update_aim() -> void:
 		exclude.append(solid.rid)
 
 
-## The camera dips at each footfall and sways with the stride, in step with the arms and legs.
+## The camera dips at each footfall and sways with the stride, in step with the arms and legs; and
+## shakes with the station in a jump (GDD §5).
 func _head_bob(delta: float) -> void:
 	if not is_multiplayer_authority() or camera.top_level:
 		return
@@ -521,6 +564,15 @@ func _head_bob(delta: float) -> void:
 	_bob = lerpf(_bob, target, 1.0 - exp(-delta * 6.0))
 	var dip := 0.5 + 0.5 * cos(_stride * TAU * 2.0)
 	camera.position = Vector3(sin(_stride * TAU) * 0.012, -dip * 0.03, 0) * _bob
+	var run := Run.of(self)
+	var shake := run.shake() if run != null else 0.0
+	if shake > 0.0:
+		var t := Time.get_ticks_msec() / 1000.0
+		var jolt := Vector3(sin(t * 37.0) + sin(t * 23.0 + 1.3), sin(t * 29.0 + 2.1) + sin(t * 41.0), sin(t * 19.0 + 0.7)) * 0.5
+		camera.position += jolt * SHAKE_MOVE * shake
+		camera.rotation = Vector3(jolt.y, jolt.x, jolt.z) * SHAKE_TURN * shake
+	else:
+		camera.rotation = Vector3.ZERO
 
 
 func _fit_shape() -> void:

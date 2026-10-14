@@ -56,6 +56,9 @@ const ROOM_HEIGHT := 3.0
 var cells := {}
 ## The Door nodes, by "x,z,side" of the edge they're on.
 var doors := {}
+## The ceiling fixtures' lights, and the ceilings they hang from.
+var lights: Array[OmniLight3D] = []
+var ceilings: Array[Node3D] = []
 
 
 ## Builds the deck. `openings` maps "col,row,side" (layout cell and side N/E/S/W) to "door",
@@ -70,7 +73,7 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 	for cell: Vector2i in cells:
 		var at := _centre(cell)
 		_place("floor", at, 0.0)
-		_place("ceiling", at, 0.0)
+		ceilings.append(_place("ceiling", at, 0.0))
 		if lit and not dark.contains(cells[cell]):
 			_light(at)
 		var zone := Zone.make(at + Vector3.UP * ROOM_HEIGHT / 2, Vector3(CELL, ROOM_HEIGHT, CELL), not vacuum.contains(cells[cell]))
@@ -254,3 +257,4 @@ func _light(at: Vector3) -> void:
 	light.shadow_enabled = false
 	light.light_cull_mask = ~HULL_LAYER
 	add_child(light)
+	lights.append(light)

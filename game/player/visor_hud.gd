@@ -2,7 +2,8 @@ extends CanvasLayer
 ## The minimal visor HUD (GDD §10): drawn on the same pixel grid as the 3D (rendered small and
 ## shown big, unsmoothed), in one phosphor colour, and only loud when it has something to say.
 ##   - Looking at something usable: a small centre dot, and the verb in a box that floats beside the
-##     thing, tied to it by a jointed leader line that fades toward it.
+##     thing, tied to it by a jointed leader line that fades toward it. A thing that takes a hold
+##     has a gauge under its box that fills as it's held.
 ##   - The belt (GDD §9.4): four slots in the lower right, the one in hand raised and named (or,
 ##     carrying something big, its name over the belt). Bright when it changes, then dim.
 ##   - O2 (GDD §9.2): a small gauge in the upper left while the suit is breathing for its wearer or
@@ -186,6 +187,13 @@ func _draw_prompt(alpha: float) -> void:
 		canvas.draw_rect(key, Color(COLOUR, 0.85 * alpha))
 		_draw_digit("E", key.position + Vector2(3, 2), Color(0.02, 0.05, 0.03, alpha))
 	canvas.draw_string(FONT, rect.position + Vector2(17 if _usable else 6, 12), _verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, text))
+	# A thing that takes a hold (the Jump Lever) has a gauge under its box that fills while it's held.
+	if _usable and _target != null and _target.hold > 0.0:
+		var gauge := Rect2(rect.position + Vector2(0, height + 2), Vector2(width, 3))
+		canvas.draw_rect(gauge.grow(-0.5), Color(COLOUR, 0.4 * alpha), false, 1.0)
+		var filled := player.hold_progress(_target)
+		if filled > 0.0:
+			canvas.draw_rect(Rect2(gauge.position, Vector2(roundf(width * filled), 3)), Color(COLOUR, 0.9 * alpha))
 
 
 func _draw_belt() -> void:

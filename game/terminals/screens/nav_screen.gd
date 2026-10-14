@@ -1,31 +1,189 @@
 extends CrtScreen
-## HELM: the Nav Chart (GDD §6). The sector starts uncharted; the long-range scan (M3) fills in
-## the next jumpable systems. For now it shows where the LANTERN is and that no route is plotted.
+## HELM: the Nav Chart (GDD §6). The sector from its departure (bottom) to the boss (top): every
+## system charted so far, by its type's mark, with the jump routes between them; the way the
+## LANTERN came, bright; where it is, boxed and blinking. Until the long-range scan has run here
+## the next systems are unknown; once it has, clicking one of them plots the route, and the panel
+## says whether the drive is ready to jump (fuel loaded, everyone aboard).
+
+## The chart, in screen pixels: the departure's row at the bottom, the boss's at the top.
+const CHART := Rect2(150, 20, 166, 216)
+const BOTTOM := 212.0
+const TOP := 42.0
+## How near (pixels) the cursor must be to a node to pick it.
+const PICK := 9.0
+
+var _hover := Run.NOWHERE
+
+
+func _gui_input(event: InputEvent) -> void:
+	var run := Run.of(self)
+	if run == null or run.map == null or not event is InputEventMouse:
+		return
+	_hover = _node_at(run, event.position)
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _hover in run.jumps() and _hover != run.route:
+			run.plot(_hover)
 
 
 func _draw_screen() -> void:
 	header("NAV CHART")
+	var run := Run.of(self)
+	if run == null or run.map == null:
+		text(1, 2, "NO CHART DATA", DIM)
+		return
+	if cursor.x < 0:
+		_hover = Run.NOWHERE
+	_draw_chart(run)
+	_draw_panel(run)
+
+
+func _draw_panel(run: Run) -> void:
 	var system := get_tree().get_first_node_in_group(&"star_system") as StarSystem
-	text(1, 2, "SECTOR 1", AMBER)
-	text(1, 3, "UNCHARTED", DIM)
-	# The chart: faint grid, the LANTERN's system as a lit marker, the unknown beyond.
-	var chart := Rect2(Vector2(140, 36), Vector2(170, 170))
-	for i in 6:
-		var x := chart.position.x + chart.size.x * i / 5.0
-		var y := chart.position.y + chart.size.y * i / 5.0
-		draw_line(Vector2(x, chart.position.y), Vector2(x, chart.end.y), Color(DIM, 0.5))
-		draw_line(Vector2(chart.position.x, y), Vector2(chart.end.x, y), Color(DIM, 0.5))
-	var here := chart.position + Vector2(chart.size.x / 2, chart.size.y - 22)
-	draw_circle(here, 4, GREEN if blink(0.8) else DIM)
-	draw_arc(here, 9, 0, TAU, 12, GREEN, 1.0)
-	for i in 3:
-		var p := chart.position + Vector2(30 + i * 55, 40)
-		text(p.x / CELL.x - 0.5, p.y / CELL.y - 0.5, "?", DIM)
-	draw_line(here + Vector2(0, -12), Vector2(here.x, chart.position.y + 8), Color(DIM, 0.6), 1.0)
-	text(1, 5, "SYSTEM", DIM)
-	text(1, 6, system.designation if system else "----", GREEN)
-	text(1, 7, (system.star_type.to_upper() if system else ""), GREEN)
-	text(1, 9, "ROUTE", DIM)
-	text(1, 10, "NONE PLOTTED", AMBER if blink() else DIM)
-	text(1, 12, "LONG-RANGE SCAN", DIM)
-	text(1, 13, "REQUIRED", AMBER)
+	text(1, 1.4, "SECTOR %d" % run.sector, AMBER)
+	text(1, 2.6, "AT", DIM)
+	text(4, 2.6, _label(run.here()), GREEN)
+	text(4, 3.6, system.designation if system != null and system.designation != "" else "--------", GREEN)
+	text(1, 5.2, "ROUTE", DIM)
+	if run.jumping():
+		text(1, 6.2, _label(_type(run, run.jump_to)), GREEN)
+	elif run.route != Run.NOWHERE:
+		text(1, 6.2, _label(_type(run, run.route)), WHITE)
+	elif run.jumps().is_empty():
+		text(1, 6.2, "END OF CHART", DIM)
+	elif not run.scanned:
+		text(1, 6.2, "SCAN FOR JUMPS", AMBER if blink() else DIM)
+	else:
+		text(1, 6.2, "SELECT A JUMP", AMBER if blink() else DIM)
+	text(1, 7.8, "FUEL", DIM)
+	for i in run.fuel.size():
+		var cell := Rect2(Vector2(1 * CELL.x + 4 + i * 12, 8.8 * CELL.y + 4), Vector2(9, 9))
+		if run.fuel[i]:
+			draw_rect(cell, GREEN)
+		else:
+			draw_rect(cell.grow(-0.5), DIM, false, 1.0)
+	text(6, 8.8, "%d / %d" % [run.fuel_left(), run.fuel.size()], GREEN if run.fuel_left() > 0 else RED)
+	text(1, 10.4, "DRIVE", DIM)
+	text(1, 11.4, _drive(run), _drive_colour(run))
+	if _hover != Run.NOWHERE:
+		text(1, 13.4, "> " + _label(_type(run, _hover)), WHITE)
+		if _hover in run.jumps() and not run.jumping():
+			text(1, 14.4, "CLICK TO PLOT", DIM)
+
+
+func _drive(run: Run) -> String:
+	if run.jumping():
+		if run.jump_elapsed() < Run.SPOOL:
+			return "SPOOLING"
+		if run.in_tunnel():
+			return "IN JUMP %d%%" % roundi(100.0 * run.jump_elapsed() / run.jump_time)
+		return "ARRIVING"
+	var blocker := run.jump_blocker()
+	return "READY: PULL LEVER" if blocker == "" else blocker
+
+
+func _drive_colour(run: Run) -> Color:
+	if run.jumping():
+		return AMBER
+	var blocker := run.jump_blocker()
+	if blocker == "":
+		return GREEN if blink() else WHITE
+	return RED if blocker in ["NO FUEL", "CREW OFF STATION"] else DIM
+
+
+func _draw_chart(run: Run) -> void:
+	# A faint dotted rule for every row, charted or not: how far there is to go.
+	for row in SectorMap.BOSS_ROW + 1:
+		var y := _row_y(row)
+		for x in range(int(CHART.position.x) + 4, int(CHART.end.x) - 2, 6):
+			draw_rect(Rect2(x, y, 1, 1), Color(DIM, 0.7))
+	var map := run.map
+	var shown := run.charted
+	# Routes between charted systems: the way taken bright, the route plotted brighter.
+	for from in shown:
+		for to in map.next_of(from):
+			if to not in shown:
+				continue
+			var taken := from in run.visited and to in run.visited
+			var plotted := from == run.at and (to == run.route or to == run.jump_to)
+			var colour := DIM
+			if taken:
+				colour = GREEN
+			elif plotted:
+				colour = WHITE if not run.jumping() or blink(0.4) else GREEN
+			elif from == run.at:
+				colour = Color(GREEN, 0.5)
+			_route_line(_point(run, from), _point(run, to), colour)
+	for node in shown:
+		_draw_node(run, node)
+	# From the boss, the way on to the next sector, once it's been scanned.
+	if run.at == SectorMap.boss() and run.scanned and Run.NEXT_SECTOR in run.jumps():
+		var colour := WHITE if run.route == Run.NEXT_SECTOR else GREEN
+		_route_line(_point(run, SectorMap.boss()), _point(run, Run.NEXT_SECTOR), colour)
+		_glyph(_point(run, Run.NEXT_SECTOR), "^", colour)
+
+
+func _draw_node(run: Run, node: Vector2i) -> void:
+	var at := _point(run, node)
+	var type := run.map.type_of(node)
+	var colour := DIM
+	if node == run.at:
+		colour = WHITE
+	elif node in run.jumps():
+		colour = GREEN
+	elif node in run.visited:
+		colour = Color(GREEN, 0.6)
+	if type == &"boss":
+		colour = RED if node != run.at else WHITE
+	_glyph(at, SectorMap.info(type).mark, colour)
+	var box := Rect2(at - Vector2(6, 7), Vector2(13, 14))
+	if node == run.at and blink(0.8):
+		draw_rect(box, WHITE, false, 1.0)
+	if node == run.route or node == run.jump_to:
+		draw_rect(box.grow(2), WHITE if blink(0.5) else GREEN, false, 1.0)
+	if node == _hover:
+		draw_rect(box.grow(1), AMBER, false, 1.0)
+
+
+## A single character centred on `at`.
+func _glyph(at: Vector2, mark: String, colour: Color) -> void:
+	draw_string(FONT, at + Vector2(-3.5, 5), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, colour)
+
+
+## A route between two nodes, stopping short of their marks.
+func _route_line(a: Vector2, b: Vector2, colour: Color) -> void:
+	var along := (b - a).normalized()
+	draw_line(a + along * 6.0, b - along * 6.0, colour, 1.0)
+
+
+func _row_y(row: int) -> float:
+	return roundf(lerpf(BOTTOM, TOP, float(row) / SectorMap.BOSS_ROW))
+
+
+## Where `node` is drawn on the chart.
+func _point(run: Run, node: Vector2i) -> Vector2:
+	if node == Run.NEXT_SECTOR:
+		return Vector2(CHART.get_center().x, TOP - 20)
+	var x: float = run.map.node(node).get("x", 0.5)
+	return Vector2(roundf(CHART.position.x + 12 + x * (CHART.size.x - 24)), _row_y(node.y))
+
+
+## The charted node (or the way on from the boss) under `pointer`, or NOWHERE.
+func _node_at(run: Run, pointer: Vector2) -> Vector2i:
+	var candidates := run.charted.duplicate()
+	if run.at == SectorMap.boss() and run.scanned:
+		candidates.append(Run.NEXT_SECTOR)
+	for node: Vector2i in candidates:
+		if _point(run, node).distance_to(pointer) <= PICK:
+			return node
+	return Run.NOWHERE
+
+
+func _type(run: Run, node: Vector2i) -> StringName:
+	return &"next" if node == Run.NEXT_SECTOR else run.map.type_of(node)
+
+
+func _label(type: StringName) -> String:
+	if type == &"next":
+		return "^ NEXT SECTOR"
+	var info := SectorMap.info(type)
+	return "%s %s" % [info.mark, info.name]

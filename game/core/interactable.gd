@@ -13,6 +13,8 @@ signal used(peer: int)
 ## The one word the visor shows ("OPEN", "TAKE", "PULL").
 @export var verb := "USE"
 @export var enabled := true
+## Seconds interact must be held to use it (the Jump Lever), or 0 for a press.
+@export var hold := 0.0
 ## The solid this is set into, which doesn't hide it from a crew member's aim: a console's
 ## collision box encloses its own screens.
 var housing: Node3D
