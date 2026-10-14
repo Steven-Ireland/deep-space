@@ -14,8 +14,8 @@ extends Node
 ##   --run-seed=<n>        the run's seed, instead of a fresh one (Run)
 ##   --scanned, --route, --jump  start with the departure scanned; and the first jump plotted; and
 ##                         jumping along it a second in (Run)
-##   --derelict            dock the sample derelict at the departure too (Run); =away, have it
-##                         waiting out for the collar instead
+##   --derelict            dock a derelict at the departure too, grown from its seed (Run);
+##                         =away, have it waiting out for the collar instead
 ##   --fuel=<n>            start the run with n cells loaded (Run)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)

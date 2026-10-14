@@ -8,6 +8,17 @@ extends Deck
 ## It holds no air: its rooms are open to one another, so with no sealed sections or airlocks of
 ## its own, every one is vacuum (and whatever lives here doesn't need air). `vent` stays for the
 ## day one has sealed sections.
+##
+## It's built from its plan (DerelictLayout, grown from the node's seed on every peer): the rooms'
+## walls, floors and ceilings in the derelict kit, its hull, and each room's dressing. The Crawler
+## and the Hanger stand in posed where the plan puts them, until they come alive (M4).
+
+const MODELS := "res://assets/models/%s.glb"
+
+## Its plan; set it (`make`) before it enters the tree.
+var layout: DerelictLayout
+## How many crew its loot is stocked for (the host's count; the host puts it out, LooseItems).
+var crew := 1
 
 ## The edge (Deck.build's "col,row,side" of a layout cell) where its entry hatch stands; set it
 ## before build().
@@ -16,6 +27,70 @@ var entry_opening := ""
 var entry: Hatch
 var vented := false
 var _entry_cell := Vector2i.ZERO
+
+
+## A derelict built from `plan`, stocked for `crew`.
+static func make(plan: DerelictLayout, crew_size := 1) -> Derelict:
+	var derelict := Derelict.new()
+	derelict.layout = plan
+	derelict.crew = crew_size
+	return derelict
+
+
+func _ready() -> void:
+	if layout == null:
+		return
+	kit = "dk"
+	lit = false
+	entry_opening = layout.entry_opening()
+	build(layout.rows(), layout.origin(), layout.openings())
+	for key: String in doors:
+		doors[key].open = not layout.shut.has(key)
+	_dress()
+
+
+## The plan's dressing: furniture and decay, the strobes, the stand-in creatures, and the loot
+## (markers the host puts the real things out at).
+func _dress() -> void:
+	var placed: Array[Node3D] = []
+	for prop: Dictionary in layout.props:
+		var node := _prop(prop.model, prop.at)
+		placed.append(node)
+		if not prop.get("pose", []).is_empty():
+			_play(node, prop.pose[0], prop.pose[1])
+	for strobe: Dictionary in layout.strobes:
+		var light := Strobe.new()
+		light.transform = strobe.at
+		light.failing = strobe.failing
+		add_child(light)
+	for creature: Dictionary in layout.creatures:
+		_play(_prop("creatures/cr_%s" % creature.kind, creature.at), "idle")
+	for find: Dictionary in layout.loot(crew):
+		if find.has("rack"):
+			var socket := placed[find.rack].find_child("SOCKET_rack_%s" % find.kind, true, false) as Node3D
+			if socket != null:
+				rack(find.kind, socket.global_transform)
+		else:
+			stock(find.kind, find.at.origin, rad_to_deg(find.at.basis.get_euler().y))
+
+
+func _prop(model: String, at: Transform3D) -> Node3D:
+	var node: Node3D = load(MODELS % model).instantiate()
+	node.transform = at
+	add_child(node)
+	_mark_interior(node)
+	return node
+
+
+## Holds `node`'s `clip` (at `at` seconds, paused; or playing, at -1).
+func _play(node: Node, clip: String, at := -1.0) -> void:
+	var player := node.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	if player == null or not player.has_animation(clip):
+		return
+	player.play(clip)
+	if at >= 0.0:
+		player.seek(at, true)
+		player.pause()
 
 
 ## The derelict a world point is inside (in one of its rooms), or null.

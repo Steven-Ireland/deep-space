@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Runs the headless tests (TECH §8): sector map rules, generation determinism, the scene smoke test.
+# Runs the headless tests (TECH §8): sector map rules, derelict layouts, generation determinism, audio,
+# the scene smoke test.
 # Imports first, so new classes and built assets are known. Exits non-zero if any fails.
 #   tools/test.sh            all of them
 #   tools/test.sh smoke      those whose name contains "smoke"

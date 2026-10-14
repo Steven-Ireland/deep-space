@@ -10,8 +10,8 @@ extends Node
 ## Crew report what they do at the stations (plot a route, start a scan or a survey, load a cell,
 ## pull the Jump Lever); the host applies it, refusing only what conflicts with how things stand.
 ## Each peer shows the world the run says the LANTERN is in: that system's star and planets, the
-## derelict alongside if there is one (the sample derelict, a stand-in until the generator, M4),
-## waiting for the docking collar (Collar), or hyperspace in the middle of a jump.
+## derelict alongside if there is one (grown from the node's seed, DerelictLayout), waiting for the
+## docking collar (Collar), or hyperspace in the middle of a jump.
 
 ## Something in the run changed (on every peer, after the host's word arrives).
 signal changed
@@ -32,8 +32,6 @@ const REFUEL_TIME := 20.0
 const JUMP_TIME := Vector2(10.0, 20.0)
 const SPOOL := 3.0
 const ARRIVAL := 2.0
-
-const SAMPLE_DERELICT := preload("res://game/encounter/derelict_sample.gd")
 
 ## Where the world is shown: the star system and the encounter alongside the station.
 @export var system: StarSystem
@@ -70,7 +68,7 @@ var jump_to := NOWHERE
 var jump_left := 0.0
 var jump_time := 0.0
 
-## Dev (`--derelict`): the sample derelict alongside at the departure too, "docked" or "away"
+## Dev (`--derelict`): a derelict alongside at the departure too, "docked" or "away"
 ## (waiting for the collar), or "" for none; the host's word, so every peer builds it.
 var dev_derelict := ""
 
@@ -246,9 +244,11 @@ func oddity() -> Array[String]:
 	return Oddities.of(here(), system_seed(at), system)
 
 
-## A checksum of what this peer generated: the chart and the system shown.
+## A checksum of what this peer generated: the chart, the system shown and the derelict alongside.
 func checksum() -> int:
-	return hash([map.checksum() if map != null else 0, system.checksum() if system != null else 0])
+	var derelict := _derelict()
+	return hash([map.checksum() if map != null else 0, system.checksum() if system != null else 0,
+			derelict.layout.checksum() if derelict != null else 0])
 
 
 # --- Crew at the stations (reported to the host) ---------------------------------------------
@@ -491,23 +491,45 @@ func _show_world() -> void:
 		system.generate(system_seed(where, chart), "gas giant" if type == &"gas_giant" else "")
 	var at_start := where == SectorMap.start() and where_sector == 1
 	if type == &"derelict" or (at_start and dev_derelict != ""):
-		_bring_derelict(at_start and dev_derelict == "docked")
+		_bring_derelict(where, chart, at_start and dev_derelict == "docked")
 
 
-## Brings the sample derelict alongside (a stand-in for the generator, M4): waiting out for the
-## collar, or `docked` already (`--derelict`, at the departure); the host puts out its loot.
-func _bring_derelict(docked: bool) -> void:
+## Brings the derelict at `node` alongside, grown from its seed: waiting out for the collar, or
+## `docked` already (`--derelict`, at the departure); the host stocks it for the crew aboard.
+func _bring_derelict(node: Vector2i, chart: SectorMap, docked: bool) -> void:
 	if encounter == null:
 		return
-	var derelict: Derelict = SAMPLE_DERELICT.new()
-	derelict.name = "SampleDerelict"
+	var layout := DerelictLayout.generate(system_seed(node, chart), chart.sector)
+	var derelict := Derelict.make(layout, maxi(1, get_tree().get_nodes_in_group(&"crew").size()))
+	derelict.name = "Derelict"
 	encounter.add_child(derelict)
 	var collar := Collar.of(self)
 	if collar != null:
 		collar.reset(docked)
 		collar.attach(derelict)
 	if multiplayer.is_server():
+		print(layout.describe())
 		LooseItems.of(self).stock(derelict)
+	else:
+		_report_derelict.rpc_id(1, layout.seed, layout.checksum())
+
+
+## The derelict alongside on this peer, or null.
+func _derelict() -> Derelict:
+	if encounter == null:
+		return null
+	for child in encounter.get_children():
+		if child is Derelict and not child.is_queued_for_deletion():
+			return child
+	return null
+
+
+## A crew member's machine tells the host the derelict it grew.
+@rpc("any_peer", "call_remote", "reliable")
+func _report_derelict(derelict_seed: int, plan: int) -> void:
+	var derelict := _derelict()
+	if derelict != null and derelict.layout.seed == derelict_seed and plan != derelict.layout.checksum():
+		push_warning("Run: peer %d grew a different derelict (%d, not %d)." % [multiplayer.get_remote_sender_id(), plan, derelict.layout.checksum()])
 
 
 ## Leaves whatever's alongside behind: the collar's let go, and the host clears away everything

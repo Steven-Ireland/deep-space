@@ -18,6 +18,7 @@ func _ready() -> void:
 	_light.omni_range = 6.0
 	_light.omni_attenuation = 1.2
 	_light.position = Vector3(0, 0, 0.15)
+	_light.light_cull_mask = ~Deck.HULL_LAYER # not through the walls onto the hull
 	add_child(_light)
 	_time = randf() * period
 

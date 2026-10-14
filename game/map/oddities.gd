@@ -1,7 +1,7 @@
 class_name Oddities
 ## What the long-range scan identifies in a system (GDD §6): the oddity's name and what it is,
 ## from the node's type and its system's seed. Names only for now; the encounters themselves are
-## the sample derelict (M4) and placeholders.
+## generated derelicts (DerelictLayout) and placeholders.
 
 ## Short enough that a hull and a name fit across the round scanner screen (24 characters).
 const HULLS := ["ORE HAULER", "SURVEY SHIP", "COLONY BARGE", "SALVAGE TUG", "SCIENCE RIG", "FUEL TANKER",

@@ -26,7 +26,7 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 ## The wall's status_lamp mesh (set by the Deck).
 var lamp: MeshInstance3D
 ## Whether it's had a frame yet: until then it's being built, and starts as it's set, at once and
-## silently (the sample derelict's doors are made open).
+## silently (a derelict's doors are made open or shut).
 var _live := false
 
 @onready var left: Node3D = $Leaves.find_child("leaf_left", true, false)

@@ -17,8 +17,8 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
   star systems with sky, star and planets, the lighting pass (SSIL/SSR, Godot's default shadows).
-- **Models for the rest of the slice:** the derelict kit and a hand-placed sample derelict at the
-  collar, the Crawler and the Hanger with clips, the suit and first-person arms, every slice item,
+- **Models for the rest of the slice:** the derelict kit (a hand-placed sample derelict, since
+  replaced by the generator), the Crawler and the Hanger with clips, the suit and first-person arms, every slice item,
   Tier 0–1 weapons and energy cartridges.
 - **Latest review fixes:**
   - teammates' lamps show a beam in the air and glare when pointed at you; the glare hides
@@ -35,12 +35,11 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   its offset shadows visible; teammates see its beam and glare. The handheld flashlight is gone.
 - **Loose items:** `E` takes a thing into the belt (loot as well as gear), `Q` sets it down, held
   `Q` throws it; the host owns what's loose, and everyone sees it land. The stores, the docking
-  port and the sample derelict are stocked.
+  port and every derelict are stocked.
 - **Two-handed carries:** the fuel cell, held in both hands with solved poses; slow, no sprint, no
   belt or cuff until it's set down. One waits in the docking port, one in the derelict's Prize
   room.
-- **Suit O2:** per-room zones with or without air (the sample derelict's breached rooms have
-  none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
+- **Suit O2:** per-room zones with or without air (a derelict's have none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
   board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
 - **Use (`LMB`):** tools swing (everyone sees it, and it knocks loose things about), an O2
   canister tops up the suit, a flare is struck and burns red for 60 s in the hand or thrown.
@@ -58,7 +57,7 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   adds Survey Data; Engineering shows the drive and the fuel, and skims a cell at a gas giant.
 - **The jump:** hold the Jump Lever 2 s (route, a loaded cell, everyone aboard). The station
   shakes, the lights go red, the viewport flashes into a hyperspace tunnel, and 10–20 s later
-  it's a new system. A derelict node docks the sample derelict, stocked; leaving casts it off with
+  it's a new system. A derelict node brings a derelict alongside, stocked; leaving casts it off with
   anything loose left in it.
 - **Fuel:** three cells loaded in the drive room's rack; a jump burns one; a carried cell loads
   into an empty bay.
@@ -104,6 +103,28 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
 - **The med bay** is online and lit: INSERT a body at the pod to revive whoever it was (10 s), or
   CLONE anyone dead from its screen (30 s), and they step out beside it.
 
+**The derelict generator (M4, 2026-10-14):**
+
+- **Every derelict is grown from its node's seed** (the same on every peer) out of twelve hand-built
+  modules: the entry, three corridors (straight, junction, bend), seven rooms (crew quarters, cargo
+  hold, infirmary, machine shop, drive room, control with windows, suit storage) and the Prize room.
+  Each module has its footprint, its door sockets and its dressing; they join door to door, turned
+  to fit.
+- **The plan:** 11–16 rooms grown out from the entry (never back toward the LANTERN), the Prize room
+  a dead end at the far end, at least three rooms in, and a loop or two that never shortens the way
+  to it. A quarter of the doors start shut; a room's outer wall is sometimes torn open (a breach),
+  and control has its windows.
+- **Dressing:** each room's furniture, strobes lit or dark or failing, cables, debris and the
+  earlier wave's dead. Often one creature, sometimes none, rarely two, never near the entry or with
+  the Prize: a Crawler waiting, or a Hanger over its growth (posed, until the AI).
+- **Loot:** a fuel cell (drive room, else cargo, else the Prize room), and salvage, supplies, data
+  cores, a power cell, cartridges and tools from a budget that grows with the crew, each where it
+  suits (supplies in the infirmary, data in control, tools in the machine shop).
+- **The sample derelict is gone:** `--derelict` docks the departure's own. The host's log prints the
+  plan and where each room lies docked.
+- **Fixed:** strobes lit the hull from inside; a breach's wound faced space half the time.
+- **Tests:** `test_derelict_layout` checks 900 layouts from the walls the Deck builds.
+
 Still to come: creature behaviour.
 
 ## Next: the gameplay loop (proposed order)
@@ -119,9 +140,7 @@ Still to come: creature behaviour.
    - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
      gives a cell like a gas giant until salvage can be spent
 3. **M4, the derelict:**
-   - the room-module generator from the derelict kit: 6–10 room types, a Prize room, an
-     exterior hull
-   - power zones and breakers
+   - power zones and breakers (the drive room has a breaker box already)
    - loot: fuel, salvage, O2, power cells, data cores, sealant
    - the Prize and Prize events
    - hazards
@@ -144,7 +163,7 @@ Still to come: creature behaviour.
   - Numbers: 6 minutes of O2, 3 a canister, 20 s to suffocate, 1.6 m/s carrying, throws of 3–9
     m/s.
   - The run starts at a departure point with nothing docked: the first derelict is one scan and
-    one jump away. (`--derelict` docks the sample at the start for checks.)
+    one jump away. (`--derelict` docks the departure's own at the start for checks.)
   - Fuel: 3 cells, 8 jumps a sector; a cell from each derelict (if carried back) and one per gas
     giant (about 4 fuel stops a map). Scan 8 s, survey 5 s, skim 20 s, jumps 10–20 s.
   - The hyperspace tunnel's look, and the shake's strength.
@@ -158,6 +177,10 @@ Still to come: creature behaviour.
   - Bodies: how a ragdoll falls and lies (joint limits are loose; limbs can hang straight), how a
     carried body shows in first person (its chest across the bottom of the view, the head off to
     the right) and in a teammate's arms; revive 10 s, clone 30 s.
+  - Derelicts: their size (11–16 rooms), how often doors start shut (a quarter), breaches (one
+    outer room wall in ten), the creature odds (none 20%, one 70%, two 10%), lit strobes (70%), and
+    the loot (about 14 finds for one crew, 20 for four). Whether a derelict feels too big for six
+    minutes of O2.
 - **Upgrades and costs (later):** with the economy, whether the Med Bay needs its upgrade, and what
   a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
@@ -228,8 +251,8 @@ Still to come: creature behaviour.
   | `tools/sheet.py` | Contact sheets and crisp crops. |
   | `--check-aim` | Checks every terminal can be used. |
   | `--check-jump`, `--check-lever` | Presses jump ten times and counts take-offs; holds interact on the aimed thing (the Jump Lever: `--route --at=-1.85,0,-3.2 --look=0,-22`) and says whether the jump began. |
-  | `tools/test.sh [name]` | The headless tests: sector map rules, determinism, the smoke test. |
-  | `--run-seed=n`, `--scanned`, `--route`, `--jump`, `--derelict` | The run: its seed; scanned, a route plotted, jumping a second in; the sample derelict docked at the start. `--operate=screen_nav` steps up to a terminal. |
+  | `tools/test.sh [name]` | The headless tests: sector map rules, derelict layouts, determinism, audio, the smoke test. |
+  | `--run-seed=n`, `--scanned`, `--route`, `--jump`, `--derelict` | The run: its seed; scanned, a route plotted, jumping a second in; the departure's own derelict docked at the start. `--operate=screen_nav` steps up to a terminal. |
 - **Getting around:**
   - **Grid and directions:** a 4 m grid, with the bridge's centre at the origin. Fore is -Z,
     port is -X.
@@ -238,16 +261,17 @@ Still to come: creature behaviour.
     doors start shut.
   - **The derelict:** alongside only at a Derelict node (the first row is all derelicts), waiting
     for the collar; or with `--derelict` (docked) or `--derelict=away` (waiting) at the departure.
-    Its doors start open. Docked, it lies one cell out from the collar, past the tube (x 14–18):
+    Each is grown from its node's seed (`--run-seed` picks the departure's). Docked, it lies one
+    cell out from the collar, past the tube (x 14–18): its entry at (20, 0, 0), everything else east
+    of x 18. The host's log prints the plan and each room's centre, docked; a room's middle is
+    usually clear floor to shoot from. (Run 7's has a Hanger at (36, 3, -8), the Prize room at
+    (28, 0, -30); run 1's control room, with windows, at (22, 0, 18).)
 
     | Area | Position (docked) |
     |---|---|
     | Collar's airlock (the collar room) | (12, 0, 0); its cycle panel by the outer hatch |
     | Dock panel | (9.7, 0, 1.6), in the docking port; stand at (8.6, 0, 1.25), `--look=-111,-36` for the lever |
-    | Entry | (20, 0, 0) |
-    | Corridor | (24, 0, 0) to (24, 0, 4) |
-    | L-shaped room | x 24–32, z -4 to 0 |
-    | Prize room | (26, 0, 8.5) |
+    | The derelict's entry | (20, 0, 0) |
 
     `--interact=<s>` holds interact on what's aimed at, so a shot can dock (`--interact=2.4` at the
     lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`);

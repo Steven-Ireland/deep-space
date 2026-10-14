@@ -104,7 +104,13 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 		var kind: String = edge.kind
 		if kind == "open":
 			continue
-		var piece := _place("door" if kind == "door" else kind, edge.at, edge.yaw)
+		var yaw: float = edge.yaw
+		if kind == "breach":
+			# Its wound is on one face (toward the cell south or east of it): turned to the room.
+			var parts := key.split(",")
+			if not cells.has(Vector2i(int(parts[0]), int(parts[1]))):
+				yaw += PI
+		var piece := _place("door" if kind == "door" else kind, edge.at, yaw)
 		piece.name = "%s_%s" % [kind, key.replace(",", "_")]
 		if kind == "door":
 			var door := DOOR.instantiate()
