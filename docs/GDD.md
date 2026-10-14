@@ -83,7 +83,7 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 | Room | Where | Function | Interfaces |
 |---|---|---|---|
 | **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, charge lamps, go outside | Suit lockers, O2 refill rack, lamp charger, airlock cycle panel (pressure gauge, warning lights) |
-| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | Docking collar control lever, pressure-equalization gauge, hatch; the kit rack (the crew's one crowbar and one flare), passed on the way out |
+| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | The dock panel (the COLLAR lever, the EXT PRESS gauge, CONTACT and SEAL lamps); the collar beyond it, which is the docking airlock (its cycle panel inside, the outer hatch); the kit rack (the crew's one crowbar and one flare), passed on the way out |
 | **Drive Room** | Off the bridge | Fuel and jump drive | **Fuel cell slots** (physical cells are carried in and inserted); drive status gauges |
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
 | **Crew cabins** | Rear corridor | Spawn, lore, save point. One small cabin per crew member | Bunk, personal locker, log terminal |
@@ -91,8 +91,8 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 | **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters and sealant |
 
 - **The jump procedure:**
-  1. A route is plotted on the Nav Chart at the Helm, a fuel cell is loaded in the Drive Room, and the whole crew is aboard. The docking collar seals itself as the station casts off; anything left loose outside stays behind.
-  2. Any player holds the Jump Lever for two seconds. Its red handle swings back as it's held. If the jump can't happen, the visor says why (NO ROUTE, NO FUEL, CREW OFF STATION).
+  1. A route is plotted on the Nav Chart at the Helm and a fuel cell is loaded in the Drive Room. The crew had better be aboard: the jump doesn't wait for anyone, and the Vitals board shows who's still out. The docking collar seals itself as the station casts off; anyone and anything left outside stays behind.
+  2. Any player holds the Jump Lever for two seconds. Its red handle swings back as it's held. If the jump can't happen, the visor says why (NO ROUTE, NO FUEL).
   3. The drive burns a cell. The station shakes, the lights and fixtures go red and pulse, the drive core blazes, and after a few seconds the viewport flashes white into a hyperspace tunnel: streaks of light rushing out of a bright core ahead.
   4. 10–20 seconds later, the crew arrives somewhere new: another flash, and the new system's star and planets.
 - **The Engineering station** shows the drive's state and the cells loaded. At a Gas Giant it offers to skim fuel: 20 seconds to fill one empty bay, once per visit.
@@ -141,9 +141,10 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 
 ### 8.1 Approach
 - **Docking.** Station-type oddities with compatible ports are reached by docking:
-  - The collar is extended from the Docking Port.
-  - The derelict drifts into place, visible through the windows.
-  - Pressures equalize and the hatch opens.
+  - The derelict waits off the starboard bow, seen from the bridge's side port.
+  - Any player holds the dock panel's COLLAR lever (two seconds) in the Docking Port. The collar's pale tractor beam draws the derelict in and lines it up, the collar's tube runs out to its hatch, the hulls meet with a jolt and the clamps bite.
+  - The collar opens the derelict's hatch, and the dock panel's EXT PRESS gauge reads what it holds: stale air, or vacuum.
+  - **The collar is an airlock.** Crew step into it from the Docking Port and pull its CYCLE lever: the inner door shuts and the chamber vents (or fills) to match the far side, then the outer hatch swings open onto the tube and the derelict beyond. Coming back, they cycle in. The two doors are never open together. A locked door's controls call the airlock round, so a teammate on either side can get through, and it won't cycle out with nothing sealed to it.
   - A sealed hatch needs a crowbar, a cutter or power to open.
 - **EVA.**
   - The station holds position near the target.
@@ -183,7 +184,11 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   | **Depressurization** | The Prize was part of a seal. Sections start venting, pressure doors slam, and O2 drains on the way out |
   | **Structural breach** | The structure gives way. Corridors buckle, a section tears loose, and the route back changes |
   | **Infestation** | Something was nesting in or near it, and now it's awake. One creature, not a horde |
-- **Extraction.** The crew undocks from the Docking Port once everyone is aboard and the hatch is sealed, and the Vitals board shows who is still outside. The undock lever sounds a siren for a short countdown first. **Anyone left behind is lost.**
+- **Extraction.** The crew undocks from the Docking Port once everyone is aboard, and the Vitals board shows who is still outside.
+  - Holding the COLLAR lever again sounds a siren for a ten-second countdown (hold it again to abort) while the airlock cycles in.
+  - Then the collar lets go and the tractor beam pushes the derelict back out, its hatch left open so its air vents.
+  - **Anyone still aboard goes with it**, breathing suit O2. They're lost when it runs out, unless the crew docks again in time.
+  - The Jump Lever doesn't wait for anyone. Jumping with crew still out there leaves them behind for good, and the Med Bay clones them back (§11).
 
 ## 9. The Player
 
@@ -288,6 +293,7 @@ Death is frequent and specific.
   - read the Vitals board
   - operate station doors and airlocks
 - Crewmates can carry your body or your **biotag** back to the Med Bay (once it's upgraded) and **revive you for salvage**.
+- Crew left behind when the station jumps are lost with no body to carry home; the Med Bay **clones them back**.
 - The run ends when no living crew remains, the station is destroyed, or the crew is permanently stranded.
 
 ## 12. Creatures
@@ -454,6 +460,8 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 6. **The belt holds loot as well as gear**, as in *Lethal Company* (§9.4). Two-handed carries stay out of the belt and take both hands.
 7. **The crew starts with one crowbar and one flare between them**, racked in the Docking Port (was A9). Everything else is found. The helmet lamp recharges at a charger in the Suit Room, with no cells.
 8. **A chart table replaces the captain's chair** at the bridge's centre: the chair had no use and took up the room's middle. The table's hologram gives the bridge a centrepiece the whole crew can read. The dais under it is gone too (crew caught on its step), and the table stands low on the deck.
+9. **Docking goes through an airlock** (§8.1): the collar room is the airlock, so a derelict's vacuum never reaches the station and crossing is a deliberate act. A pale tractor beam draws the derelict in.
+10. **Left behind** (§8.3): undocking carries anyone still aboard off with the derelict, on suit O2, until the crew docks again for them. The jump doesn't wait for anyone: jumping without them leaves them behind, and the Med Bay clones them back.
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.

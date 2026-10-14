@@ -245,31 +245,103 @@ def lamp_charger():
 
 @asset("rm_cycle_panel", "rooms", texture=128, colors=32, ao=0.5)
 def cycle_panel():
-    """The airlock cycle panel (GDD §5, §11): wall-mounted beside the inner door. A pressure dial,
-    PRESSURIZED / VACUUM lamps, a small readout CRT (`screen_airlock`) and the big striped CYCLE
-    lever under a hinged guard. Reading this before opening a door is how crews stay alive."""
+    """The airlock cycle panel (GDD §5, §11): wall-mounted inside the chamber. A pressure dial whose
+    needle (`cycle_needle`, its own object, kept out of the bake) reads the chamber, PRESSURIZED / VACUUM lamps, a small readout CRT
+    (`screen_airlock`) and the big striped CYCLE lever (`cycle_lever`) under a steel guard, pulled
+    down to cycle. Reading this before opening a door is how crews stay alive."""
     k = br._materials()
     dk = br._decals()
+    red = br.mats.paint("rm_lever_red", (0.75, 0.12, 0.08), wear=0.5)
     m = Mesh("rm_cycle_panel")
     d = Mesh("rm_cycle_panel_decals")
     texts = []
     m.box((0.52, 0.12, 0.86), k["casing"], at=(0, 0.06, 1.3), bevel=0.015)
     m.box((0.46, 0.02, 0.8), k["casing_dark"], at=(0, -0.005, 1.3), bevel=0.006)
     screen = br.crt(m, k, Vector((0, -0.04, 1.55)), 0.24, 0.18, tilt=0, depth=0.12, name="screen_airlock", bezel=0.025)
-    br.dial(m, d, k, dk, Vector((-0.12, -0.015, 1.28)), FRONT, UP, radius=0.05, value=0.85)
+    br.dial(m, d, k, dk, Vector(CYCLE_DIAL), FRONT, UP, radius=0.05, value=None)
     _plate(d, dk["green_lit"], Vector((0.12, -0.016, 1.33)), FRONT, 0.12, 0.035)
     _plate(d, dk["unlit"], Vector((0.12, -0.016, 1.27)), FRONT, 0.12, 0.035)
     texts.append(geo.text("PRESS", 0.018, dk["black"], matrix=frame((0.12, -0.016, 1.33), FRONT, lift=0.002)))
     texts.append(geo.text("VACUUM", 0.018, dk["black"], matrix=frame((0.12, -0.016, 1.27), FRONT, lift=0.002)))
-    # The CYCLE lever: a striped plate, a red handle, a steel guard over it.
+    # The CYCLE lever: a striped plate, a red handle on a stalk, a steel guard over it.
     _stripes(d, dk, Vector((0, -0.016, 1.04)), FRONT, 0.4, 0.2, pitch=0.08)
     m.box((0.06, 0.08, 0.18), k["dark_steel"], at=(0, -0.05, 1.04), bevel=0.008)
-    m.box((0.2, 0.05, 0.04), br.mats.paint("rm_lever_red", (0.75, 0.12, 0.08), wear=0.5), at=(0, -0.1, 1.1), bevel=0.012)
+    m.box((0.2, 0.05, 0.04), red, at=(0, -0.1, 1.1), bevel=0.012)
     m.pipe([(-0.17, -0.02, 0.96), (-0.17, -0.14, 0.98), (0.17, -0.14, 0.98), (0.17, -0.02, 0.96)], 0.008, k["steel"], sides=5, caps=False)
     texts.append(geo.text("CYCLE", 0.025, dk["cream"], matrix=frame((0, -0.016, 1.18), FRONT, lift=0.002)))
     low = m.to_object()
     collider = br._console_collider("rm_cycle_panel", (0.52, 0.16, 0.86), (0, 0.04, 1.3))
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, collider])
+    hand = br.needle("cycle_needle", Vector(CYCLE_DIAL) + FRONT * 0.036, 0.05)
+
+    def split(model):
+        in_lever = lambda c: abs(c.x) < 0.11 and -0.128 < c.y < -0.012 and 0.94 < c.z < 1.14
+        panel, lever = geo.split_object(model.low, {"rm_cycle_panel": lambda c: not in_lever(c), "cycle_lever": in_lever})
+        model.low = panel
+        model.extras.append(lever)
+
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, collider, hand], after_bake=split)
+
+
+# Where the cycle panel's dial sits, and the dock panel's, the levers' pivots (Godot turns the
+# split-off needles and levers about these: Blender (x, y, z) is Godot (x, z, -y)).
+CYCLE_DIAL = (-0.12, -0.015, 1.28)
+DOCK_DIAL = (-0.14, -0.012, 1.47)
+DOCK_PIVOT = (0.0, -0.075, 0.9)
+
+
+@asset("rm_dock_panel", "rooms", texture=256, colors=32, ao=0.5)
+def dock_panel():
+    """The DOCKING COLLAR control (GDD §5, §8.1): a tall wall panel in the docking port, beside the
+    collar's airlock. A readout CRT (`screen_dock`) at the top; under it the big EXT PRESS gauge,
+    whose needle (`dock_needle`, its own object, kept out of the bake) reads what lies beyond the
+    collar once it's sealed to something;
+    CONTACT and SEAL lamps (`lamp_contact`, `lamp_seal`, lit by Godot). Below, the COLLAR lever
+    (`dock_lever`): a red T handle on a long arm in a striped slot between steel guard rails,
+    raised while the collar's retracted, thrown down to dock and up again to cast off, held for two
+    seconds either way. About 0.66 x 1.5 m, its back on the wall."""
+    k = br._materials()
+    dk = br._decals()
+    red = br.mats.paint("rm_lever_red", (0.75, 0.12, 0.08), wear=0.5)
+    m = Mesh("rm_dock_panel")
+    d = Mesh("rm_dock_panel_decals")
+    texts = []
+    m.box((0.66, 0.14, 1.5), k["casing"], at=(0, 0.07, 1.3), bevel=0.018)
+    m.box((0.6, 0.02, 1.42), k["casing_dark"], at=(0, -0.005, 1.3), bevel=0.006)
+    m.box((0.66, 0.05, 0.06), k["orange"], at=(0, 0.0, 2.02), bevel=0.008)
+    texts.append(geo.text("COLLAR", 0.06, dk["cream"], matrix=frame((0, -0.016, 1.94), FRONT, lift=0.002)))
+    screen = br.crt(m, k, Vector((0, -0.04, 1.73)), 0.3, 0.22, tilt=0, depth=0.12, name="screen_dock", bezel=0.025)
+    # The EXT PRESS gauge, its needle split off to turn.
+    br.dial(m, d, k, dk, Vector(DOCK_DIAL), FRONT, UP, radius=0.1, value=None, red_zone=False)
+    texts.append(geo.text("EXT", 0.04, dk["cream"], matrix=frame((DOCK_DIAL[0], -0.016, 1.32), FRONT, lift=0.002)))
+    # CONTACT and SEAL: lamps of their own, labelled.
+    lamp = mats.plain("lk_lamp", (0.2, 0.9, 0.3))
+    for z in (1.52, 1.43):
+        m.cylinder(0.034, 0.02, k["bezel"], sides=8, at=(0.13, -0.01, z), rot=(90, 0, 0))
+    contact = Mesh("lamp_contact")
+    contact.cylinder(0.026, 0.03, lamp, sides=8, at=(0.13, -0.03, 1.52), rot=(90, 0, 0))
+    seal = Mesh("lamp_seal")
+    seal.cylinder(0.026, 0.03, lamp, sides=8, at=(0.13, -0.03, 1.43), rot=(90, 0, 0))
+    # The COLLAR lever: a striped slot between guard rails; the arm on its hub, raised.
+    px, py, pz = DOCK_PIVOT
+    _stripes(d, dk, Vector((0, -0.016, 0.9)), FRONT, 0.26, 0.66, pitch=0.1)
+    m.box((0.07, 0.02, 0.66), k["rubber"], at=(0, -0.022, 0.9))
+    for x in (-0.16, 0.16):
+        m.box((0.03, 0.14, 0.7), k["steel"], at=(x, -0.07, 0.9), bevel=0.008)
+    m.cylinder(0.05, 0.11, k["dark_steel"], sides=8, at=(px, py, pz), rot=(0, 90, 0))
+    m.box((0.05, 0.04, 0.3), k["dark_steel"], at=(px, py - 0.03, pz + 0.15), bevel=0.008)
+    m.cylinder(0.026, 0.24, red, sides=8, at=(px, py - 0.03, pz + 0.3), rot=(0, 90, 0))
+    low = m.to_object()
+    collider = br._console_collider("rm_dock_panel", (0.66, 0.16, 1.5), (0, 0.06, 1.3))
+    hand = br.needle("dock_needle", Vector(DOCK_DIAL) + FRONT * 0.036, 0.1)
+
+    def split(model):
+        in_lever = lambda c: abs(c.x) < 0.14 and c.y < -0.035 and pz + 0.06 < c.z < pz + 0.34  # the arm and handle, not the hub
+        panel, lever = geo.split_object(model.low, {"rm_dock_panel": lambda c: not in_lever(c), "dock_lever": in_lever})
+        model.low = panel
+        model.extras.append(lever)
+
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, collider, contact.to_object(), seal.to_object(), hand],
+                 after_bake=split)
 
 
 # Drive room --------------------------------------------------------------------------------------

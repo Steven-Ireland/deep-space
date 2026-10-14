@@ -19,14 +19,27 @@ const PIECES := {"wall": "wall", "door": "wall_door", "window": "wall_window", "
 		"hatch": "wall_hatch", "breach": "wall_breach", "corner": "corner", "floor": "floor", "ceiling": "ceiling"}
 const KIT_FOLDERS := {"lk": "station", "dk": "derelict"}
 
-const HULL := {
-	"wall": preload("res://assets/models/hull/hl_side.glb"),
-	"window": preload("res://assets/models/hull/hl_side_window.glb"),
-	"viewport": preload("res://assets/models/hull/hl_side_viewport.glb"),
-	"hatch": preload("res://assets/models/hull/hl_side_hatch.glb"),
-	"corner": preload("res://assets/models/hull/hl_corner.glb"),
-	"roof": preload("res://assets/models/hull/hl_roof.glb"),
-	"belly": preload("res://assets/models/hull/hl_belly.glb"),
+## Hull plating by kind, for each look: the LANTERN's, and a derelict's (art/blender/hull.py: dh_*,
+## two plain sides with different wounds, picked by where they stand). Kinds a look lacks fall back
+## to the LANTERN's.
+const HULLS := {
+	"lk": {
+		"wall": [preload("res://assets/models/hull/hl_side.glb")],
+		"window": [preload("res://assets/models/hull/hl_side_window.glb")],
+		"viewport": [preload("res://assets/models/hull/hl_side_viewport.glb")],
+		"hatch": [preload("res://assets/models/hull/hl_side_hatch.glb")],
+		"corner": [preload("res://assets/models/hull/hl_corner.glb")],
+		"roof": [preload("res://assets/models/hull/hl_roof.glb")],
+		"belly": [preload("res://assets/models/hull/hl_belly.glb")],
+	},
+	"dk": {
+		"wall": [preload("res://assets/models/hull/dh_side.glb"), preload("res://assets/models/hull/dh_side_b.glb")],
+		"window": [preload("res://assets/models/hull/dh_side_window.glb")],
+		"hatch": [preload("res://assets/models/hull/dh_side_hatch.glb")],
+		"corner": [preload("res://assets/models/hull/dh_corner.glb")],
+		"roof": [preload("res://assets/models/hull/dh_roof.glb")],
+		"belly": [preload("res://assets/models/hull/dh_belly.glb")],
+	},
 }
 const DOOR := preload("res://game/station/door.tscn")
 ## Render layer for interiors: the star's light skips it (StarSystem), so it can't leak through
@@ -56,13 +69,18 @@ const ROOM_HEIGHT := 3.0
 var cells := {}
 ## The Door nodes, by "x,z,side" of the edge they're on.
 var doors := {}
+## The pressure hatches (Hatch), keyed the same way.
+var hatches := {}
+## Each room cell's air (Zone), by grid cell.
+var zones := {}
 ## The ceiling fixtures' lights, and the ceilings they hang from.
 var lights: Array[OmniLight3D] = []
 var ceilings: Array[Node3D] = []
 
 
 ## Builds the deck. `openings` maps "col,row,side" (layout cell and side N/E/S/W) to "door",
-## "window" or "viewport"; `dark` lists rooms whose fixtures start unlit.
+## "window", "viewport", "hatch" or "breach" (or "open", nothing at all); `dark` lists rooms whose
+## fixtures start unlit.
 func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark: String = "") -> void:
 	for row in rows.size():
 		for col in rows[row].length():
@@ -79,6 +97,7 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 		var zone := Zone.make(at + Vector3.UP * ROOM_HEIGHT / 2, Vector3(CELL, ROOM_HEIGHT, CELL), not vacuum.contains(cells[cell]))
 		zone.name = "Zone_%d_%d" % [cell.x, cell.y]
 		add_child(zone)
+		zones[cell] = zone
 	var wall_ends := {}
 	for key: String in edges:
 		var edge: Dictionary = edges[key]
@@ -101,6 +120,10 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 			add_child(door)
 			_mark_interior(door)
 			doors[key] = door
+		elif kind == "hatch":
+			# It swings into the room on its side (both, between two rooms: either way).
+			var parts := key.split(",")
+			hatches[key] = Hatch.fit(piece, 1.0 if cells.has(Vector2i(int(parts[0]), int(parts[1]))) else -1.0)
 		for end: Vector2i in edge.ends:
 			wall_ends[end] = wall_ends.get(end, []) + [edge.axis]
 	for corner: Vector2i in wall_ends:
@@ -219,7 +242,7 @@ func _build_hull(edges: Dictionary) -> void:
 		var outward: Vector2i = (Vector2i(0, -1) if horizontal else Vector2i(-1, 0)) if room_owner else (Vector2i(0, 1) if horizontal else Vector2i(1, 0))
 		if edge.kind == "open":
 			continue # docked to something: no plating over the join
-		var kind: String = edge.kind if edge.kind in HULL else "wall"
+		var kind: String = edge.kind if edge.kind in HULLS["lk"] else "wall"
 		var yaw := atan2(float(outward.x), float(outward.y))
 		_place_hull(kind, edge.at, yaw)
 		for end: Vector2i in edge.ends:
@@ -238,7 +261,8 @@ func _build_hull(edges: Dictionary) -> void:
 
 
 func _place_hull(kind: String, at: Vector3, yaw: float) -> Node3D:
-	var piece: Node3D = HULL[kind].instantiate()
+	var looks: Array = HULLS.get(kit, HULLS["lk"]).get(kind, HULLS["lk"][kind])
+	var piece: Node3D = (looks[absi(hash(at)) % looks.size()] as PackedScene).instantiate()
 	piece.position = at
 	piece.rotation.y = yaw
 	add_child(piece)

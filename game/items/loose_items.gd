@@ -33,13 +33,22 @@ func stock(root: Node) -> void:
 			put(Items.make(spot.get_meta(&"kind")), spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
 
 
+## Everything loose in the world now.
+func loose() -> Array[Pickup]:
+	var out: Array[Pickup] = []
+	for child in get_node(spawn_path).get_children():
+		if child is Pickup and not child.is_queued_for_deletion():
+			out.append(child)
+	return out
+
+
 ## Host: takes away everything loose that isn't aboard the station.
 func clear_outside() -> void:
 	var lantern := get_tree().get_first_node_in_group(&"lantern")
 	if lantern == null:
 		return
-	for pickup in get_node(spawn_path).get_children():
-		if pickup is Pickup and lantern.room_at(pickup.global_position) == "OUTSIDE":
+	for pickup in loose():
+		if lantern.room_at(pickup.global_position) == "OUTSIDE":
 			pickup.queue_free()
 
 

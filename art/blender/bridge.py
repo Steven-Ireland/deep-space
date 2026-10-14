@@ -142,7 +142,8 @@ def keyboard(m, d, k, dk, surface, origin, width=0.46, depth=0.16):
 
 
 def dial(m, d, k, dk, centre, normal, up, radius=0.045, value=0.6, red_zone=True):
-    """A round analog gauge: steel rim, cream face, tick marks, a needle at `value` (0..1)."""
+    """A round analog gauge: steel rim, cream face, tick marks, a needle at `value` (0..1); with
+    `value` None, no needle (a model adds its own, to split off and turn: needle())."""
     f = frame(centre, normal, up=up, lift=0.0)
     rot = _rot_of(f)
     m.cylinder(radius + 0.008, 0.03, k["steel"], sides=10, at=centre + normal * 0.012, rot=_rot_of(f, axis_to_normal=True))
@@ -153,11 +154,26 @@ def dial(m, d, k, dk, centre, normal, up, radius=0.045, value=0.6, red_zone=True
         x, z = math.sin(a) * radius * 0.8, math.cos(a) * radius * 0.8
         tick = dk["red"] if (red_zone and i >= 7) else dk["black"]
         d.polygon([(x - 0.003, z - 0.003), (x + 0.003, z - 0.003), (x + 0.003, z + 0.003), (x - 0.003, z + 0.003)], tick, face)
+    if value is None:
+        return
     a = math.radians(-135 + value * 270)
     tip = (math.sin(a) * radius * 0.75, math.cos(a) * radius * 0.75)
     perp = (math.cos(a) * 0.004, -math.sin(a) * 0.004)
     d.polygon([(-perp[0], -perp[1]), (perp[0], perp[1]), (tip[0] + perp[0] * 0.3, tip[1] + perp[1] * 0.3),
                (tip[0] - perp[0] * 0.3, tip[1] - perp[1] * 0.3)], dk["black"], frame(centre + normal * 0.03, normal, up=up, lift=0.002))
+
+
+def needle(name, centre, radius):
+    """A gauge's needle, its own object (`name`): standing straight up (mid-scale) from `centre` on
+    a face looking -Y, with a hub over its pivot. It stays out of the bake (where it stands would
+    shadow the dial) and wears the plain gauge_needle material; Godot turns it about the face's
+    normal (+Z in Godot) to show a reading."""
+    m = Mesh(name)
+    material = mats.plain("gauge_needle", (0.62, 0.09, 0.05))
+    c = Vector(centre)
+    m.box((radius * 0.12, 0.006, radius * 0.8), material, at=c + Vector((0, -0.004, radius * 0.36)))
+    m.cylinder(radius * 0.16, 0.012, material, sides=8, at=c + Vector((0, -0.006, 0)), rot=(90, 0, 0))
+    return m.to_object()
 
 
 def back_panel(m, d, k, dk, x0, x1, z0, z1, y, stencil=None, texts=None):

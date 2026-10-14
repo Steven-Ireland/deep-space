@@ -1,0 +1,9 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://game/rendering/psx_lit.gdshader" id="shader"]
+
+[resource]
+resource_name = "gauge_needle"
+shader = ExtResource("shader")
+shader_parameter/albedo = Color(0.62, 0.09, 0.05, 1)
+shader_parameter/roughness = 0.6

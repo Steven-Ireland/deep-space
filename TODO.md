@@ -76,7 +76,24 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   is muffled and the hum drops away; the suit's own sounds stay clear. (The Jump Lever's sounds
   wait until they're up to the bar.)
 
-Still to come: docking, creature behaviour, death.
+**Docking (M4, first part, 2026-10-14):**
+
+- **The derelict waits** off the starboard bow, seen from the bridge's side port, until the dock
+  panel's COLLAR lever (in the docking port, held 2 s) docks it: a pale tractor beam draws it in,
+  the collar's tube runs out to its hatch, the hulls meet with a jolt, the clamps bite, the collar
+  opens its hatch. The panel's EXT PRESS gauge then reads what the derelict holds.
+- **The collar room is an airlock:** cycle out with the lever inside (the door shuts, the chamber
+  vents or fills to the derelict's side, the hatch swings open), cycle back in the same way; a
+  locked door's controls call it round. It won't cycle out with nothing sealed to it.
+- **Undocking:** the lever again sounds the siren for 10 s (again to abort) and brings the airlock
+  in; then the tube lets go and the beam pushes the derelict off with its hatch open, venting. Anyone
+  still aboard rides it out on suit O2; docking again picks them up. A jump casts off at once.
+- **Art and sound:** the derelict's own hull (teal-grey, rust, torn panels, scorch), the collar
+  tube, the dock panel, swinging pressure hatches, the cycle panel's lever and needle working;
+  hatch, airlock, docking and siren sounds.
+- **Tests:** the smoke test docks, cycles the airlock, undocks and docks again.
+
+Still to come: creature behaviour, death.
 
 ## Next: the gameplay loop (proposed order)
 
@@ -91,7 +108,9 @@ Still to come: docking, creature behaviour, death.
    - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
      gives a cell like a gas giant until salvage can be spent
 3. **M4, the derelict:**
-   - docking
+   - **next:** death, spectating through the station's cameras, and the left-behind rules (GDD
+     §8.3, decided 10): the Jump Lever stops waiting for crew off station; anyone left behind is
+     lost, and the Med Bay clones them back (with its upgrade, or offline until then: to decide)
    - the room-module generator from the derelict kit: 6–10 room types, a Prize room, an
      exterior hull
    - power zones and breakers
@@ -99,8 +118,7 @@ Still to come: docking, creature behaviour, death.
    - the Prize and Prize events
    - hazards
    - Crawler AI (an eyeless sound hunter) and Hanger AI (a ceiling trap)
-   - death in specific ways, spectating through the station's cameras, and revive
-   - extraction
+   - death in specific ways, and revive by carrying a body or biotag to the Med Bay
 4. **Slice wrap-up:**
    - upgrades: O2 Capacity I, Med Bay
    - the Workshop's recycler and Fabricator
@@ -121,6 +139,9 @@ Still to come: docking, creature behaviour, death.
   - Fuel: 3 cells, 8 jumps a sector; a cell from each derelict (if carried back) and one per gas
     giant (about 4 fuel stops a map). Scan 8 s, survey 5 s, skim 20 s, jumps 10–20 s.
   - The hyperspace tunnel's look, and the shake's strength.
+  - Docking: the derelict 16 s coming in (and going), the tube 3 s, the clamps 4.5 s, the siren 10 s,
+    an airlock cycle 5.5 s; where the derelict waits; the tractor beam's colour, width and bands; the
+    jolt at contact; the tube's light (dim).
   - The chart table's hologram: its size and height over the table, how readable its marks are
     from across the bridge, how often it drops out.
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
@@ -128,6 +149,14 @@ Still to come: docking, creature behaviour, death.
   visible in derelicts. It could be made stronger there and fainter aboard the station.
 
 ## Known issues and polish
+
+- **Sounds: the "clang" doesn't read as metal meeting metal.** The new docking and airlock sounds
+  share a clunk (`_clunk` in `tools/build_audio.py`: a crack, a thud, a ring) at their starts and
+  ends, from the door's stop and slam, which has it too. Take it out of all of them and find
+  something better. (Raised in review; circle back.)
+- **The collar tube is 1,328 triangles**, over the kit pieces' 50–400; it's a one-off, closer to the
+  exterior's budget.
+- **The dock panel's small stencils** don't survive the texel density; only COLLAR and EXT remain.
 
 - **Room lights leak through walls:** the ceiling OmniLights are unshadowed, so the sealed med bay
   isn't dark. Fixes: shadows on a few key fixtures, or tighter ranges.
@@ -193,12 +222,18 @@ Still to come: docking, creature behaviour, death.
   - **Look direction:** `--look` yaw 0 faces fore (-Z), 90 faces port (-X), -90 starboard, 180 aft.
   - **The station:** open bridge floor at (-3, 0, 0.5); cabin 4 at (4.4, 0, 18.3). The station's
     doors start shut.
-  - **The derelict:** docked only at a Derelict node (the first row is all derelicts), or with
-    `--derelict`. Its doors start open.
+  - **The derelict:** alongside only at a Derelict node (the first row is all derelicts), waiting
+    for the collar; or with `--derelict` (docked) or `--derelict=away` (waiting) at the departure.
+    Its doors start open. Docked, it lies one cell out from the collar, past the tube (x 14–18):
 
-    | Area | Position |
+    | Area | Position (docked) |
     |---|---|
-    | Entry | (16, 0, 0) |
-    | Corridor | (20, 0, 0) to (20, 0, 4) |
-    | L-shaped room | x 20–28, z -4 to 0 |
-    | Prize room | (22, 0, 8.5) |
+    | Collar's airlock (the collar room) | (12, 0, 0); its cycle panel by the outer hatch |
+    | Dock panel | (9.7, 0, 1.6), in the docking port; stand at (8.6, 0, 1.25), `--look=-111,-36` for the lever |
+    | Entry | (20, 0, 0) |
+    | Corridor | (24, 0, 0) to (24, 0, 4) |
+    | L-shaped room | x 24–32, z -4 to 0 |
+    | Prize room | (26, 0, 8.5) |
+
+    `--interact=<s>` holds interact on what's aimed at, so a shot can dock (`--interact=2.4` at the
+    lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`).

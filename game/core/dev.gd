@@ -14,7 +14,8 @@ extends Node
 ##   --run-seed=<n>        the run's seed, instead of a fresh one (Run)
 ##   --scanned, --route, --jump  start with the departure scanned; and the first jump plotted; and
 ##                         jumping along it a second in (Run)
-##   --derelict            dock the sample derelict at the departure too (Run)
+##   --derelict            dock the sample derelict at the departure too (Run); =away, have it
+##                         waiting out for the collar instead
 ##   --fuel=<n>            start the run with n cells loaded (Run)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)
@@ -34,6 +35,8 @@ extends Node
 ##   --check-lever         a second and a half in, hold interact 2.4 s on what's under the
 ##                         crosshair (put them at the Jump Lever with --at and --look, and plot a
 ##                         route with --route); say whether the jump began, quit
+##   --interact=<s>        a second and a half in, hold interact that long on what's under the
+##                         crosshair (the dock panel's lever: 2.4), and carry on
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-
 ##                         forward; with --sprint or --crouch (Player)
 ##   --operate=<screen>    step up to the terminal on that screen mesh, e.g. screen_survey (Player)
@@ -54,6 +57,8 @@ func _ready() -> void:
 		_check_jump()
 	if Args.flag("--check-lever"):
 		_check_lever()
+	if Args.flag("--interact"):
+		_interact(float(Args.value("--interact", "0.2")))
 	var quit_after := float(Args.value("--quit-after", "0"))
 	if quit_after > 0.0:
 		get_tree().create_timer(quit_after).timeout.connect(get_tree().quit)
@@ -176,6 +181,16 @@ func _check_lever() -> void:
 	await get_tree().create_timer(0.5).timeout
 	print("Lever check: %s." % ("the jump began" if run.jumping() else "no jump (%s)" % run.jump_blocker()))
 	get_tree().quit()
+
+
+func _interact(seconds: float) -> void:
+	await get_tree().create_timer(1.5).timeout
+	var player := get_tree().get_first_node_in_group(&"local_player") as Player
+	var aimed := player.aimed_at if player != null else null
+	print("Interact: %s (%s) for %.1f s." % [aimed.name if aimed != null else "nothing", aimed.prompt(player) if aimed != null else "-", seconds])
+	_press("interact", true)
+	await get_tree().create_timer(seconds).timeout
+	_press("interact", false)
 
 
 ## Presses or lets go of an input action, as the keyboard would.

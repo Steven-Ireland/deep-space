@@ -20,9 +20,6 @@ const AMBER := Color(1.0, 0.7, 0.3)
 ## The lights in a jump (GDD §5): red, pulsing slowly; the fixtures' diffusers glow red with them.
 const ALARM := Color(1.0, 0.12, 0.07)
 const ALARM_GLOW := Color(1.0, 0.16, 0.1)
-## A pressure hatch's round opening in its wall (art/blender/station_kit.py: wall_hatch), closed by
-## a solid while the hatch is shut.
-const HATCH_OPENING := Vector3(2.2, 2.25, 0.3)
 ## The drive core's green glow, at rest.
 const DRIVE_GLOW := 1.6
 
@@ -56,10 +53,9 @@ const OPENINGS := {
 
 var _alarm_shown := 0.0
 var _drive_glow: OmniLight3D
-var _collar_hatch: Node3D
-var _collar_seal: CollisionShape3D
-var _dock_screen: Terminal
 var _fixtures: Array[ShaderMaterial] = []
+var _dock_panel: Node3D
+var _cycle_panel: Node3D
 
 
 func _ready() -> void:
@@ -73,8 +69,8 @@ func _ready() -> void:
 	_furnish_rooms()
 	_place_cameras()
 	_hull_features()
-	_seal_hatches()
-	dock(false)
+	# The docking collar, its airlock the collar room, behind the door from the docking port.
+	Collar.make(self, hatches["4,0,v"].get_parent(), _dock_panel, doors["3,0,v"], zones[Vector2i(3, 0)], _cycle_panel)
 	_find_fixtures()
 
 
@@ -107,44 +103,16 @@ func _find_fixtures() -> void:
 				_fixtures.append(material)
 
 
-## The room a world position is in, by name (for the vitals board), or OUTSIDE.
+## The room a world position is in, by name (for the vitals board), or OUTSIDE. The collar's tube,
+## run out, is the COLLAR too.
 func room_at(at: Vector3) -> String:
 	var cell := Vector2i(roundi(at.x / CELL), roundi(at.z / CELL))
-	return ROOM_NAMES.get(cells.get(cell, ""), "OUTSIDE")
-
-
-## Docked or not: docked, the collar's hatch is retracted, so the derelict alongside is open to
-## walk into; cast off, it's shut and sealed. The dock panel says which.
-func dock(docked: bool) -> void:
-	if _collar_hatch != null:
-		_collar_hatch.visible = not docked
-	if _collar_seal != null:
-		_collar_seal.disabled = docked
-	if _dock_screen != null and _dock_screen.screen != null:
-		var screen := _dock_screen.screen
-		screen.set("lines", [["COLLAR", "DIM"], ["EXTENDED", "GREEN"], ["HARD SEAL", "GREEN"]] if docked
-				else [["COLLAR", "DIM"], ["RETRACTED", "AMBER"], ["NO CONTACT", "DIM"]])
-		screen.set("prompt", "DOCKED" if docked else "AWAITING TARGET")
-
-
-## Every outer pressure hatch is solid while it's shut (the EVA airlock's until EVA, M5; the
-## collar's whenever nothing's docked).
-func _seal_hatches() -> void:
-	for piece in get_children():
-		if not piece.name.begins_with("hatch_"):
-			continue
-		var seal := StaticBody3D.new()
-		seal.name = "Seal"
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = HATCH_OPENING
-		shape.shape = box
-		shape.position = Vector3(0, HATCH_OPENING.y / 2, 0)
-		seal.add_child(shape)
-		piece.add_child(seal)
-		if piece.position.x > 13.0:
-			_collar_hatch = piece.find_child("hatch_door", true, false) as Node3D
-			_collar_seal = shape
+	var room: String = ROOM_NAMES.get(cells.get(cell, ""), "OUTSIDE")
+	if room == "OUTSIDE":
+		var collar := Collar.of(self)
+		if collar != null and collar.in_tube(at):
+			return ROOM_NAMES["K"]
+	return room
 
 
 ## The bridge stations (GDD §5): helm and science face the viewport; ops and engineering stand
@@ -199,10 +167,10 @@ func _furnish_rooms() -> void:
 	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
 	_beacon(Vector3(-12, 2.6, 0))
-	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar door, cargo waiting.
-	var dock_panel := _prop("rm_cycle_panel", Vector3(9.73, 0, 1.6), -90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
-			{"title": "DOCKING", "lines": [["COLLAR", "DIM"], ["RETRACTED", "AMBER"], ["NO CONTACT", "DIM"]], "prompt": "AWAITING TARGET"}]])
-	_dock_screen = dock_panel.find_child("Terminal_screen_airlock", false, false) as Terminal
+	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar's airlock door, cargo
+	# waiting; inside the collar room (the airlock's chamber), its cycle panel by the outer hatch.
+	_dock_panel = _prop("rm_dock_panel", Vector3(9.71, 0, 1.6), -90.0, [["screen_dock", "dock_screen", Vector2i(192, 144), GREEN]])
+	_cycle_panel = _prop("rm_cycle_panel", Vector3(13.73, 0, 1.6), -90.0, [["screen_airlock", "airlock_screen", Vector2i(160, 120), GREEN]])
 	_prop("rm_crate", Vector3(6.9, 0, -1.2), 10.0, [])
 	_prop("rm_crate", Vector3(7.75, 0, -1.25), -6.0, [])
 	_prop("rm_crate", Vector3(7.3, 0.8, -1.2), 25.0, [])

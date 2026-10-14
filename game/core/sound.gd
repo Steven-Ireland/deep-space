@@ -67,6 +67,16 @@ const CONSOLE := {
 	&"refuse": preload("res://assets/audio/foley/terminal_error.wav"),
 }
 const CELL_SEATED := preload("res://assets/audio/foley/fuel_cell_load.wav")
+const HATCH_OPEN := preload("res://assets/audio/foley/hatch_open.wav")
+const HATCH_CLOSE := preload("res://assets/audio/foley/hatch_close.wav")
+const AIRLOCK_VENT := preload("res://assets/audio/foley/airlock_vent.wav")
+const AIRLOCK_FILL := preload("res://assets/audio/foley/airlock_fill.wav")
+## The docking collar: the tube's motor running out or in, the hulls meeting, the clamps.
+const COLLAR := {
+	&"motor": preload("res://assets/audio/foley/collar_motor.wav"),
+	&"contact": preload("res://assets/audio/foley/dock_contact.wav"),
+	&"clamps": preload("res://assets/audio/foley/dock_clamps.wav"),
+}
 const TAKEN := preload("res://assets/audio/foley/item_pickup.wav")
 
 var _vacuum: AudioEffectLowPassFilter
@@ -188,6 +198,21 @@ func console(terminal: Terminal, what: StringName) -> void:
 ## A door sliding open or shut, from the middle of its opening.
 func door(at: Node3D, opening: bool) -> void:
 	_play_at(DOOR_OPEN if opening else DOOR_CLOSE, at, 28.0, 2.0, randf_range(0.97, 1.03), Vector3.UP * 1.15)
+
+
+## A pressure hatch swinging open or shut, from its middle.
+func hatch(at: Hatch, opening: bool) -> void:
+	_play_at(HATCH_OPEN if opening else HATCH_CLOSE, at, 30.0, 2.0, randf_range(0.97, 1.03), Vector3.UP * Hatch.CENTRE)
+
+
+## An airlock's chamber venting or filling, from the middle of it.
+func airlock(chamber: Node3D, filling: bool) -> void:
+	_play_at(AIRLOCK_FILL if filling else AIRLOCK_VENT, chamber, 24.0, 0.0)
+
+
+## The docking collar (`what`: a COLLAR sound) from `along` metres out along its tube.
+func collar(what: StringName, tube: Node3D, along: float) -> void:
+	_play_at(COLLAR[what], tube, 40.0, 3.0, 1.0, Vector3(0, 1.2, along) / tube.scale)
 
 
 ## Plays `stream` from `crew`: in their own ears for the crew member at this machine, from where

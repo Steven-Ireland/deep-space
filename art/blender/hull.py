@@ -1,7 +1,9 @@
 """The LANTERN's hull (GDD §5, §14): armour plating around the deck, seen on EVA, through other
 ships' windows, and as the crew drifts away from it. A kit the Deck places around any layout:
 sides over exterior walls (plain, window, viewport, hatch), outer corners, roof and belly plates,
-plus hero pieces (comms mast, thrusters, the station's name). Derelicts re-bake the same kit.
+plus hero pieces (comms mast, thrusters, the station's name), and the docking collar the LANTERN
+runs out to a derelict's hatch. Derelicts re-bake the same kit as dh_* in the derelict style:
+teal-grey armour eaten by rust, dead running lights, panels torn off, scorch (GDD §14's palette).
 
 Side pieces stand on a cell edge like a wall: X along the edge, the hull's outer face toward -Y.
 """
@@ -24,9 +26,24 @@ BOTTOM, TOP = -0.6, 3.7
 ROOF = 3.1 + 0.03   # the roof plate's underside: the ceiling's top, plus a gap
 BELLY = -0.1 - 0.03  # the belly plate's top: the floor's underside, less a gap
 THRUSTER_REACH = 0.95  # a thruster pod's origin, out from the plating it's mounted on
+HATCH_CZ = 1.15     # a pressure hatch's centre above the deck (station_kit.py: wall_hatch)
+
+# The kit's two looks, as in station_kit.py: the LANTERN's ("station") and a derelict's
+# ("derelict"), with `damage` picking which wounds a derelict's side plating shows (0 for none).
+STYLE = {"name": "station", "damage": 0}
 
 
 def _materials():
+    if STYLE["name"] == "derelict":
+        return dict(
+            armour=mats.paint("dh_armour", (0.29, 0.35, 0.35), wear=0.6, grime=0.75, streaks=0.8, under=(0.42, 0.4, 0.36),
+                              detail="PaintedMetal013", detail_strength=0.4, rust=0.6),
+            insert=mats.paint("dh_insert", (0.46, 0.48, 0.45), wear=0.6, grime=0.7, streaks=0.6, rust=0.45),
+            dark=mats.metal("dh_dark", (0.13, 0.13, 0.13), grime=0.6),
+            steel=mats.metal("dh_steel", (0.4, 0.37, 0.33), grime=0.6, detail="Metal021"),
+            orange=mats.paint("dh_orange", (0.55, 0.3, 0.14), wear=0.7, grime=0.6, rust=0.45),
+            rail=mats.paint("dh_rail", (0.6, 0.5, 0.18), wear=0.7, grime=0.5, rust=0.5),
+        )
     return dict(
         armour=mats.paint("hl_armour", (0.36, 0.38, 0.4), wear=0.35, grime=0.4, streaks=0.4, under=(0.55, 0.55, 0.52),
                           detail="PaintedMetal013", detail_strength=0.3),
@@ -39,6 +56,16 @@ def _materials():
 
 
 def _decals():
+    if STYLE["name"] == "derelict":
+        return dict(
+            black=mats.decal("dh_d_black", (0.06, 0.06, 0.06)),
+            white=mats.decal("dh_d_white", (0.6, 0.6, 0.55)),
+            orange=mats.decal("dh_d_orange", (0.5, 0.28, 0.13)),
+            dark=mats.decal("dh_d_dark", (0.1, 0.1, 0.1)),
+            amber_lit=mats.decal("dh_d_amber_dead", (0.24, 0.17, 0.09)),  # long dead
+            scorch=mats.decal("dh_d_scorch", (0.07, 0.065, 0.06)),
+            scorch_halo=mats.decal("dh_d_scorch_halo", (0.19, 0.16, 0.13)),
+        )
     return dict(
         black=mats.decal("hl_d_black", (0.06, 0.06, 0.06)),
         white=mats.decal("hl_d_white", (0.86, 0.85, 0.8)),
@@ -73,25 +100,58 @@ def _side_shell(m, k, holes=()):
 
 
 def _side_details(m, d, k, dk, holes=(), rail=True, light=True):
-    """Ribs, panel inserts, the EVA handrail, a running light, rivet lines, avoiding `holes`."""
+    """Ribs, panel inserts, the EVA handrail, a running light, rivet lines, avoiding `holes`. A
+    derelict's plating (STYLE's `damage`) has lost things: 1, an access panel torn off and hanging
+    by a corner, the handrail snapped and bent away; 2, a scorch across the plating, the lower
+    panel gone, the rail sagging where a stand-off sheared."""
     def clear(x, z, r=0.3):
         return all(not (hx0 - r < x < hx1 + r and hz0 - r < z < hz1 + r) for hx0, hx1, hz0, hz1 in holes)
 
+    damage = STYLE["damage"] if STYLE["name"] == "derelict" else 0
     face = -OUT
     for x in (-WIDTH / 2 + 0.08, WIDTH / 2 - 0.08):
         m.box((0.16, 0.08, TOP - BOTTOM - 0.7), k["dark"], at=(x, face - 0.02, (TOP + BOTTOM) / 2), bevel=0.01)
     if clear(0, 0.2, 0.0):
         m.box((WIDTH - 0.3, 0.05, 0.16), k["dark"], at=(0, face - 0.02, 0.2), bevel=0.01)
+    torn = {1: (1.0, 2.6), 2: (-1.0, -0.1)}.get(damage)
     for x, z, w, h in ((-1.0, 2.6, 1.4, 0.7), (1.0, 2.6, 1.4, 0.7), (-1.0, -0.1, 1.2, 0.3)):
-        if clear(x, z, max(w, h) / 2):
-            faces = m.box((w, 0.04, h), k["insert"], at=(x, face - 0.01, z), bevel=0.01)
-            front = max(m.faces(among=faces, normal=(0, -1, 0), min_dot=0.99), key=lambda f: f.calc_area())
-            m.inset([front], thickness=0.05, depth=0.008)
+        if not clear(x, z, max(w, h) / 2):
+            continue
+        if (x, z) == torn:
+            # The panel's gone: its dark bay, the bolts' lugs, a pipe run across the hole.
+            m.box((w - 0.04, 0.02, h - 0.04), k["dark"], at=(x, face - 0.002, z))
+            m.pipe([(x - w / 2 + 0.04, face - 0.03, z + h * 0.15), (x + w / 2 - 0.04, face - 0.03, z + h * 0.1)], 0.03, k["steel"], sides=5)
+            if damage == 1:
+                # ...and hangs by its lower corner, swung out and down.
+                m.box((w * 0.8, 0.03, h * 0.9), k["insert"], at=(x + w * 0.3, face - 0.12, z - h * 0.75), rot=(14, -6, 38), bevel=0.008)
+            continue
+        faces = m.box((w, 0.04, h), k["insert"], at=(x, face - 0.01, z), bevel=0.01)
+        front = max(m.faces(among=faces, normal=(0, -1, 0), min_dot=0.99), key=lambda f: f.calc_area())
+        m.inset([front], thickness=0.05, depth=0.008)
     if rail and clear(0, 1.0, 0.1):
         ry = face - 0.16
-        m.pipe([(-WIDTH / 2 + 0.2, ry, 1.0), (WIDTH / 2 - 0.2, ry, 1.0)], 0.025, k["rail"], sides=6)
-        for x in (-1.5, 0.0, 1.5):
+        if damage == 1:
+            # Snapped past its middle stand-off, the loose end bent out and down.
+            m.pipe([(-WIDTH / 2 + 0.2, ry, 1.0), (0.35, ry, 1.0), (0.75, ry - 0.18, 0.78)], 0.025, k["rail"], sides=6)
+            stands = (-1.5, 0.0)
+        elif damage == 2:
+            m.pipe([(-WIDTH / 2 + 0.2, ry, 1.0), (0.0, ry, 1.0), (1.0, ry - 0.03, 0.9), (WIDTH / 2 - 0.2, ry - 0.06, 0.76)],
+                   0.025, k["rail"], sides=6)
+            stands = (-1.5, 0.0)
+        else:
+            m.pipe([(-WIDTH / 2 + 0.2, ry, 1.0), (WIDTH / 2 - 0.2, ry, 1.0)], 0.025, k["rail"], sides=6)
+            stands = (-1.5, 0.0, 1.5)
+        for x in stands:
             m.pipe([(x, face, 1.0), (x, ry, 1.0)], 0.018, k["rail"], sides=5, caps=False)
+    if damage == 2 and clear(-0.4, 1.4, 0.6):
+        # A scorch across the plating between the panels: a brown halo, a black heart.
+        for scale, colour, lift in ((1.0, "scorch_halo", 0.001), (0.55, "scorch", 0.0015)):
+            pts = []
+            for i in range(20):
+                a = i / 20 * math.tau
+                r = scale * (0.8 + 0.1 * math.sin(i * 2.7) + 0.06 * math.sin(i * 5.3))
+                pts.append((-0.4 + math.cos(a) * r * 1.25, 1.45 + math.sin(a) * r * 0.6))
+            d.polygon(clip(pts, -1.78, 1.78, 0.32, 2.2), dk[colour], frame((0, face, 0), (0, -1, 0), lift=lift))
     if light and clear(1.6, 3.15, 0.2):
         m.box((0.16, 0.08, 0.1), k["dark"], at=(1.6, face - 0.04, 3.15), bevel=0.01)
         d.polygon([(-0.05, -0.03), (0.05, -0.03), (0.05, 0.03), (-0.05, 0.03)], dk["amber_lit"], frame((1.6, face - 0.081, 3.15), (0, -1, 0)))
@@ -178,13 +238,20 @@ def corner():
     return Model(low=low, decals=[d.to_object()], extras=[])
 
 
+def _walk():
+    """Non-slip deck plate: the roof's EVA walkway, the collar's floor."""
+    if STYLE["name"] == "derelict":
+        return mats.metal("dh_walk", (0.25, 0.24, 0.22), grime=0.75, brushed=False, detail="DiamondPlate008A")
+    return mats.metal("hl_walk", (0.3, 0.31, 0.32), grime=0.5, brushed=False, detail="DiamondPlate008A")
+
+
 @asset("hl_roof", "hull", texture=256, colors=32, ao=0.45, angles=((-30, 40), (150, 50), (0, 70), (90, 25)))
 def roof():
     """Hull roof plate over a cell: armour plating with seams and rivets on a 2 m grid, a low vent
     block, a walkway strip of non-slip plate with hazard edging for EVA."""
     k = _materials()
     dk = _decals()
-    walk = mats.metal("hl_walk", (0.3, 0.31, 0.32), grime=0.5, brushed=False, detail="DiamondPlate008A")
+    walk = _walk()
     m = Mesh("hl_roof")
     d = Mesh("hl_roof_decals")
     m.box((WIDTH, WIDTH, 0.35), k["armour"], at=(0, 0, ROOF + 0.175))
@@ -281,3 +348,129 @@ def name():
     texts = [geo.text("LANTERN", 1.6, dk["white"], matrix=frame((0, 0.5, 0.012), up, up=(0, 1, 0))),
              geo.text("DSS-7   EARTH SURVEY", 0.45, dk["orange"], matrix=frame((0, -1.2, 0.012), up, up=(0, 1, 0)))]
     return Model(low=low, decals=texts, extras=[])
+
+
+def _hazard(d, dk, centre, normal, w, h, up=(0, 0, 1), pitch=0.16):
+    """A black-on-orange hazard band, `w` x `h`, flat on a face."""
+    d.polygon([(-w / 2, -h / 2), (w / 2, -h / 2), (w / 2, h / 2), (-w / 2, h / 2)], dk["orange"], frame(centre, normal, up=up, lift=0.001))
+    f = frame(centre, normal, up=up, lift=0.0015)
+    for i in range(-int(w / pitch) - 2, int(w / pitch) + 3):
+        x = i * pitch
+        stripe = [(x, -h / 2), (x + pitch * 0.45, -h / 2), (x + pitch * 0.45 + h * 0.6, h / 2), (x + h * 0.6, h / 2)]
+        d.polygon(clip(stripe, -w / 2, w / 2, -h / 2, h / 2), dk["black"], f)
+
+
+def _ring_hazard(d, dk, t, facing, r0, r1, count=16):
+    """A hazard ring painted on a collar ring's end face, `t` out along the tube, facing -Y (+1) or +Y (-1)."""
+    normal = Vector((0, -facing, 0))
+    for i in range(count):
+        a0, a1 = i / count * math.tau, (i + 1) / count * math.tau
+        pts = [(math.cos(a0) * r0, math.sin(a0) * r0), (math.cos(a1) * r0, math.sin(a1) * r0),
+               (math.cos(a1) * r1, math.sin(a1) * r1), (math.cos(a0) * r1, math.sin(a0) * r1)]
+        if facing < 0:
+            pts = [(-x, z) for x, z in pts]
+        d.polygon(pts, dk["black"] if i % 2 else dk["orange"], frame((0, -t, HATCH_CZ), normal, lift=0.001))
+
+
+COLLAR_LENGTH = WIDTH  # wall line to wall line: the LANTERN's collar hatch to the derelict's
+
+
+@asset("lk_collar_tube", "hull", texture=256, colors=32, ao=0.5, angles=((-55, 15), (125, 20), (90, 0), (0, 0)))
+def collar_tube():
+    """The DOCKING COLLAR, run out (GDD §5, §8.1): the short tube the LANTERN extends from its
+    collar hatch to a derelict's, 4 m wall line to wall line, so every derelict docks one cell out.
+    Steel clamp rings at either end sleeve over the two hulls' hatch collars, rams biting on the
+    far hull; between them, pleated black bellows. Inside: a non-slip walkway with hazard edges at
+    floor height, a cable tray and a warm light bar along the crown, hazard rings painted on the
+    rings' inner faces. Seen from within it's the threshold between home and the dark.
+
+    Built along -Y from the LANTERN's wall line (y = 0) to the derelict's (y = -4), its axis at
+    the hatches' centre height; the walkway's top is the deck's (z = 0). Its bore faces look in
+    (the lathe profiles run back down the tube), its outer skin out. Colliders: the walkway, the
+    walls and roof of the passage, so nobody steps off into the bellows."""
+    k = _materials()
+    dk = _decals()
+    bellows = mats.plain("hl_bellows", (0.17, 0.17, 0.16), grime=0.45, detail_strength=0.35)
+    lamp = mats.glowing("hl_tube_light", (1.0, 0.82, 0.55), base=(0.45, 0.38, 0.28), flicker=0.08)
+    walk = _walk()
+    m = Mesh("lk_collar_tube")
+    d = Mesh("lk_collar_tube_decals")
+    texts = []
+    cz = HATCH_CZ
+    sides = 12
+    tube = dict(at=(0, 0, cz), rot=(90, 0, 0), sides=sides, cap_start=False, cap_end=False)  # lathe z runs out along -Y
+    # A bore wide enough at the deck for the walkway (0.96 m either side of the axis at z = 0),
+    # clear of each hull's hatch collar (r 1.3, 0.5..1.06 out) and docking guides (r 1.35..1.49,
+    # 0.56..0.96 out): the clamp rings' bands pass over the guides, their faces stand past them.
+    bore, pleat, skin, band = 1.5, 1.58, 1.64, 1.74
+    near0, near1 = 0.6, 1.12
+    far0, far1 = COLLAR_LENGTH - near1, COLLAR_LENGTH - 0.7
+    # Bellows between the rings: pleats in and out, seen from within, and a plain outer skin.
+    pleats = 6
+    folds = [(pleat if i % 2 else bore, near1 + (far0 - near1) * i / (pleats * 2)) for i in range(pleats * 2 + 1)]
+    m.lathe(list(reversed(folds)), bellows, **tube)
+    m.lathe([(skin, near1), (skin, far0)], bellows, **tube)
+    for i in range(1, pleats):
+        t = near1 + (far0 - near1) * i / pleats
+        m.lathe([(skin, t - 0.03), (skin + 0.04, t - 0.02), (skin + 0.04, t + 0.02), (skin, t + 0.03)], k["dark"], **tube)
+    # The clamp rings: the back face toward their hull, the outer band, and the face looking
+    # into the tube, down past the hull's own hatch collar.
+    m.lathe([(bore, near0), (band, near0), (band, near1), (1.31, near1)], k["steel"], **tube)
+    m.lathe([(1.31, far0), (band, far0), (band, far1), (bore, far1)], k["steel"], **tube)
+    _ring_hazard(d, dk, near1, 1, 1.34, band - 0.03)
+    _ring_hazard(d, dk, far0, -1, 1.34, band - 0.03)
+    # Clamp feet at the diagonals, from the far ring onto the derelict's hull.
+    for i in range(4):
+        a = i / 4 * math.tau + math.pi / 4
+        x, z = math.cos(a) * 1.62, cz + math.sin(a) * 1.62
+        reach = (COLLAR_LENGTH - OUT) - far1
+        m.box((0.14, reach + 0.02, 0.14), k["dark"], at=(x, -(far1 + reach / 2), z), bevel=0.01)
+        m.box((0.26, 0.05, 0.26), k["orange"], at=(x, -(COLLAR_LENGTH - OUT) + 0.03, z), bevel=0.012)
+    # The walkway, wall line to wall line, edged in hazard stripes.
+    m.box((1.7, COLLAR_LENGTH, 0.03), walk, at=(0, -COLLAR_LENGTH / 2, -0.015))
+    for x in (-0.79, 0.79):
+        _hazard(d, dk, (x, -COLLAR_LENGTH / 2, 0.0), (0, 0, 1), COLLAR_LENGTH - 0.3, 0.1, up=(1, 0, 0))
+    texts.append(geo.text("MIND THE SEAL", 0.09, dk["white"], matrix=frame((0, -0.75, 0.0), (0, 0, 1), up=(0, -1, 0), lift=0.001)))
+    # The crown: a cable tray and the light bar under it.
+    top = cz + 1.42
+    m.box((0.3, far0 - near1 + 0.1, 0.05), k["dark"], at=(0, -(near1 + far0) / 2, top - 0.02))
+    m.box((0.16, far0 - near1 - 0.3, 0.05), lamp, at=(0, -(near1 + far0) / 2, top - 0.07))
+    for x in (-0.11, 0.11):
+        m.pipe([(x, -near1 + 0.1, top - 0.03), (x, -far0 - 0.1, top - 0.03)], 0.018, br._materials()["cable"], sides=4)
+    m.subdivide(1.0)
+    low = m.to_object()
+    colliders = [
+        kit_collider("lk_collar_tube_floor", (2.0, COLLAR_LENGTH, 0.2), (0, -COLLAR_LENGTH / 2, -0.1)),
+        kit_collider("lk_collar_tube_wall_l", (0.1, COLLAR_LENGTH - 0.3, 2.4), (-1.0, -COLLAR_LENGTH / 2, 1.2)),
+        kit_collider("lk_collar_tube_wall_r", (0.1, COLLAR_LENGTH - 0.3, 2.4), (1.0, -COLLAR_LENGTH / 2, 1.2)),
+        kit_collider("lk_collar_tube_roof", (2.2, COLLAR_LENGTH - 0.3, 0.1), (0, -COLLAR_LENGTH / 2, 2.35)),
+    ]
+    return Model(low=low, decals=[d.to_object()] + texts, extras=colliders)
+
+
+def kit_collider(name, size, at):
+    """A box collider for Godot (its -colonly suffix makes a StaticBody shape, no mesh)."""
+    m = Mesh(f"{name}-colonly")
+    m.box(size, mats.plain("collider", (1, 0, 1)), at=at)
+    return m.to_object()
+
+
+# Derelict variants: the hull kit re-baked in the derelict style, as dh_* (two plain sides with
+# different wounds, so neighbouring panels don't repeat).
+def _derelict(build, damage):
+    def variant():
+        STYLE.update(name="derelict", damage=damage)
+        try:
+            return build()
+        finally:
+            STYLE.update(name="station", damage=0)
+    return variant
+
+
+import lib as _lib  # noqa: E402
+
+for _source, _name, _damage in (("hl_side", "dh_side", 1), ("hl_side", "dh_side_b", 2), ("hl_side_window", "dh_side_window", 2),
+                                ("hl_side_hatch", "dh_side_hatch", 1), ("hl_corner", "dh_corner", 0), ("hl_roof", "dh_roof", 0),
+                                ("hl_belly", "dh_belly", 0)):
+    _spec = _lib.ASSETS[_source]
+    asset(_name, "hull", texture=_spec.texture, colors=_spec.colors, ao=_spec.ao, angles=_spec.angles)(_derelict(_spec.build, _damage))

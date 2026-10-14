@@ -73,10 +73,24 @@ func _ready() -> void:
 			quaternion = turn
 
 
+## Below this, a thing's fallen off whatever it was on, out into space: gone.
+const LOST_BELOW := -40.0
+
+
 func _physics_process(_delta: float) -> void:
 	if multiplayer.is_server():
 		at = position
 		turn = quaternion
+		if position.y < LOST_BELOW:
+			queue_free()
+
+
+## Host: what it lies on has moved by `moved` (a derelict drifting): it goes along.
+func carry(moved: Transform3D) -> void:
+	global_transform = moved * global_transform
+	linear_velocity = moved.basis * linear_velocity
+	at = position
+	turn = quaternion
 
 
 func _process(delta: float) -> void:

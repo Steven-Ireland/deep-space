@@ -2,8 +2,10 @@ extends SceneTree
 ## A scene smoke test (TECH §8): every scene in the game and every built model loads and
 ## instances without an error; then the world runs, and a jump is played through on its own (no
 ## crew, no network, time sped up): the scan charts the first row, the route is plotted, the lever
-## is pulled, a cell is burnt, and the LANTERN arrives at a derelict, docked with its loot put out;
-## then, moved to a gas giant, it skims the cell back.
+## is pulled, a cell is burnt, and the LANTERN arrives at a derelict waiting off the bow with its
+## loot put out. The collar docks it; the airlock cycles out to it and back; undocking, the siren
+## counts down while the airlock comes in, and the derelict drifts off vented, its loot aboard; it
+## docks again. Then, moved to a gas giant, the LANTERN skims the cell back.
 ##   tools/godot.sh --headless -s tests/test_smoke.gd
 
 var failures := 0
@@ -52,8 +54,9 @@ func _run() -> void:
 	await _until(func() -> bool: return not run.jumping(), 5.0)
 	_check(run.at == jumps[0], "the LANTERN didn't arrive (at %s)" % run.at)
 	await _frames(5)
-	_check(world.get_node("Encounter").get_child_count() == 1, "no derelict docked at the first row")
+	_check(world.get_node("Encounter").get_child_count() == 1, "no derelict alongside at the first row")
 	_check(world.get_node("Items").get_child_count() >= 10, "the derelict's loot wasn't put out")
+	await _dock(world)
 	# At a gas giant (or a depot: every chart has one or the other), Engineering takes on a cell
 	# into the empty bay, once.
 	var stop: Vector2i = run.map.nodes().filter(func(node: Vector2i) -> bool:
@@ -74,6 +77,50 @@ func _run() -> void:
 	_check(errors.count == 0, "%d errors logged" % errors.count)
 	print("test_smoke: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(1 if failures > 0 else 0)
+
+
+## Docking, the airlock and undocking, played through (time sped up).
+func _dock(world: Node) -> void:
+	var collar: Node = world.get_node("Lantern/Collar")
+	var lock: Node = collar.airlock
+	var derelict = collar.derelict # untyped: a test can't name Derelict (it reaches the autoloads)
+	_check(derelict != null and collar.stage == &"away", "the derelict isn't waiting for the collar")
+	if derelict == null:
+		return
+	var docked: Transform3D = collar._mouth * derelict.dock_point().affine_inverse()
+	_check(derelict.global_position.distance_to(docked.origin) > 30.0, "the derelict waits right alongside")
+	_check(not lock.prompt(&"") == "CYCLE", "the airlock would cycle out with nothing sealed to it")
+	lock.use(&"")
+	await _frames(2)
+	_check(lock.state == &"in", "the airlock cycled out with nothing sealed to it")
+	collar._lever_used()
+	await _frames(2)
+	_check(collar.stage == &"approach", "the lever didn't start docking")
+	await _until(func() -> bool: return collar.stage == &"docked", 8.0)
+	_check(collar.stage == &"docked", "it never docked (%s)" % collar.stage)
+	_check(derelict.global_transform.is_equal_approx(docked), "the derelict didn't come to rest at the collar")
+	await _frames(30)
+	_check(derelict.entry.passable(), "the derelict's hatch didn't open")
+	_check(collar.outside_pressure() == 1.0, "the dock panel doesn't read the derelict's air")
+	lock.use(&"")
+	await _until(func() -> bool: return lock.state == &"out", 3.0)
+	await _frames(30)
+	_check(lock.state == &"out" and collar.hatch.passable() and not lock.inner.open, "the airlock didn't cycle out")
+	var lantern: Node = world.get_node("Lantern")
+	_check(lantern.room_at(Vector3(16, 1, 0)) == "COLLAR", "the tube isn't part of the collar")
+	collar._lever_used()
+	await _frames(2)
+	_check(collar.stage == &"countdown" and lock.state == &"to_in", "undocking didn't sound the siren and bring the airlock in")
+	await _until(func() -> bool: return collar.stage == &"away", 8.0)
+	_check(collar.stage == &"away" and lock.state == &"in", "it didn't undock (%s, the airlock %s)" % [collar.stage, lock.state])
+	_check(derelict.vented and not derelict.entry_air(), "the derelict didn't vent as it went")
+	_check(derelict.global_position.distance_to(docked.origin) > 30.0, "the derelict didn't drift back out")
+	var aboard: Array = world.get_node("Items").get_children().filter(func(item: Node3D) -> bool:
+			return derelict.at(item.get_world_3d(), item.global_position + Vector3.UP * 0.05) == derelict)
+	_check(aboard.size() >= 8, "the derelict's loot didn't go with it (%d aboard)" % aboard.size())
+	collar._lever_used()
+	await _until(func() -> bool: return collar.stage == &"docked", 8.0)
+	_check(collar.stage == &"docked" and collar.outside_pressure() == 0.0, "it didn't dock again, or reads air it's lost")
 
 
 func _files(folder: String, extension: String) -> Array[String]:

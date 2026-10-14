@@ -10,8 +10,8 @@ extends Node
 ## Crew report what they do at the stations (plot a route, start a scan or a survey, load a cell,
 ## pull the Jump Lever); the host applies it, refusing only what conflicts with how things stand.
 ## Each peer shows the world the run says the LANTERN is in: that system's star and planets, the
-## derelict alongside if there is one (the sample derelict, a stand-in until the generator and
-## docking, M4), or hyperspace in the middle of a jump.
+## derelict alongside if there is one (the sample derelict, a stand-in until the generator, M4),
+## waiting for the docking collar (Collar), or hyperspace in the middle of a jump.
 
 ## Something in the run changed (on every peer, after the host's word arrives).
 signal changed
@@ -70,6 +70,10 @@ var jump_to := NOWHERE
 var jump_left := 0.0
 var jump_time := 0.0
 
+## Dev (`--derelict`): the sample derelict alongside at the departure too, "docked" or "away"
+## (waiting for the collar), or "" for none; the host's word, so every peer builds it.
+var dev_derelict := ""
+
 var started := false
 # Host: whether a scan or a refuel is under way (their timers run down on every peer; only the host
 # finishes them).
@@ -102,6 +106,8 @@ func _begin() -> void:
 	visited.assign([at])
 	var loaded := int(Args.value("--fuel", str(BAYS)))
 	fuel.assign(range(BAYS).map(func(bay: int) -> bool: return bay < loaded))
+	if Args.flag("--derelict"):
+		dev_derelict = "away" if Args.value("--derelict", "") == "away" else "docked"
 	started = true
 	print("Run: seed %d." % seed)
 	_broadcast()
@@ -366,6 +372,10 @@ func jump() -> void:
 		return
 	var bay := fuel.rfind(true)
 	fuel[bay] = false
+	# The collar seals itself as the station casts off (GDD §5).
+	var collar := Collar.of(self)
+	if collar != null:
+		collar.cast_off()
 	jump_to = route
 	route = NOWHERE
 	var roll := Seeds.rng(seed, "sector%d/jump/%d/%d" % [sector, at.x, at.y])
@@ -420,7 +430,7 @@ func _pack() -> Dictionary:
 	return {"seed": seed, "sector": sector, "at": at, "route": route, "charted": charted, "visited": visited, "scanned": scanned,
 			"scan_left": scan_left, "fuel": fuel, "surveyed": surveyed, "survey_target": survey_target,
 			"survey_left": survey_left, "survey_data": survey_data, "refuelled": refuelled, "refuel_left": refuel_left,
-			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time}
+			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time, "dev_derelict": dev_derelict}
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -446,6 +456,7 @@ func _state(data: Dictionary) -> void:
 	jump_to = data.jump_to
 	jump_left = data.jump_left
 	jump_time = data.jump_time
+	dev_derelict = data.dev_derelict
 	started = true
 	_show_world()
 	changed.emit()
@@ -488,36 +499,37 @@ func _show_world() -> void:
 	var type := chart.type_of(where)
 	if system != null:
 		system.generate(system_seed(where, chart), "gas giant" if type == &"gas_giant" else "")
-	if type == &"derelict" or (where == SectorMap.start() and where_sector == 1 and Args.flag("--derelict")):
-		_dock_sample()
+	var at_start := where == SectorMap.start() and where_sector == 1
+	if type == &"derelict" or (at_start and dev_derelict != ""):
+		_bring_derelict(at_start and dev_derelict == "docked")
 
 
-## Docks the sample derelict at the collar (a stand-in for docking, M4); the host puts out its loot.
-func _dock_sample() -> void:
+## Brings the sample derelict alongside (a stand-in for the generator, M4): waiting out for the
+## collar, or `docked` already (`--derelict`, at the departure); the host puts out its loot.
+func _bring_derelict(docked: bool) -> void:
 	if encounter == null:
 		return
-	var derelict := Node3D.new()
-	derelict.set_script(SAMPLE_DERELICT)
+	var derelict: Derelict = SAMPLE_DERELICT.new()
 	derelict.name = "SampleDerelict"
 	encounter.add_child(derelict)
-	_dock(true)
+	var collar := Collar.of(self)
+	if collar != null:
+		collar.reset(docked)
+		collar.attach(derelict)
 	if multiplayer.is_server():
 		LooseItems.of(self).stock(derelict)
 
 
-## Casts off whatever's alongside: the collar seals, and the host clears away everything loose
-## that isn't aboard (left behind with it).
+## Leaves whatever's alongside behind: the collar's let go, and the host clears away everything
+## loose that isn't aboard (left behind with it).
 func _clear_encounter() -> void:
 	if encounter == null:
 		return
 	for child in encounter.get_children():
 		child.queue_free()
-	_dock(false)
+	var collar := Collar.of(self)
+	if collar != null:
+		collar.attach(null)
+		collar.reset(false)
 	if multiplayer.is_server():
 		LooseItems.of(self).clear_outside()
-
-
-func _dock(docked: bool) -> void:
-	var lantern := get_tree().get_first_node_in_group(&"lantern")
-	if lantern != null:
-		lantern.dock(docked)

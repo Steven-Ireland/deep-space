@@ -11,7 +11,10 @@ same files. What it makes:
   foley/     step_metal_01..04 (the LANTERN's deck), step_derelict_01..04, step_land (a jump or a
              fall), door_open and door_close (a sliding bulkhead door), terminal_click,
              terminal_beep and terminal_error (a console's key, its confirm and its refusal),
-             fuel_cell_load (a cell seating in the fuel rack), item_pickup (taking a thing)
+             fuel_cell_load (a cell seating in the fuel rack), item_pickup (taking a thing),
+             hatch_open and hatch_close (a round pressure hatch), airlock_vent and airlock_fill
+             (the collar's airlock cycling), dock_contact, dock_clamps and collar_motor
+             (docking); and ambient/dock_siren, a 2 s loop (the undock warning)
 A loop's .import file has it loop forward over the whole file: edit/loop_mode=2 (in Godot's WAV
 importer 1 is Disabled) and edit/loop_end its length in samples (-1 drops the last).
 """
@@ -1058,6 +1061,222 @@ def generate_item_pickup():
 
 
 # =============================================================================
+# DOCKING AND THE AIRLOCK
+# =============================================================================
+
+def _clunk(samples, start, noise, thud_hz=80.0, crack_hz=1300.0, ring_hz=620.0, gain=1.0, decay=1.0):
+    """A heavy metal part driven home at `start` seconds: a crack, a thud, a short ring."""
+    bp = Biquad.bandpass(crack_hz, q=2.0)
+    first = int(SAMPLE_RATE * start)
+    for i in range(first, min(len(samples), first + int(SAMPLE_RATE * 0.35 * decay))):
+        t = (i - first) / SAMPLE_RATE
+        crack = bp.process(noise[i]) * math.exp(-t * 160.0 / decay) * 1.8
+        thud = math.sin(2.0 * math.pi * thud_hz * t) * math.exp(-t * 32.0 / decay) * 1.3
+        ring = math.sin(2.0 * math.pi * ring_hz * t + 0.3) * math.exp(-t * 45.0 / decay) * 0.45
+        samples[i] += (crack + thud + ring) * gain
+
+
+def _creak(samples, start, length, noise, seed, low=62.0, high=48.0, gain=1.0):
+    """A heavy hinge turning under load for `length` seconds: a groaning tone sliding from `low`
+    to `high` Hz, roughened by stick-slip chatter."""
+    rng = random.Random(seed)
+    first = int(SAMPLE_RATE * start)
+    n = int(SAMPLE_RATE * length)
+    bp_grit = Biquad.bandpass(900, q=2.5)
+    bp_body = Biquad.bandpass(240, q=1.4)
+    phase = 0.0
+    slip = 0.0
+    for k in range(n):
+        i = first + k
+        if i >= len(samples):
+            break
+        u = k / n
+        env = math.sin(u * math.pi) ** 0.6
+        f = low + (high - low) * u + 4.0 * math.sin(2.0 * math.pi * 1.7 * u)
+        phase += 2.0 * math.pi * f / SAMPLE_RATE
+        groan = math.tanh(math.sin(phase) * 2.2 + math.sin(phase * 2.0 + 0.4) * 0.8) * 0.6
+        if rng.random() < 26.0 / SAMPLE_RATE:
+            slip = 1.0
+        slip *= 0.9985
+        grit = bp_grit.process(noise[i]) * (0.25 + slip * 0.9)
+        body = bp_body.process(noise[i]) * 0.5
+        samples[i] += (groan * 0.7 + grit + body) * env * gain
+
+
+def generate_hatch_sounds():
+    """
+    A round pressure hatch (game/station/hatch.gd), swinging on its hinge:
+    - hatch_open (2.4 s): four locking dogs ratchet back, the seal breaks with a short hiss, the
+      hatch groans round on its hinge and stops against its catch.
+    - hatch_close (2.1 s): it groans shut, seats with a heavy thud, and the dogs drive home.
+    """
+    n = int(SAMPLE_RATE * 2.4)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1201)
+    for k, at in enumerate((0.05, 0.19, 0.33, 0.47)):
+        _clunk(samples, at, noise, thud_hz=95.0 - k * 4, crack_hz=1500.0 + k * 90, ring_hz=700.0, gain=0.75)
+    bp_hiss = Biquad.bandpass(3200, q=1.2)
+    for i in range(int(SAMPLE_RATE * 0.58), int(SAMPLE_RATE * 0.95)):
+        t = i / SAMPLE_RATE - 0.58
+        samples[i] += bp_hiss.process(noise[i]) * math.exp(-t * 9.0) * 1.1
+    _creak(samples, 0.7, 1.45, noise, 77, low=66.0, high=50.0, gain=0.9)
+    _clunk(samples, 2.12, noise, thud_hz=58.0, crack_hz=900.0, ring_hz=310.0, gain=1.3, decay=1.4)
+    samples = Biquad.highpass(40, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(4400, q=0.8).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=52, feedback=0.3, lp_cutoff=1500)
+    save_wav("foley/hatch_open.wav", samples, normalize_to=0.94)
+
+    n = int(SAMPLE_RATE * 2.1)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1202)
+    _creak(samples, 0.0, 1.25, noise, 78, low=52.0, high=64.0, gain=0.9)
+    _clunk(samples, 1.2, noise, thud_hz=52.0, crack_hz=1100.0, ring_hz=280.0, gain=1.7, decay=1.6)
+    for k, at in enumerate((1.42, 1.55, 1.68, 1.81)):
+        _clunk(samples, at, noise, thud_hz=92.0 + k * 3, crack_hz=1600.0 - k * 80, ring_hz=720.0, gain=0.7)
+    samples = Biquad.highpass(38, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(4400, q=0.8).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=52, feedback=0.3, lp_cutoff=1500)
+    save_wav("foley/hatch_close.wav", samples, normalize_to=0.95)
+
+
+def generate_airlock_sounds():
+    """
+    The collar's airlock cycling (game/station/airlock.gd):
+    - airlock_vent (4.5 s): the chamber dumps its air: a roaring hiss that thins and falls in pitch
+      as the pressure goes, the dump valve rumbling under it, a thin whistle at the end.
+    - airlock_fill (4.5 s): air floods back in: a hiss that swells and steadies, then the valve
+      shuts with a clunk as the chamber reaches pressure.
+    """
+    for name, filling, seed in (("airlock_vent", False, 1301), ("airlock_fill", True, 1302)):
+        n = int(SAMPLE_RATE * 4.5)
+        samples = [0.0] * n
+        noise = pink_noise(n, seed=seed)
+        white = random.Random(seed)
+        lows = [Biquad.bandpass(f, q=1.2) for f in (900, 1600, 2600)]
+        rumble = Biquad.lowpass(110, q=0.9)
+        for i in range(n):
+            t = i / SAMPLE_RATE
+            u = t / 4.5
+            if filling:
+                level = min(1.0, t / 0.35) * (1.0 - 0.35 * u) * (1.0 if t < 4.05 else math.exp(-(t - 4.05) * 30.0))
+                bright = 0.6 + 0.4 * u
+            else:
+                level = min(1.0, t / 0.08) * math.exp(-t * 0.75)
+                bright = 1.0 - 0.7 * u
+            w = white.random() * 2.0 - 1.0
+            hiss = (lows[0].process(w) * (1.2 - bright * 0.6) + lows[1].process(w) * 0.9 + lows[2].process(w) * bright * 0.9)
+            valve = rumble.process(noise[i]) * 2.2 * level
+            flutter = 1.0 + 0.12 * math.sin(2.0 * math.pi * 7.3 * t) * level
+            samples[i] = (hiss * flutter * 1.4 + valve) * level
+            if not filling and 3.0 < t:
+                samples[i] += math.sin(2.0 * math.pi * (1900.0 - 300.0 * (t - 3.0)) * t) * 0.05 * math.sin((t - 3.0) / 1.5 * math.pi)
+        if filling:
+            _clunk(samples, 4.06, noise, thud_hz=88.0, crack_hz=1400.0, ring_hz=660.0, gain=0.9)
+        samples = Biquad.highpass(45, q=0.7).process_all(samples)
+        samples = Biquad.lowpass(5200, q=0.8).process_all(samples)
+        samples = apply_corridor_echo(samples, echo_delay_ms=48, feedback=0.25, lp_cutoff=1700, wet=0.45)
+        save_wav(f"foley/{name}.wav", samples, normalize_to=0.9, saturate=False)
+
+
+def generate_dock_sounds():
+    """
+    Docking (game/station/collar.gd):
+    - dock_contact (3.2 s): two hulls meet: a crunch, a deep boom through the frame, the plates
+      ringing, then the structure groaning as it settles.
+    - dock_clamps (1.9 s): four hydraulic clamps bite one after another: a hiss, then a clunk.
+    - collar_motor (3.0 s): the collar running out or in: a geared servo whining up, steady, and
+      winding down, a hydraulic hiss under it, a stop at each end.
+    """
+    n = int(SAMPLE_RATE * 3.2)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1401)
+    bp_crunch = Biquad.bandpass(700, q=1.0)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        crunch = bp_crunch.process(noise[i]) * math.exp(-t * 22.0) * 2.0
+        boom = (math.sin(2.0 * math.pi * 36.0 * t) * 1.6 + math.sin(2.0 * math.pi * 54.0 * t + 0.5) * 1.0) * math.exp(-t * 2.2)
+        plates = sum(math.sin(2.0 * math.pi * f * t + f) * a * math.exp(-t * d)
+                     for f, a, d in ((112.0, 0.6, 2.6), (171.0, 0.45, 3.1), (263.0, 0.35, 3.8), (389.0, 0.25, 4.6), (617.0, 0.16, 6.0)))
+        samples[i] = crunch + boom + plates
+    _creak(samples, 1.1, 1.9, noise, 91, low=41.0, high=36.0, gain=0.55)
+    samples = Biquad.highpass(28, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(3800, q=0.8).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=85, feedback=0.4, lp_cutoff=1100, wet=0.55)
+    save_wav("foley/dock_contact.wav", samples, normalize_to=0.96)
+
+    n = int(SAMPLE_RATE * 1.9)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1402)
+    for k, at in enumerate((0.05, 0.45, 0.85, 1.25)):
+        bp = Biquad.bandpass(650 + k * 40, q=1.6)
+        for i in range(int(SAMPLE_RATE * at), int(SAMPLE_RATE * (at + 0.2))):
+            t = i / SAMPLE_RATE - at
+            samples[i] += bp.process(noise[i]) * (t / 0.2) ** 2 * 0.9
+        _clunk(samples, at + 0.2, noise, thud_hz=66.0 + k * 3, crack_hz=1200.0, ring_hz=420.0, gain=1.2, decay=1.2)
+    samples = Biquad.highpass(35, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(4200, q=0.8).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=60, feedback=0.3, lp_cutoff=1400)
+    save_wav("foley/dock_clamps.wav", samples, normalize_to=0.94)
+
+    n = int(SAMPLE_RATE * 3.0)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1403)
+    bp_gear = Biquad.bandpass(1800, q=3.0)
+    bp_hiss = Biquad.bandpass(2400, q=1.0)
+    phase = 0.0
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        spin = min(1.0, t / 0.4) * min(1.0, (2.85 - t) / 0.45) if t < 2.85 else 0.0
+        spin = max(0.0, spin)
+        f = 70.0 + 55.0 * spin
+        phase += 2.0 * math.pi * f / SAMPLE_RATE
+        whine = (math.sin(phase) * 0.6 + math.sin(phase * 2.0) * 0.35 + math.sin(phase * 3.0 + 0.2) * 0.25 + math.sin(phase * 7.0) * 0.08)
+        teeth = 0.5 + 0.5 * math.sin(phase * 0.25)
+        gear = bp_gear.process(noise[i]) * teeth ** 4 * 0.9
+        samples[i] = (whine * 0.8 + gear + bp_hiss.process(noise[i]) * 0.35) * spin
+    _clunk(samples, 0.0, noise, thud_hz=90.0, crack_hz=1500.0, ring_hz=700.0, gain=0.6)
+    _clunk(samples, 2.82, noise, thud_hz=70.0, crack_hz=1200.0, ring_hz=500.0, gain=1.0)
+    samples = Biquad.highpass(40, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(4600, q=0.8).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=50, feedback=0.25, lp_cutoff=1600, wet=0.4)
+    save_wav("foley/collar_motor.wav", samples, normalize_to=0.88)
+
+
+SIREN_SECONDS = 2.0
+
+
+def generate_siren():
+    """
+    dock_siren.wav (a 2 s loop: two whoops): the undock warning (GDD §8.3), a harsh horn sweeping
+    up through each whoop and dropping away, its odd harmonics shaped by the horn's throat. It
+    sounds through the docking port, the collar and the derelict's open end until the collar lets
+    go.
+    """
+    length = int(SAMPLE_RATE * SIREN_SECONDS)
+    n = length + int(SAMPLE_RATE * 0.2)
+    samples = [0.0] * n
+    horn = Biquad.bandpass(1150, q=1.3)
+    body = Biquad.bandpass(520, q=1.0)
+    phase = 0.0
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        u = (t % 1.0)
+        if u < 0.72:
+            f = 430.0 + 380.0 * (u / 0.72) ** 0.7
+            env = min(1.0, u / 0.04) * (1.0 if u < 0.62 else 1.0 - (u - 0.62) / 0.1)
+        else:
+            f = 430.0
+            env = 0.0
+        f *= 1.0 + 0.006 * math.sin(2.0 * math.pi * 6.0 * t)
+        phase += 2.0 * math.pi * f / SAMPLE_RATE
+        tone = math.tanh((math.sin(phase) + math.sin(phase * 3.0) / 3.0 + math.sin(phase * 5.0) / 5.0) * 2.5)
+        samples[i] = (horn.process(tone) * 1.4 + body.process(tone) * 0.8) * env
+    samples = Biquad.highpass(120, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(4000, q=0.8).process_all(samples)
+    save_wav("ambient/dock_siren.wav", seamless(samples, length, 0.05), normalize_to=0.85, saturate=False)
+
+
+# =============================================================================
 # MAIN
 # =============================================================================
 
@@ -1074,6 +1293,10 @@ def main():
     generate_terminal_sounds()
     generate_fuel_cell_load()
     generate_item_pickup()
+    generate_hatch_sounds()
+    generate_airlock_sounds()
+    generate_dock_sounds()
+    generate_siren()
 
 
 if __name__ == "__main__":

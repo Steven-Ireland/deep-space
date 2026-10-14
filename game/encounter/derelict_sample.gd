@@ -1,6 +1,6 @@
-extends Deck
-## A sample derelict docked at the LANTERN's starboard collar (GDD §8): a hand-placed stand-in for
-## the generator (M4), to judge the look and feel of a dead station. Built in the derelict kit,
+extends Derelict
+## A sample derelict for the LANTERN's starboard collar (GDD §8): a hand-placed stand-in for the
+## generator (M4), to judge the look and feel of a dead station. Built in the derelict kit,
 ## unlit except for red emergency strobes; furnished with debris, cable spills, a breach, a breaker
 ## box, a dead crew member, alien growth with a Hanger above it, a Crawler, and the Prize; stocked
 ## with salvage and supplies to take back.
@@ -13,11 +13,12 @@ const ROWS := [
 	".CXX",
 	".PP.",
 ]
-## Layout cell (0, 1), the entry, sits at grid (4, 0): just outside the LANTERN's collar hatch.
+## Layout cell (0, 1), the entry, sits at grid (4, 0) of its own space; docked, the collar's tube
+## puts its hatch one cell out from the LANTERN's (the derelict's root at x = 4).
 const ORIGIN := Vector2i(-4, 1)
 
 const OPENINGS := {
-	"0,1,W": "open", # the docking collar
+	"0,1,W": "hatch", # where the collar docks
 	"0,1,E": "door", "1,1,N": "door", "1,2,E": "door", "1,2,S": "door",
 	"1,0,N": "breach", "2,2,N": "breach",
 }
@@ -28,8 +29,9 @@ const MODELS := "res://assets/models/%s.glb"
 func _ready() -> void:
 	kit = "dk"
 	lit = false
-	# The breached rooms are open to space; the rest holds the air let in through the collar.
+	# The breached rooms are open to space; the rest still hold a little stale air.
 	vacuum = "RX"
+	entry_opening = "0,1,W"
 	build(PackedStringArray(ROWS), ORIGIN, OPENINGS)
 	for door: Door in doors.values():
 		door.open = true

@@ -144,6 +144,8 @@ var _footfalls := 0 # heel strikes so far: two a stride cycle
 var _fall := 0.0 # m/s, while in the air
 var _was_grounded := true
 var _lamp_heard := false
+var _riding: Derelict # the derelict they're aboard, and where it was at their last tick
+var _ride_from := Transform3D()
 
 
 func _init() -> void:
@@ -512,6 +514,7 @@ func _tick(delta: float, _tick_number: int) -> void:
 	else:
 		velocity.y -= GRAVITY * delta
 
+	_ride()
 	velocity *= NetworkTime.physics_factor
 	move_and_slide()
 	velocity /= NetworkTime.physics_factor
@@ -520,6 +523,20 @@ func _tick(delta: float, _tick_number: int) -> void:
 	if lamp_on:
 		battery = maxf(0.0, battery - delta / LAMP_LIFE)
 		lamp_on = battery > 0.0
+
+
+## Aboard a derelict that's moving (drifting in, or off again with them still in it), they move
+## with it: carried by however far it's gone since their last tick, and turned with it.
+func _ride() -> void:
+	if _riding != null and is_instance_valid(_riding):
+		var moved := _riding.global_transform * _ride_from.affine_inverse()
+		if not moved.is_equal_approx(Transform3D.IDENTITY):
+			global_position = moved * global_position
+			velocity = moved.basis * velocity
+			look.x += moved.basis.get_euler().y
+	_riding = Derelict.at(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
+	if _riding != null:
+		_ride_from = _riding.global_transform
 
 
 ## The suit breathes for its wearer wherever there's no air (GDD §9.2): O2 runs down, faster at a
@@ -582,7 +599,7 @@ func _update_aim() -> void:
 
 
 ## The camera dips at each footfall and sways with the stride, in step with the arms and legs; and
-## shakes with the station in a jump (GDD §5).
+## shakes with the station in a jump (GDD §5), and as a derelict's hull meets the collar.
 func _head_bob(delta: float) -> void:
 	if not is_multiplayer_authority() or camera.top_level:
 		return
@@ -592,7 +609,8 @@ func _head_bob(delta: float) -> void:
 	var dip := 0.5 + 0.5 * cos(_stride * TAU * 2.0)
 	camera.position = Vector3(sin(_stride * TAU) * 0.012, -dip * 0.03, 0) * _bob
 	var run := Run.of(self)
-	var shake := run.shake() if run != null else 0.0
+	var collar := Collar.of(self)
+	var shake := maxf(run.shake() if run != null else 0.0, collar.shake() if collar != null else 0.0)
 	if shake > 0.0:
 		var t := Time.get_ticks_msec() / 1000.0
 		var jolt := Vector3(sin(t * 37.0) + sin(t * 23.0 + 1.3), sin(t * 29.0 + 2.1) + sin(t * 41.0), sin(t * 19.0 + 0.7)) * 0.5
