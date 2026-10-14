@@ -131,6 +131,60 @@ def o2_rack():
     return Model(low=low, decals=[d.to_object()] + texts, extras=[collider])
 
 
+@asset("rm_eva_rack", "rooms", texture=256, colors=32, ao=0.5)
+def eva_rack():
+    """The EVA harness rack (GDD §5, §8.1): a wall board in the suit room, 1.5 m wide, holding the
+    crew's four thruster harnesses two over two, each hung by its pack on a hook with its webbing
+    draped over it, plugged into the propellant manifold that runs across the board (a coupling at
+    each hook) with its pressure dial. EVA stencilled over it, hazard bands at its foot. Each harness is its
+    own mesh after baking (`harness_1` .. `harness_4`), so Godot hides those being worn."""
+    import characters
+    k = br._materials()
+    dk = br._decals()
+    h = characters.harness_materials()
+    m = Mesh("rm_eva_rack")
+    d = Mesh("rm_eva_rack_decals")
+    texts = []
+    m.box((1.5, 0.04, 1.9), k["casing_dark"], at=(0, 0.12, 1.1), bevel=0.01)
+    for x in (-0.74, 0.74):
+        m.box((0.04, 0.1, 1.9), k["steel"], at=(x, 0.09, 1.1), bevel=0.008)
+    m.pipe([(-0.7, 0.04, 1.98), (0.7, 0.04, 1.98)], 0.03, k["steel"], sides=6)
+    br.dial(m, d, k, dk, Vector((0.0, 0.1, 1.9)), FRONT, UP, radius=0.05, value=0.8, red_zone=False)
+    spots = ((-0.36, 1.6), (0.36, 1.6), (-0.36, 0.86), (0.36, 0.86))
+    for i, (x, z) in enumerate(spots):
+        m.box((0.06, 0.12, 0.04), k["steel"], at=(x, 0.04, z + 0.33), bevel=0.006)
+        m.pipe([(x, 0.08, 1.98), (x, 0.08, z + 0.35)], 0.014, k["steel"], sides=5)
+        # The pack, turned to face the room, hung on its hook.
+        before = set(m.bm.faces)
+        characters.harness_pack(m, h)
+        for x0 in (-0.08, 0.08):
+            m.pipe([(x0, 0.5, 1.6), (x0 * 1.3, 0.52, 1.3), (x0, 0.5, 1.02)], 0.016, h["webbing"], sides=4)
+        pack = [f for f in m.bm.faces if f not in before]
+        m.transform(pack, place((x, 0.48, z - 1.3)) @ place(rot=(0, 0, 180)))
+    texts.append(geo.text("EVA", 0.12, dk["orange"], matrix=frame((-0.5, 0.099, 1.93), FRONT, lift=0.002)))
+    texts.append(geo.text("RCS HARNESS", 0.04, dk["cream"], matrix=frame((0.48, 0.099, 1.93), FRONT, lift=0.002)))
+    _stripes(d, dk, Vector((0, 0.099, 0.2)), FRONT, 1.44, 0.08)
+    for i, (x, z) in enumerate(spots):
+        _plate(d, dk["cream"], Vector((x, 0.099, z - 0.36)), FRONT, 0.12, 0.05)
+        texts.append(geo.text(str(i + 1), 0.04, dk["black"], matrix=frame((x, 0.099, z - 0.36), FRONT, lift=0.002)))
+    low = m.to_object()
+    collider = br._console_collider("rm_eva_rack", (1.5, 0.3, 1.9), (0, 0.0, 1.1))
+
+    def split(model):
+        def which(c):
+            for i, (x, z) in enumerate(spots):
+                hook = abs(c.x - x) < 0.05 and c.z > z + 0.3
+                if abs(c.x - x) < 0.35 and abs(c.z - z) < 0.37 and c.y < 0.13 and not hook:
+                    return i + 1
+            return 0
+        parts = geo.split_object(model.low, {"rm_eva_rack": lambda c: which(c) == 0,
+                                             **{f"harness_{i}": (lambda c, i=i: which(c) == i) for i in range(1, 5)}})
+        model.low = parts[0]
+        model.extras.extend(parts[1:])
+
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider], after_bake=split)
+
+
 @asset("rm_bench", "rooms", texture=64, colors=24, ao=0.5)
 def bench():
     """A steel bench for suiting up: perforated seat on two legs, a kick rail."""

@@ -29,6 +29,10 @@ const EYE_HEIGHT := 1.62
 const CROUCH_EYE_HEIGHT := 1.0
 const HEIGHT := 1.8
 const CROUCH_HEIGHT := 1.2
+## Weightless, the body draws its knees up (the float pose): its shape is shorter, from FLOAT_LIFT
+## over its feet' place to the top of the helmet, so it fits through a hatch more easily.
+const FLOAT_HEIGHT := 1.4
+const FLOAT_LIFT := 0.42
 const REACH := 2.2
 ## Where the helmet lamp's lens is from the eye (art/blender/characters.py: LAMP): on the left of
 ## the helmet, a little above the eye and in front of it.
@@ -63,6 +67,20 @@ const SWING_REACH := 1.5
 const SWING_IMPULSE := 5.0
 const CANISTER_O2 := 180.0
 const FLARE_BURN := 60.0
+## Weightless (GDD §9.1): how far a gloved hand reaches for a hold, how fast crew haul themselves
+## along and how hard; the EVA harness's jets: their push (m/s²), the speed they'll push to and no
+## further, and how many seconds of full thrust a harness holds. Walking with the harness on, its
+## weight on their back, they're slow. A knock on a wall this fast (m/s) is heard. A carried thing's
+## mass slows all of it against the suited crew member's own.
+const GRIP_REACH := 0.35
+const CLIMB_SPEED := 1.3
+const CLIMB_ACCEL := 4.0
+const THRUST := 1.0
+const THRUST_TOP := 3.5
+const RCS_FUEL := 45.0
+const HARNESS_SPEED := 1.5
+const BUMP_SPEED := 1.2
+const SUIT_MASS := 120.0
 ## The camera's shake at full strength in a jump: metres, and radians.
 const SHAKE_MOVE := 0.012
 const SHAKE_TURN := 0.012
@@ -70,6 +88,9 @@ const SHAKE_TURN := 0.012
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
 signal belt_changed
+
+## A jet's puff of gas: a pale cone along -Z, short-lived and see-through.
+const JET_PUFF := preload("res://game/player/jet_puff.tres")
 
 ## Synced from the owner (StateSynchronizer).
 var look := Vector2.ZERO # yaw, pitch in radians
@@ -93,6 +114,14 @@ var battery := 1.0
 ## Whether they're on the ground (only the owner's body moves, so only it knows): footfalls and
 ## landings are heard by everyone.
 var grounded := true
+## Weightless, where they are; the EVA harness (GDD §8.1), whether they wear it, the seconds of
+## thrust left in it, and its jets' push now (world space, up to 1); knocks on walls, weightless,
+## so far (each heard by everyone).
+var floating := false
+var harness := false
+var rcs := RCS_FUEL
+var thrust := Vector3.ZERO
+var bumps := 0
 ## Dead (GDD §11), and why: &"suffocated", or &"lost" (left behind when the station jumped: no body
 ## to bring home). Their body lies where they fell (a LooseBody); they watch through the station's
 ## cameras (Spectator) until the med bay brings them back (revive).
@@ -150,6 +179,11 @@ var _fall := 0.0 # m/s, while in the air
 var _was_grounded := true
 var _lamp_heard := false
 var _spectator: Spectator
+var _bumps_heard := 0
+var _harness_heard := false
+var _harness_mesh: Node3D # the suit's harness, everyone else's view
+var _jets: Array[Node3D] = [] # a puff at each of its thruster blocks, on a pivot that turns it
+var _jet_sound: Node # the jets' hiss: in the owner's helmet, or from the suit for everyone else
 var _riding: Derelict # the derelict they're aboard, and where it was at their last tick
 var _ride_from := Transform3D()
 
@@ -286,6 +320,8 @@ func die(why: StringName) -> void:
 	health = 0.0
 	lamp_on = false
 	cuff_up = false
+	harness = false
+	thrust = Vector3.ZERO
 	if why != &"lost":
 		var body := {"kind": &"body", "peer": int(str(name)), "crew": crew_name()}
 		LooseItems.of(self).fall(body, had, Transform3D(Basis(Vector3.UP, look.x), global_position), velocity)
@@ -307,6 +343,8 @@ func revive(at: Transform3D) -> void:
 	health = 1.0
 	o2 = O2_CAPACITY
 	battery = 1.0
+	harness = false
+	rcs = RCS_FUEL
 	teleport(at.origin)
 	look = Vector2(at.basis.get_euler().y, 0.0)
 	if _spectator != null:
@@ -377,6 +415,16 @@ func top_up(what: String) -> void:
 			refill()
 		"lamp":
 			battery = 1.0
+
+
+## The host tells this crew member's machine they've put the EVA harness on at the suit room's rack
+## (fuelled full), or stowed it there.
+@rpc("any_peer", "call_local", "reliable")
+func equip(on: bool) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority():
+		return
+	harness = on
+	rcs = RCS_FUEL
 
 
 ## Moves the crew member straight to `at`, without smoothing the jump (owner only).
@@ -474,6 +522,10 @@ func let_go(held_for: float) -> void:
 		push = lerpf(THROW_MIN, THROW_MAX, clampf((held_for - THROW_AFTER) / THROW_WIND, 0.0, 1.0)) * heft
 	var forward := -_view().basis.z
 	var launch := Vector3(velocity.x, 0.0, velocity.z) + forward * push + Vector3.UP * push * 0.15
+	if floating:
+		# Weightless, it goes straight, carrying all of their drift, and pushes them back as it goes.
+		launch = velocity + forward * push
+		velocity -= forward * push * Items.mass(Items.kind_of(record)) / SUIT_MASS
 	LooseItems.of(self).let_go(record, body_at if Items.kind_of(record) == &"body" else _release_point(), launch)
 
 
@@ -546,6 +598,7 @@ func _process(delta: float) -> void:
 	_make_sounds()
 	_place_lamp()
 	_light_spine()
+	_show_harness()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -557,21 +610,60 @@ func _tick(delta: float, _tick_number: int) -> void:
 		return
 	if dead:
 		velocity = Vector3.ZERO
+		thrust = Vector3.ZERO
 		return
-	crouching = Input.is_action_pressed("crouch") or Args.flag("--crouch") or (crouching and not _can_stand())
+	var weight := Zone.weight_at(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
+	if floating and weight > 0.0 and not _fits_standing():
+		# Coming back into the weight with their knees drawn up and their feet' place in the deck:
+		# they straighten up on it.
+		global_position.y += FLOAT_LIFT
+	floating = weight <= 0.0
+	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING if floating else CharacterBody3D.MOTION_MODE_GROUNDED
+	crouching = not floating and (Input.is_action_pressed("crouch") or Args.flag("--crouch") or (crouching and not _can_stand()))
 	_fit_shape()
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	var rise := Input.get_axis("crouch", "jump")
 	var moving := Args.value("--move", "")
 	if moving != "":
 		var v := moving.split_floats(",")
 		input = Vector2(v[0], v[1])
+		rise = v[2] if v.size() > 2 else 0.0
 	if operating != null:
 		input = Vector2.ZERO
-	var heavy := not carrying.is_empty()
+		rise = 0.0
+	if floating:
+		_float(delta, input, rise)
+	else:
+		_walk(delta, input, weight)
+	_ride()
+	var before := velocity.length()
+	velocity *= NetworkTime.physics_factor
+	move_and_slide()
+	velocity /= NetworkTime.physics_factor
+	# Weightless, a hard knock on a wall is heard (everyone counts it).
+	if floating and get_slide_collision_count() > 0 and before - velocity.length() > BUMP_SPEED:
+		bumps += 1
+	grounded = is_on_floor() and not floating
+	_breathe(delta)
+	if health <= 0.0:
+		die(&"suffocated")
+	_left_behind()
+	if lamp_on:
+		battery = maxf(0.0, battery - delta / LAMP_LIFE)
+		lamp_on = battery > 0.0
+
+
+## On their feet under `weight` g (GDD §9.1): slow, weighty, with real acceleration; slower still
+## carrying something big or wearing the EVA harness, and no sprinting then.
+func _walk(delta: float, input: Vector2, weight: float) -> void:
+	thrust = Vector3.ZERO
+	var heavy := not carrying.is_empty() or harness
 	sprinting = (Input.is_action_pressed("sprint") or Args.flag("--sprint")) and not crouching and not heavy and input.y < -0.1
 	var speed := CROUCH_SPEED if crouching else (SPRINT_SPEED if sprinting else WALK_SPEED)
-	if heavy:
+	if not carrying.is_empty():
 		speed = minf(speed, CARRY_SPEED)
+	if harness:
+		speed = minf(speed, HARNESS_SPEED)
 	var wish := (Basis(Vector3.UP, look.x) * Vector3(input.x, 0, input.y)).limit_length(1.0) * speed
 
 	var horizontal := Vector3(velocity.x, 0, velocity.z)
@@ -584,20 +676,63 @@ func _tick(delta: float, _tick_number: int) -> void:
 			velocity.y = JUMP_SPEED
 			_jump_wanted = 0.0
 	else:
-		velocity.y -= GRAVITY * delta
+		velocity.y -= GRAVITY * weight * delta
 
-	_ride()
-	velocity *= NetworkTime.physics_factor
-	move_and_slide()
-	velocity /= NetworkTime.physics_factor
-	grounded = is_on_floor()
-	_breathe(delta)
-	if health <= 0.0:
-		die(&"suffocated")
-	_left_behind()
-	if lamp_on:
-		battery = maxf(0.0, battery - delta / LAMP_LIFE)
-		lamp_on = battery > 0.0
+
+## Weightless (GDD §9.1): a crew member moves where they look. Within reach of anything solid they
+## haul themselves along it hand over hand, or push off it, up to CLIMB_SPEED, and let go of the
+## keys to catch hold and stop. Out of reach of everything they drift, as they were going, unless
+## they wear the EVA harness: its jets push them where they look (jump up, crouch down), never past
+## THRUST_TOP, and sprint holds the jets against their drift until they're still, all of it
+## burning the harness's propellant. Something big in their arms makes all of it slower.
+func _float(delta: float, input: Vector2, rise: float) -> void:
+	sprinting = false
+	thrust = Vector3.ZERO
+	var aim := Basis.from_euler(Vector3(look.y, look.x, 0.0))
+	var wish := (aim * Vector3(input.x, 0.0, input.y) + Vector3.UP * rise).limit_length(1.0)
+	var heft := SUIT_MASS / (SUIT_MASS + (Items.mass(Items.kind_of(carrying)) if not carrying.is_empty() else 0.0))
+	if _gripping():
+		velocity = velocity.move_toward(wish * CLIMB_SPEED * heft, CLIMB_ACCEL * delta)
+		return
+	if not harness or rcs <= 0.0:
+		return
+	var push := Vector3.ZERO
+	var reach := THRUST * heft * delta # the most the jets change their speed this tick
+	if Input.is_action_pressed("sprint") or Args.flag("--brake"):
+		push = (-velocity / reach).limit_length(1.0)
+	elif wish.length() > 0.01 and velocity.dot(wish.normalized()) < THRUST_TOP * wish.length():
+		push = wish
+	if push.length() < 0.01:
+		return
+	velocity += push * reach
+	rcs = maxf(0.0, rcs - push.length() * delta)
+	thrust = push
+
+
+## Whether anything solid is within reach of the suit's hands and boots, to haul along or push off.
+func _gripping() -> bool:
+	var query := PhysicsShapeQueryParameters3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.3 + GRIP_REACH
+	capsule.height = (shape.shape as CapsuleShape3D).height + GRIP_REACH * 2.0
+	query.shape = capsule
+	query.transform = Transform3D(Basis(), shape.global_position)
+	query.exclude = [get_rid()]
+	query.collision_mask = 1
+	return not get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
+## Whether they'd fit standing where they are (their feet on the deck under them).
+func _fits_standing() -> bool:
+	var query := PhysicsShapeQueryParameters3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.3
+	capsule.height = HEIGHT
+	query.shape = capsule
+	query.transform = Transform3D(Basis(), global_position + Vector3.UP * (HEIGHT / 2.0 + 0.02))
+	query.exclude = [get_rid()]
+	query.collision_mask = 1
+	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 
 ## Off the station as it goes into the tunnel (GDD §8.3): left behind, and lost.
@@ -705,6 +840,10 @@ func _head_bob(delta: float) -> void:
 
 func _fit_shape() -> void:
 	var capsule := shape.shape as CapsuleShape3D
+	if floating:
+		capsule.height = FLOAT_HEIGHT
+		shape.position.y = FLOAT_LIFT + FLOAT_HEIGHT / 2.0
+		return
 	capsule.height = CROUCH_HEIGHT if crouching else HEIGHT
 	shape.position.y = capsule.height / 2.0
 
@@ -721,13 +860,14 @@ func _can_stand() -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 
-## Dev flags (Dev): `--lamp` starts with the helmet lamp on; `--look=<yaw>,<pitch>` (degrees)
-## sets the starting view; `--at=<x>,<y>,<z>` the starting spot; `--belt=<kind>,...` what's on the
-## belt; `--hold=<kind>` puts an item in hand; `--take` and `--throw` act a little later. For
-## checking builds unattended.
+## Dev flags (Dev): `--lamp` starts with the helmet lamp on; `--harness` wearing the EVA harness;
+## `--look=<yaw>,<pitch>` (degrees) sets the starting view; `--at=<x>,<y>,<z>` the starting spot;
+## `--belt=<kind>,...` what's on the belt; `--hold=<kind>` puts an item in hand; `--take` and
+## `--throw` act a little later. For checking builds unattended.
 func _apply_dev_flags() -> void:
 	if Args.flag("--lamp"):
 		lamp_on = true
+	harness = Args.flag("--harness")
 	var at := Args.value("--at", "")
 	if at != "":
 		var v := at.split_floats(",")
@@ -925,6 +1065,39 @@ func _lamp_flicker() -> float:
 	return 0.85 + 0.15 * sin(t * 40.0)
 
 
+## The EVA harness on a teammate's suit, when they wear it, and its jets: a puff from each thruster
+## block against the way they're pushing, as long as the push is strong.
+func _show_harness() -> void:
+	if is_multiplayer_authority():
+		return
+	if _harness_mesh == null:
+		_harness_mesh = body_visual.find_child("harness", true, false) as Node3D
+		if _harness_mesh == null:
+			return
+		for i in 4:
+			var socket := body_visual.find_child("SOCKET_jet_%d" % i, true, false) as Node3D
+			if socket != null:
+				# The cone's narrow end at the block, widening away along the pivot's -Z.
+				var pivot := Node3D.new()
+				pivot.name = "Jet"
+				pivot.visible = false
+				var puff := MeshInstance3D.new()
+				puff.mesh = JET_PUFF
+				puff.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+				puff.transform = Transform3D(Basis(Vector3.RIGHT, -PI / 2), Vector3(0, 0, -JET_PUFF.height / 2))
+				pivot.add_child(puff)
+				socket.add_child(pivot)
+				_jets.append(pivot)
+	_harness_mesh.visible = harness and not dead
+	var push := thrust.length() if harness and not dead else 0.0
+	for puff in _jets:
+		puff.visible = push > 0.05
+		if puff.visible:
+			var away := -thrust.normalized()
+			puff.look_at(puff.global_position + away, Vector3.UP if absf(away.y) < 0.95 else Vector3.RIGHT)
+			puff.scale = Vector3.ONE * (0.6 + 0.4 * push) * randf_range(0.85, 1.15)
+
+
 ## The spine lights down a suit's back (GDD §10) tell the crew how its wearer is: green, amber,
 ## then red and blinking as health falls; dark, dead.
 func _light_spine() -> void:
@@ -952,13 +1125,14 @@ func _animate(delta: float) -> void:
 	var rate := CrewAnimation.stride_rate(speed, clampf((speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0))
 	if crouching:
 		rate = 1.0 / CrewAnimation.SNEAK_PERIOD
-	if speed > 0.3:
+	if speed > 0.3 and not floating:
 		_stride += delta * rate
 	if _cuff_screen != null:
 		_cuff_screen.visible = _cuff > 0.3
 	if _animation == null:
 		return
-	_animation.move = clampf(speed / (CROUCH_SPEED if crouching else WALK_SPEED), 0.0, 1.0)
+	_animation.move = 0.0 if floating else clampf(speed / (CROUCH_SPEED if crouching else WALK_SPEED), 0.0, 1.0)
+	_animation.drift = 1.0 if floating else 0.0
 	_animation.run = clampf((speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
 	_animation.crouch = _crouch
 	_animation.cuff = _cuff
@@ -997,3 +1171,14 @@ func _make_sounds() -> void:
 		_lamp_heard = lamp_on
 		if lamp_on or battery > 0.0:
 			Sound.lamp_switch(self, lamp_on)
+	if bumps != _bumps_heard:
+		_bumps_heard = bumps
+		Sound.bump(self)
+	if harness != _harness_heard:
+		_harness_heard = harness
+		if not dead:
+			Sound.harness(self)
+	if harness and _jet_sound == null:
+		_jet_sound = Sound.jets(self)
+	if _jet_sound != null:
+		Sound.jets_level(_jet_sound, thrust.length() if harness else 0.0)

@@ -1,0 +1,16 @@
+[gd_resource type="CylinderMesh" load_steps=2 format=3]
+
+[sub_resource type="StandardMaterial3D" id="puff"]
+transparency = 1
+blend_mode = 1
+shading_mode = 0
+albedo_color = Color(0.85, 0.9, 1, 0.45)
+disable_receive_shadows = true
+
+[resource]
+material = SubResource("puff")
+top_radius = 0.08
+bottom_radius = 0.012
+height = 0.35
+radial_segments = 6
+rings = 1

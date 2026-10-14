@@ -5,8 +5,10 @@ extends Node
 ## chamber goes to whatever pressure lies beyond (venting, or filling from it), then the outer hatch
 ## swings open; cycling in, the outer hatch shuts, the chamber fills, the inner hatch opens. With
 ## the lock in, the inner hatch opens and shuts by hand like a door. The cycle lever in the chamber
-## cycles it either way; a locked hatch's handles call it round to open that hatch. It won't cycle out while `outside_blocker` says why not (the docking
-## collar: NO SEAL, with nothing sealed to it).
+## cycles it either way; a locked hatch's handles call it round to open that hatch. It won't cycle
+## out while `outside_blocker` says why not (the docking collar: NO SEAL, with nothing sealed to it;
+## either, mid-jump). The LANTERN has two: the docking collar's (&"collar") and the EVA airlock off
+## the suit room (&"eva"), which opens straight onto space.
 ##
 ## The host owns its state and sends it to everyone on each change (and to each crew member who
 ## joins); the cycle's timer runs down on every peer and the host finishes it. Everyone works out
@@ -26,6 +28,8 @@ const LEVER_PULLED := deg_to_rad(65.0)
 const LEVER_GRIP := Vector3(0.0, 1.06, 0.1)
 const LEVER_SIZE := Vector3(0.3, 0.26, 0.2)
 
+## Which airlock it is (&"collar", &"eva"): its screen finds it by this.
+var id := &"collar"
 var inner: Hatch
 var outer: Hatch
 var chamber: Zone
@@ -33,6 +37,9 @@ var chamber: Zone
 var outside_pressure := func() -> float: return 0.0
 ## Why it can't cycle out now, or "".
 var outside_blocker := func() -> String: return ""
+## Whether something's sealed to its outer hatch (the collar's tube, docked); open space is always
+## there.
+var sealed_to := func() -> bool: return true
 
 ## &"in" (the outer hatch shut, the inner one free), &"to_out", &"out" (the outer hatch open, the
 ## inner one locked shut), &"to_in"; the seconds left on a cycle under way, the chamber's pressure
@@ -51,9 +58,10 @@ var _heard := &"" # the state last heard begin, so each cycle sounds once on eve
 
 ## An airlock between `inner` and `outer` round `chamber`, run from `panel` (an rm_cycle_panel
 ## inside it): added to `parent`.
-static func make(parent: Node, inner_hatch: Hatch, outer_hatch: Hatch, chamber_zone: Zone, panel: Node3D) -> Airlock:
+static func make(parent: Node, inner_hatch: Hatch, outer_hatch: Hatch, chamber_zone: Zone, panel: Node3D, which := &"collar") -> Airlock:
 	var airlock := Airlock.new()
-	airlock.name = "Airlock"
+	airlock.name = "Airlock" if which == &"collar" else "Airlock_%s" % which
+	airlock.id = which
 	airlock.inner = inner_hatch
 	airlock.outer = outer_hatch
 	airlock.chamber = chamber_zone
@@ -64,9 +72,18 @@ static func make(parent: Node, inner_hatch: Hatch, outer_hatch: Hatch, chamber_z
 
 
 func _ready() -> void:
+	add_to_group(&"airlock")
 	NetworkEvents.on_peer_join.connect(func(peer: int):
 		if multiplayer.is_server():
 			_state.rpc_id(peer, _pack()))
+
+
+## The airlock `which` (&"collar", &"eva"), or null.
+static func named(tree: SceneTree, which: StringName) -> Airlock:
+	for airlock: Airlock in tree.get_nodes_in_group(&"airlock"):
+		if airlock.id == which:
+			return airlock
+	return null
 
 
 func _process(delta: float) -> void:

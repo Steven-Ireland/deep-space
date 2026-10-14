@@ -103,6 +103,7 @@ static func make(lantern: Deck, hatch_piece: Node3D, dock_panel: Node3D, inner: 
 	collar.airlock = Airlock.make(collar, inner, collar.hatch, chamber, cycle_panel)
 	collar.airlock.outside_pressure = collar.outside_pressure
 	collar.airlock.outside_blocker = collar._lock_blocker
+	collar.airlock.sealed_to = func() -> bool: return collar.stage == &"docked"
 	return collar
 
 

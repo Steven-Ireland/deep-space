@@ -15,6 +15,8 @@ const RED := Color(1.0, 0.3, 0.2)
 const WHITE := Color(0.9, 1.0, 0.92)
 
 var terminal: Node
+## Whose screen it is, in the header: the LANTERN's, or a relay's (RELAY K-42).
+var station := "LANTERN"
 var time := 0.0
 ## Where the operator's cursor is, in screen pixels, or negative when nobody's at the console.
 var cursor := Vector2(-1, -1)
@@ -47,10 +49,10 @@ func frame_box(col: float, row: float, w: float, h: float, colour := DIM) -> voi
 	draw_rect(Rect2(Vector2(col * CELL.x + 2, row * CELL.y + 2), Vector2(w * CELL.x, h * CELL.y)), colour, false, 1.0)
 
 
-## A header bar across the top: the station's name on the left, `title` on the right.
+## A header bar across the top: whose screen it is on the left, `title` on the right.
 func header(title: String) -> void:
 	draw_rect(Rect2(0, 0, size.x, CELL.y + 2), DIM)
-	text(0, 0, "LANTERN", Color.BLACK)
+	text(0, 0, station, Color.BLACK)
 	text(size.x / CELL.x - title.length() - 1, 0, title, Color.BLACK)
 
 

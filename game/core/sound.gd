@@ -4,9 +4,11 @@ extends Node
 ##   World    everything heard through the air: doors, footfalls, a teammate's lamp switch, the
 ##            consoles, the jump, and Ambient, the sound of the place itself. Out of the air it's
 ##            heavily low-passed: the vacuum rule, heard only through contact.
-##   Suit     inside the helmet (the lamp's switch; breathing and the radio to come): clear anywhere.
+##   Suit     inside the helmet (the lamp's switch, the EVA harness's jets; breathing and the radio
+##            to come): clear anywhere.
 ## The ambience follows the crew member at this machine: the LANTERN's hum aboard (a comfort, and
-## its absence a warning), a derelict's drone in one, nothing out in space. Aboard in a jump (Run,
+## its absence a warning), a derelict's drone in one, a working relay's whine and fans in a
+## satellite, nothing out in space. Aboard in a jump (Run,
 ## GDD §5) the hum drops out: the drive spools up, the tunnel's mouth booms, its roar takes the
 ## hum's place, and coming out the drive winds down; the hum comes back once it's over.
 
@@ -16,7 +18,7 @@ const CUTOFF_AIR := 20500.0
 const MUFFLE_RATE := 10.0
 ## Each ambience's level in the air (dB), how much lower it is in vacuum, and how fast it fades
 ## from one to another.
-const AMBIENT_DB := {&"lantern": -10.5, &"derelict": -10.5, &"tunnel": -2.5}
+const AMBIENT_DB := {&"lantern": -10.5, &"derelict": -10.5, &"satellite": -9.0, &"tunnel": -2.5}
 const VACUUM_DB := -13.5
 const SILENT_DB := -80.0
 const FADE_RATE := 3.0
@@ -51,6 +53,7 @@ const STEPS := {
 const AMBIENCE := {
 	&"lantern": preload("res://assets/audio/ambient/station_hum.wav"),
 	&"derelict": preload("res://assets/audio/ambient/derelict_ambience.wav"),
+	&"satellite": preload("res://assets/audio/ambient/satellite_hum.wav"),
 	&"tunnel": preload("res://assets/audio/ambient/hyperspace_loop.wav"),
 }
 ## What's heard as the jump reaches each stage: the drive spooling up from the lever, the tunnel's
@@ -78,6 +81,12 @@ const COLLAR := {
 	&"clamps": preload("res://assets/audio/foley/dock_clamps.wav"),
 }
 const TAKEN := preload("res://assets/audio/foley/item_pickup.wav")
+## The EVA harness (GDD §8.1): its jets' hiss (a loop played at their push), clipping it on or off,
+## and a suit knocking into something, weightless.
+const JETS := preload("res://assets/audio/foley/rcs_jet.wav")
+const HARNESS := preload("res://assets/audio/foley/harness_clip.wav")
+const BUMP := preload("res://assets/audio/foley/suit_bump.wav")
+const JETS_DB := -7.0
 
 var _vacuum: AudioEffectLowPassFilter
 var _ambience := {} # ambience: its AudioStreamPlayer, always playing, faded in and out
@@ -138,13 +147,15 @@ func _follow_jump(stage: StringName, aboard: bool) -> void:
 		_play(JUMP[stage], &"World", JUMP_DB)
 
 
-## Where `crew` is, by the zone at their chest: &"lantern" aboard, &"derelict" in a derelict, or
-## &"" out in space.
+## Where `crew` is, by the zone at their chest: &"lantern" aboard, &"derelict" in a derelict,
+## &"satellite" in a relay, or &"" out in space.
 static func place_of(crew: Player) -> StringName:
 	var zone := Zone.at(crew.get_world_3d(), crew.global_position + Vector3.UP * Player.CHEST_HEIGHT)
 	if zone == null:
 		return &""
-	return &"lantern" if zone.get_parent().is_in_group(&"lantern") else &"derelict"
+	if zone.get_parent().is_in_group(&"lantern"):
+		return &"lantern"
+	return &"satellite" if zone.get_parent().get_parent() is Satellite else &"derelict"
 
 
 ## A crew member's footfall on the deck under them: harder at a sprint, softer crouched, heavier
@@ -183,6 +194,46 @@ func lamp_switch(crew: Player, on: bool) -> void:
 ## Something taken into a crew member's hands or onto their belt.
 func taken(crew: Player) -> void:
 	_from(crew, TAKEN, 10.0, 0.0, randf_range(0.97, 1.03))
+
+
+## A crew member putting the EVA harness on or stowing it, at the rack.
+func harness(crew: Player) -> void:
+	_from(crew, HARNESS, 12.0, 0.0, randf_range(0.97, 1.03))
+
+
+## A crew member knocking into something, weightless: in their own suit, or from where they hit.
+func bump(crew: Player) -> void:
+	if crew.is_multiplayer_authority():
+		_play(BUMP, &"Suit", -2.0, randf_range(0.95, 1.05))
+	else:
+		_play_at(BUMP, crew, 16.0, -2.0, randf_range(0.95, 1.05), Vector3.UP * Player.CHEST_HEIGHT)
+
+
+## The EVA harness's jets on `crew`, looping silently until they fire (jets_level): in the
+## wearer's helmet, or from their back for anyone near. Returns the player, for jets_level.
+func jets(crew: Player) -> Node:
+	var player: Node
+	if crew.is_multiplayer_authority():
+		player = AudioStreamPlayer.new()
+		player.bus = &"Suit"
+	else:
+		var placed := AudioStreamPlayer3D.new()
+		placed.bus = &"World"
+		placed.unit_size = NEAR
+		placed.max_distance = 20.0
+		placed.position = Vector3.UP * Player.CHEST_HEIGHT
+		player = placed
+	player.name = "Jets"
+	player.stream = JETS
+	player.set("volume_db", SILENT_DB)
+	crew.add_child(player)
+	player.play()
+	return player
+
+
+## How hard the jets are firing, 0..1: their hiss follows it at once (valves, not a fade).
+static func jets_level(player: Node, level: float) -> void:
+	player.set("volume_db", JETS_DB + linear_to_db(level) if level > 0.02 else SILENT_DB)
 
 
 ## A fuel cell seating in a bay of the fuel rack (`bay`, where it sits).

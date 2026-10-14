@@ -1,7 +1,7 @@
 extends CrtScreen
 ## The wrist cuff's little screen (GDD §10): too small for words, so it speaks in bars and blips.
-## O2 as a bar, suit integrity as a bar, a heartbeat blip at the crew member's pulse, the helmet
-## lamp's battery as a row of cells.
+## O2 as a bar, suit integrity as a bar, the EVA harness's propellant as a thin bar while it's worn,
+## a heartbeat blip at the crew member's pulse, the helmet lamp's battery as a row of cells.
 
 var player: Player
 
@@ -19,6 +19,9 @@ func _draw_screen() -> void:
 	var o2_colour := GREEN if o2 > 0.25 else (RED if o2 > 0.1 or blink(0.5) else DIM)
 	_bar(Rect2(4, 6, w - 8, 7), o2, o2_colour)
 	_bar(Rect2(4, 18, w - 8, 7), integrity, GREEN if integrity > 0.5 else AMBER)
+	if player.harness:
+		var rcs := player.rcs / Player.RCS_FUEL
+		_bar(Rect2(4, 29, w - 8, 5), rcs, AMBER if rcs > 0.25 else (RED if blink(0.5) else DIM))
 	# Heartbeat: a blip that flashes at the pulse, red as health fails; a flat line, dead.
 	var bpm := player.heart_rate()
 	var pulse := GREEN if player.health > 0.3 else RED

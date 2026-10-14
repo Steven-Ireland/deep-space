@@ -1,8 +1,8 @@
 class_name CrewAnimation
 extends AnimationTree
 ## Blends a crew rig's clips by what its crew member is doing: standing, walking and running in
-## step, crouching, the right arm holding something or both arms carrying something big, the left
-## raising the wrist cuff, and the right swinging a tool once (swing()). Used for the suit everyone
+## step, crouching, drifting weightless, the right arm holding something or both arms carrying
+## something big, the left raising the wrist cuff, and the right swinging a tool once (swing()). Used for the suit everyone
 ## else sees and the first-person arms. Set the blend values each frame; they're eased here.
 ##
 ## Walk, run and crouch-walk are one stride cycle a second each, left heel strike first (TECH §5),
@@ -23,6 +23,8 @@ var move := 0.0
 var run := 0.0
 ## 0 standing .. 1 crouched.
 var crouch := 0.0
+## 0 on their feet .. 1 drifting weightless, limbs loose.
+var drift := 0.0
 ## 0 .. 1 the wrist cuff raised.
 var cuff := 0.0
 ## What the hands hold: "tool" (the right), "carry" (both) or "".
@@ -32,6 +34,7 @@ var direction := 1.0
 
 var _tool := 0.0
 var _carry := 0.0
+var _drift := 0.0
 var _clips: PackedStringArray
 
 
@@ -56,6 +59,12 @@ func setup(player: AnimationPlayer) -> void:
 		tree.connect_node("posture", 0, stand)
 		tree.connect_node("posture", 1, "low")
 		top = "posture"
+	if _has("float"):
+		tree.add_node("float", _clip("float"))
+		tree.add_node("weightless", AnimationNodeBlend2.new())
+		tree.connect_node("weightless", 0, top)
+		tree.connect_node("weightless", 1, "float")
+		top = "weightless"
 	# The first-person arms' upper arms are arm.*, the suit's upper_arm.*.
 	var first_person := player.get_animation("idle").find_track(NodePath("%s:arm.R" % skeleton), Animation.TYPE_ROTATION_3D) >= 0
 	var upper := "arm" if first_person else "upper_arm"
@@ -92,6 +101,7 @@ func step(delta: float, speed: float) -> void:
 	var ease := 1.0 - exp(-delta * 10.0)
 	_tool = lerpf(_tool, 1.0 if hold == "tool" else 0.0, ease)
 	_carry = lerpf(_carry, 1.0 if hold == "carry" else 0.0, ease)
+	_drift = move_toward(_drift, drift, delta / 0.6)
 	set("parameters/gait/blend_amount", run)
 	set("parameters/stand/blend_amount", move)
 	set("parameters/pace/scale", direction * stride_rate(speed, run))
@@ -99,6 +109,8 @@ func step(delta: float, speed: float) -> void:
 		set("parameters/low/blend_amount", move)
 		set("parameters/posture/blend_amount", crouch)
 		set("parameters/sneak_pace/scale", direction / SNEAK_PERIOD)
+	if _has("float"):
+		set("parameters/weightless/blend_amount", _drift * _drift * (3.0 - 2.0 * _drift))
 	if _has("hold_tool"):
 		set("parameters/with_tool/blend_amount", _tool)
 	if _has("hold_carry"):

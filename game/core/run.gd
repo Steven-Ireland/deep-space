@@ -11,7 +11,8 @@ extends Node
 ## pull the Jump Lever); the host applies it, refusing only what conflicts with how things stand.
 ## Each peer shows the world the run says the LANTERN is in: that system's star and planets, the
 ## derelict alongside if there is one (grown from the node's seed, DerelictLayout), waiting for the
-## docking collar (Collar), or hyperspace in the middle of a jump.
+## docking collar (Collar), the relay satellite the LANTERN holds position off at a Relay node
+## (SatelliteLayout, Satellite), reached by EVA, or hyperspace in the middle of a jump.
 
 ## Something in the run changed (on every peer, after the host's word arrives).
 signal changed
@@ -69,8 +70,10 @@ var jump_left := 0.0
 var jump_time := 0.0
 
 ## Dev (`--derelict`): a derelict alongside at the departure too, "docked" or "away"
-## (waiting for the collar), or "" for none; the host's word, so every peer builds it.
+## (waiting for the collar), or "" for none; and (`--satellite`) a relay satellite off it. The
+## host's word, so every peer builds them.
 var dev_derelict := ""
+var dev_satellite := false
 
 var started := false
 # Host: whether a scan or a refuel is under way (their timers run down on every peer; only the host
@@ -106,6 +109,7 @@ func _begin() -> void:
 	fuel.assign(range(BAYS).map(func(bay: int) -> bool: return bay < loaded))
 	if Args.flag("--derelict"):
 		dev_derelict = "away" if Args.value("--derelict", "") == "away" else "docked"
+	dev_satellite = Args.flag("--satellite")
 	started = true
 	print("Run: seed %d." % seed)
 	_broadcast()
@@ -244,11 +248,12 @@ func oddity() -> Array[String]:
 	return Oddities.of(here(), system_seed(at), system)
 
 
-## A checksum of what this peer generated: the chart, the system shown and the derelict alongside.
+## A checksum of what this peer generated: the chart, the system shown and what's alongside.
 func checksum() -> int:
 	var derelict := _derelict()
+	var satellite := _satellite()
 	return hash([map.checksum() if map != null else 0, system.checksum() if system != null else 0,
-			derelict.layout.checksum() if derelict != null else 0])
+			derelict.layout.checksum() if derelict != null else 0, satellite.layout.checksum() if satellite != null else 0])
 
 
 # --- Crew at the stations (reported to the host) ---------------------------------------------
@@ -420,7 +425,8 @@ func _pack() -> Dictionary:
 	return {"seed": seed, "sector": sector, "at": at, "route": route, "charted": charted, "visited": visited, "scanned": scanned,
 			"scan_left": scan_left, "fuel": fuel, "surveyed": surveyed, "survey_target": survey_target,
 			"survey_left": survey_left, "survey_data": survey_data, "refuelled": refuelled, "refuel_left": refuel_left,
-			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time, "dev_derelict": dev_derelict}
+			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time, "dev_derelict": dev_derelict,
+				"dev_satellite": dev_satellite}
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -447,6 +453,7 @@ func _state(data: Dictionary) -> void:
 	jump_left = data.jump_left
 	jump_time = data.jump_time
 	dev_derelict = data.dev_derelict
+	dev_satellite = data.dev_satellite
 	started = true
 	_show_world()
 	changed.emit()
@@ -492,6 +499,8 @@ func _show_world() -> void:
 	var at_start := where == SectorMap.start() and where_sector == 1
 	if type == &"derelict" or (at_start and dev_derelict != ""):
 		_bring_derelict(where, chart, at_start and dev_derelict == "docked")
+	if type == &"relay" or (at_start and dev_satellite):
+		_bring_satellite(where, chart)
 
 
 ## Brings the derelict at `node` alongside, grown from its seed: waiting out for the collar, or
@@ -512,6 +521,43 @@ func _bring_derelict(node: Vector2i, chart: SectorMap, docked: bool) -> void:
 		LooseItems.of(self).stock(derelict)
 	else:
 		_report_derelict.rpc_id(1, layout.seed, layout.checksum())
+
+
+## Sets out the relay satellite at `node`, grown from its seed, off the LANTERN's EVA airlock;
+## the host stocks it for the crew aboard.
+func _bring_satellite(node: Vector2i, chart: SectorMap) -> void:
+	var lantern := get_tree().get_first_node_in_group(&"lantern")
+	if encounter == null or lantern == null:
+		return
+	var layout := SatelliteLayout.generate(system_seed(node, chart), chart.sector)
+	var satellite := Satellite.make(layout, maxi(1, get_tree().get_nodes_in_group(&"crew").size()))
+	satellite.name = "Satellite"
+	var hatch: Array[Vector3] = lantern.eva_hatch()
+	satellite.transform = Satellite.placement(layout, hatch[0], hatch[1])
+	encounter.add_child(satellite)
+	if multiplayer.is_server():
+		print(layout.describe("Satellite", satellite.transform))
+		LooseItems.of(self).stock(satellite)
+	else:
+		_report_satellite.rpc_id(1, layout.seed, layout.checksum())
+
+
+## The satellite alongside on this peer, or null.
+func _satellite() -> Satellite:
+	if encounter == null:
+		return null
+	for child in encounter.get_children():
+		if child is Satellite and not child.is_queued_for_deletion():
+			return child
+	return null
+
+
+## A crew member's machine tells the host the satellite it grew.
+@rpc("any_peer", "call_remote", "reliable")
+func _report_satellite(satellite_seed: int, plan: int) -> void:
+	var satellite := _satellite()
+	if satellite != null and satellite.layout.seed == satellite_seed and plan != satellite.layout.checksum():
+		push_warning("Run: peer %d grew a different satellite (%d, not %d)." % [multiplayer.get_remote_sender_id(), plan, satellite.layout.checksum()])
 
 
 ## The derelict alongside on this peer, or null.

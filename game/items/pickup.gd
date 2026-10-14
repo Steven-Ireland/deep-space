@@ -79,6 +79,9 @@ const LOST_BELOW := -40.0
 
 func _physics_process(_delta: float) -> void:
 	if multiplayer.is_server():
+		# It weighs what the zone it's in gives it (GDD §9.1): nothing in a satellite or out in
+		# space, where it hangs, or drifts on as it was knocked.
+		gravity_scale = Zone.weight_at(get_world_3d(), global_position)
 		at = position
 		turn = quaternion
 		if position.y < LOST_BELOW:

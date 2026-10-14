@@ -8,6 +8,8 @@ extends CanvasLayer
 ##     carrying something big, its name over the belt). Bright when it changes, then dim.
 ##   - O2 (GDD §9.2): a small gauge in the upper left while the suit is breathing for its wearer or
 ##     running low, blinking when nearly out; and VITALS blinking under it when health is critical.
+##   - RCS (GDD §8.1): the EVA harness's propellant under it, while they wear it weightless, or when
+##     it's running low; its label bright while the jets fire.
 
 const COLOUR := Color(0.72, 0.95, 0.78)
 const FONT := preload("res://assets/fonts/VT323-Regular.ttf")
@@ -16,6 +18,8 @@ const FONT_SIZE := 16
 const SLOT := 22
 const SLOT_GAP := 3
 const MARGIN := 10
+## Where a gauge's cells start, past its label (O2, RCS).
+const GAUGE_CELLS := 20
 ## Seconds the belt stays bright after a change, and how dim it rests.
 const BELT_BRIGHT := 2.5
 const BELT_REST := 0.35
@@ -42,6 +46,8 @@ var _icons := {}
 var _o2_shown := 0.0
 var _o2_age := 99.0 # seconds since O2 last mattered
 var _last_o2 := 0.0
+var _rcs_shown := 0.0
+var _rcs_age := 99.0 # seconds since the harness's propellant last mattered
 
 
 func _ready() -> void:
@@ -63,6 +69,9 @@ func _process(delta: float) -> void:
 	_last_o2 = player.o2
 	_o2_age = 0.0 if o2_matters else _o2_age + delta
 	_o2_shown = move_toward(_o2_shown, 1.0 if _o2_age < 3.0 else 0.0, delta / 0.4)
+	var rcs_matters := player.harness and (player.floating or player.rcs < Player.RCS_FUEL * 0.25)
+	_rcs_age = 0.0 if rcs_matters else _rcs_age + delta
+	_rcs_shown = move_toward(_rcs_shown, 1.0 if _rcs_age < 3.0 else 0.0, delta / 0.4)
 	var target := player.aimed_at
 	if target != null and target != _target:
 		# A new thing: the box starts beside it and the line draws out again.
@@ -119,6 +128,8 @@ func _draw_hud() -> void:
 	_draw_belt()
 	if _o2_shown > 0.0:
 		_draw_o2(_o2_shown)
+	if _rcs_shown > 0.0:
+		_draw_rcs(_rcs_shown)
 
 
 ## O2: the label, ten cells, the minutes and seconds left. Nearly out, it blinks.
@@ -128,16 +139,36 @@ func _draw_o2(alpha: float) -> void:
 		alpha *= 0.3
 	var at := Vector2(MARGIN, MARGIN).floor()
 	canvas.draw_string(FONT, at + Vector2(0, 11), "O2", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
+	_draw_cells(at + Vector2(GAUGE_CELLS, 3), fraction, alpha)
+	var left := ceili(player.o2)
+	canvas.draw_string(FONT, at + Vector2(GAUGE_CELLS + 54, 11), "%d:%02d" % [left / 60, left % 60], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
+	if player.health < 0.3 and fmod(_time, 0.8) < 0.5:
+		canvas.draw_string(FONT, at + Vector2(0, 26 + (13 if _rcs_shown > 0.0 else 0)), "VITALS", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE,
+				Color(COLOUR, alpha))
+
+
+## RCS: the harness's propellant under the O2 gauge, ten cells and what's left of it; its label
+## bright while the jets fire, the whole of it blinking when it's nearly gone.
+func _draw_rcs(alpha: float) -> void:
+	var fraction := player.rcs / Player.RCS_FUEL
+	if fraction < 0.1 and fmod(_time, 0.5) > 0.3:
+		alpha *= 0.3
+	var at := Vector2(MARGIN, MARGIN + (13 if _o2_shown > 0.0 else 0)).floor()
+	var firing := player.thrust.length() > 0.05
+	canvas.draw_string(FONT, at + Vector2(0, 11), "RCS", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha * (1.0 if firing else 0.7)))
+	_draw_cells(at + Vector2(GAUGE_CELLS, 3), fraction, alpha)
+	canvas.draw_string(FONT, at + Vector2(GAUGE_CELLS + 54, 11), "%d%%" % ceili(fraction * 100.0), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE,
+			Color(COLOUR, alpha))
+
+
+## A gauge's ten cells from `at`, filled to `fraction`.
+func _draw_cells(at: Vector2, fraction: float, alpha: float) -> void:
 	for i in 10:
-		var cell := Rect2(at + Vector2(16 + i * 5, 3), Vector2(4, 8))
+		var cell := Rect2(at + Vector2(i * 5, 0), Vector2(4, 8))
 		if fraction > i / 10.0:
 			canvas.draw_rect(cell, Color(COLOUR, 0.9 * alpha))
 		else:
 			canvas.draw_rect(cell.grow(-0.5), Color(COLOUR, 0.35 * alpha), false, 1.0)
-	var left := ceili(player.o2)
-	canvas.draw_string(FONT, at + Vector2(70, 11), "%d:%02d" % [left / 60, left % 60], HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
-	if player.health < 0.3 and fmod(_time, 0.8) < 0.5:
-		canvas.draw_string(FONT, at + Vector2(0, 26), "VITALS", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
 
 
 func _draw_prompt(alpha: float) -> void:

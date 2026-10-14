@@ -40,7 +40,9 @@ const OPENINGS := {
 	"2,0,N": "viewport", "3,0,N": "viewport", "4,0,N": "viewport",
 	"2,0,W": "window", "4,0,E": "window",
 	# Rooms off the bridge.
-	"2,1,W": "door", "1,1,W": "door", "2,2,W": "door", "4,1,E": "door", "4,2,E": "door",
+	"2,1,W": "door", "2,2,W": "door", "4,1,E": "door", "4,2,E": "door",
+	# The EVA airlock off the suit room: a round pressure hatch into it.
+	"1,1,W": "hatch",
 	# The collar room is the docking airlock: a round pressure hatch in from the docking port.
 	"5,1,E": "hatch",
 	"3,2,S": "door",
@@ -58,6 +60,9 @@ var _drive_glow: OmniLight3D
 var _fixtures: Array[ShaderMaterial] = []
 var _dock_panel: Node3D
 var _cycle_panel: Node3D
+var _eva_panel: Node3D
+## The EVA airlock (GDD §5, §8.1): the suit room's way out into space.
+var eva: Airlock
 
 
 func _ready() -> void:
@@ -69,7 +74,20 @@ func _ready() -> void:
 	_hull_features()
 	# The docking collar, its airlock the collar room, behind the hatch from the docking port.
 	Collar.make(self, hatches["4,0,v"].get_parent(), _dock_panel, hatches["3,0,v"], zones[Vector2i(3, 0)], _cycle_panel)
+	# The EVA airlock, off the suit room to port: straight out into space.
+	eva = Airlock.make(self, hatches["-2,0,v"], hatches["-3,0,v"], zones[Vector2i(-3, 0)], _eva_panel, &"eva")
+	eva.outside_blocker = func() -> String:
+		var run := Run.of(self)
+		return "JUMPING" if run != null and run.jumping() else ""
 	_find_fixtures()
+
+
+## The EVA airlock's outer hatch: its middle, and the way out from it into space (the Run sets a
+## satellite out that way).
+func eva_hatch() -> Array[Vector3]:
+	var outer := eva.outer
+	var out := outer.centre() - eva.chamber.global_position
+	return [outer.centre(), Vector3(out.x, 0, out.z).normalized()]
 
 
 ## The jump, aboard (GDD §5): the lights go red and pulse while the station shakes, and the drive
@@ -155,15 +173,17 @@ func _prop(model: String, at: Vector3, yaw: float, terminals: Array) -> Node3D:
 ## Every other room's furnishings (GDD §5). Positions are world metres: a cell's centre is its grid
 ## coordinate times 4; walls stand 2 m either side, 0.15 m thick.
 func _furnish_rooms() -> void:
-	# Suit room (-8, 0): lockers along the aft wall, the O2 rack opposite, a bench between. The
-	# airlock's cycle panel beside the hatch stays in clear view of the room.
-	for i in 4:
-		_prop("rm_suit_locker", Vector3(-9.125 + i * 0.75, 0, 1.55), 180.0, [])
-	_wall_point(_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, []), "REFILL", Vector3(0, 1.1, 0.16), Vector2(1.4, 1.4), "o2")
-	_wall_point(_prop("rm_lamp_charger", Vector3(-6.6, 0, -1.67), 0.0, []), "CHARGE", Vector3(0, 1.4, -0.03), Vector2(0.4, 0.6), "lamp")
-	_prop("rm_bench", Vector3(-8.0, 0, -0.85), 0.0, [])
-	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
-			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
+	# Suit room (-8, 0): the EVA harness rack and two lockers along the aft wall, the O2 rack and
+	# lamp charger opposite, a bench between, clear of the airlock's inner hatch as it swings in.
+	HarnessRack.fit(_prop("rm_eva_rack", Vector3(-8.75, 0, 1.73), 180.0, []), Vector3(0, 1.2, 0.25), Vector2(1.5, 1.5))
+	for i in 2:
+		_prop("rm_suit_locker", Vector3(-7.625 + i * 0.75, 0, 1.55), 180.0, [])
+	TopUp.fit(_prop("rm_o2_rack", Vector3(-8.0, 0, -1.7), 0.0, []), "REFILL", Vector3(0, 1.1, 0.16), Vector2(1.4, 1.4), "o2")
+	TopUp.fit(_prop("rm_lamp_charger", Vector3(-6.6, 0, -1.67), 0.0, []), "CHARGE", Vector3(0, 1.4, -0.03), Vector2(0.4, 0.6), "lamp")
+	_prop("rm_bench", Vector3(-7.3, 0, -0.85), 0.0, [])
+	# The EVA airlock (-12, 0): its cycle panel inside, by the outer hatch.
+	_eva_panel = _prop("rm_cycle_panel", Vector3(-13.73, 0, 1.6), 90.0, [["screen_airlock", "airlock_screen", Vector2i(160, 120), GREEN,
+			{"lock": &"eva"}]])
 	_beacon(Vector3(-12, 2.6, 0))
 	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar's airlock hatch, cargo
 	# waiting; inside the collar room (the airlock's chamber), its cycle panel by the outer hatch.
@@ -215,27 +235,6 @@ func _furnish_rooms() -> void:
 	MedBay.make(_prop("rm_med_pod", Vector3(4.2, 0, 20.0), 0.0, [["screen_med", "med_screen", Vector2i(160, 120), GREEN]]))
 
 
-## Where crew top up their suit (GDD §5, §9): `verb` across the front of `fitting` (`size`, at
-## `centre` in its own space), topping up `what` (Player.top_up: "o2" at the O2 rack, "lamp" at
-## the lamp charger).
-func _wall_point(fitting: Node3D, verb: String, centre: Vector3, size: Vector2, what: String) -> void:
-	var point := Interactable.new()
-	point.name = verb.capitalize()
-	point.verb = verb
-	point.housing = fitting
-	point.position = centre
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = Vector3(size.x, size.y, 0.06)
-	shape.shape = box
-	point.add_child(shape)
-	fitting.add_child(point)
-	point.used.connect(func(peer: int):
-		var player := Player.of_peer(get_tree(), peer)
-		if player != null:
-			player.top_up.rpc_id(peer, what))
-
-
 ## The hull's hero pieces: the comms mast over the bridge, the name, and thruster pods on the aft
 ## faces of the wings and the stern (each stands 0.95 m off the plating, which is 0.56 m out from
 ## the wall line; art/blender/hull.py).
@@ -270,7 +269,9 @@ func _place_cameras() -> void:
 			["Docking Port", Vector3(9.5, 2.5, -1.5), Vector3(6, 0.8, 1.0)],
 			["Collar", Vector3(10.6, 2.5, -1.5), Vector3(13.6, 1.0, 0.6)],
 			["Drive Room", Vector3(13.5, 2.5, 2.5), Vector3(8.5, 0.8, 5.0)],
-			["Med Bay", Vector3(2.5, 2.5, 21.5), Vector3(4.8, 0.5, 19.6)]]:
+			["Med Bay", Vector3(2.5, 2.5, 21.5), Vector3(4.8, 0.5, 19.6)],
+			["EVA Airlock", Vector3(-10.6, 2.5, 1.5), Vector3(-13.6, 1.0, -0.6)],
+			["Hull Port", Vector3(-14.9, 3.4, 2.6), Vector3(-36.0, 1.0, -4.0)]]:
 		var camera := Marker3D.new()
 		camera.name = spec[0]
 		camera.add_to_group(&"station_camera")

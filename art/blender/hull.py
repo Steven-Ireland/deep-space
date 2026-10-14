@@ -6,6 +6,8 @@ runs out to a derelict's hatch. Derelicts re-bake the same kit as dh_* in the de
 teal-grey armour eaten by rust, dead running lights, panels torn off, scorch (GDD §14's palette).
 
 Side pieces stand on a cell edge like a wall: X along the edge, the hull's outer face toward -Y.
+Every piece has colliders over its plating, so crew out on EVA land on the hull, not in it; a side
+over a hatch leaves the way through open, flush with the deck.
 """
 
 import math
@@ -163,7 +165,7 @@ def _side_details(m, d, k, dk, holes=(), rail=True, light=True):
                 d.polygon([(-0.012, -0.012), (0.012, -0.012), (0.012, 0.012), (-0.012, 0.012)], dk["dark"], frame((x, face - 0.001, z), normal))
 
 
-def _side(name, holes=(), rail=True, extra=None):
+def _side(name, holes=(), rail=True, extra=None, way=None):
     k = _materials()
     dk = _decals()
     m = Mesh(name)
@@ -175,7 +177,21 @@ def _side(name, holes=(), rail=True, extra=None):
         extra(m, d, k, dk, texts)
     m.subdivide(1.0)
     low = m.to_object()
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[])
+    return Model(low=low, decals=[d.to_object()] + texts, extras=_side_colliders(name, way))
+
+
+def _side_colliders(name, way=None):
+    """The plating's colliders, from its inner edge to its outer face: one slab, or round `way`
+    (x0, x1, z1: an opening up from the deck that crew pass through, a hatch)."""
+    depth = OUT - HALF_WALL
+    y = -(OUT + HALF_WALL) / 2
+    if way is None:
+        return [kit_collider(f"{name}_col", (WIDTH, depth, TOP - BOTTOM), (0, y, (TOP + BOTTOM) / 2))]
+    x0, x1, z1 = way
+    return [kit_collider(f"{name}_col_l", (x0 + WIDTH / 2, depth, TOP - BOTTOM), ((-WIDTH / 2 + x0) / 2, y, (TOP + BOTTOM) / 2)),
+            kit_collider(f"{name}_col_r", (WIDTH / 2 - x1, depth, TOP - BOTTOM), ((x1 + WIDTH / 2) / 2, y, (TOP + BOTTOM) / 2)),
+            kit_collider(f"{name}_col_t", (x1 - x0, depth, TOP - z1), ((x0 + x1) / 2, y, (z1 + TOP) / 2)),
+            kit_collider(f"{name}_col_b", (x1 - x0, depth, -BOTTOM), ((x0 + x1) / 2, y, BOTTOM / 2))]
 
 
 @asset("hl_side", "hull", texture=256, colors=32, ao=0.45, angles=((-30, 15), (30, 40), (0, 0), (-60, -20)))
@@ -206,7 +222,8 @@ def side_hatch():
     and EVA rails either side, a hazard ring painted on the armour around it."""
     def collar(m, d, k, dk, texts):
         cz = 1.15
-        m.lathe([(1.1, 0.0), (1.1, 0.5), (1.18, 0.56), (1.3, 0.56), (1.3, 0.0)], k["dark"], sides=16, at=(0, -OUT + 0.06, cz),
+        # Up the outside, across its end and down the bore: each face looks the way it's seen from.
+        m.lathe([(1.3, 0.0), (1.3, 0.56), (1.18, 0.56), (1.1, 0.5), (1.1, 0.0)], k["dark"], sides=16, at=(0, -OUT + 0.06, cz),
                 rot=(90, 0, 0), cap_start=False, cap_end=False)
         for i in range(4):
             a = i / 4 * math.tau + math.pi / 4
@@ -219,7 +236,7 @@ def side_hatch():
             pts = [(math.cos(a0) * 1.32, math.sin(a0) * 1.32), (math.cos(a1) * 1.32, math.sin(a1) * 1.32),
                    (math.cos(a1) * 1.5, math.sin(a1) * 1.5), (math.cos(a0) * 1.5, math.sin(a0) * 1.5)]
             d.polygon(pts, dk["black"] if i % 2 else dk["orange"], frame((0, -OUT + 0.0, cz), normal, lift=0.001))
-    return _side("hl_side_hatch", holes=((-1.1, 1.1, 0.05, 2.25),), rail=False, extra=collar)
+    return _side("hl_side_hatch", holes=((-1.1, 1.1, 0.05, 2.25),), rail=False, extra=collar, way=(-1.1, 1.1, 2.25))
 
 
 @asset("hl_corner", "hull", texture=128, colors=24, ao=0.45)
@@ -235,7 +252,7 @@ def corner():
         m.lathe([(0.44, z - 0.08), (0.44, z + 0.08)], k["dark"], sides=8, angle_offset=math.pi / 8, cap_start=False, cap_end=False)
     m.subdivide(1.0)
     low = m.to_object()
-    return Model(low=low, decals=[d.to_object()], extras=[])
+    return Model(low=low, decals=[d.to_object()], extras=[kit_collider("hl_corner_col", (0.84, 0.84, TOP - BOTTOM), (0, 0, (TOP + BOTTOM) / 2))])
 
 
 def _walk():
@@ -269,7 +286,8 @@ def roof():
         d.polygon([(-0.04, -2), (0.04, -2), (0.04, 2), (-0.04, 2)], dk["orange"], f)
     m.subdivide(1.0)
     low = m.to_object()
-    return Model(low=low, decals=[d.to_object()], extras=[])
+    return Model(low=low, decals=[d.to_object()], extras=[kit_collider("hl_roof_col", (WIDTH, WIDTH, 0.39), (0, 0, ROOF + 0.195)),
+                                                          kit_collider("hl_roof_vent", (1.0, 0.8, 0.4), (1.3, -0.9, ROOF + 0.55))])
 
 
 @asset("hl_belly", "hull", texture=128, colors=24, ao=0.45, angles=((-30, -40), (150, -50), (0, -70), (90, -25)))
@@ -286,7 +304,7 @@ def belly():
         d.polygon([(-0.015, -2), (0.015, -2), (0.015, 2), (-0.015, 2)], dk["dark"], frame((x, 0, BELLY - 0.35), down, up=(0, 1, 0)))
     m.subdivide(1.0)
     low = m.to_object()
-    return Model(low=low, decals=[d.to_object()], extras=[])
+    return Model(low=low, decals=[d.to_object()], extras=[kit_collider("hl_belly_col", (WIDTH, WIDTH, 0.51), (0, 0, BELLY - 0.255))])
 
 
 @asset("hl_mast", "hull", texture=128, colors=32, ao=0.45)
@@ -304,7 +322,10 @@ def mast():
         s = 0.3 - z * 0.06
         m.pipe([(-s, -s, z), (s, -s, z), (s, s, z), (-s, s, z), (-s, -s, z)], 0.025, k["steel"], sides=4, caps=False)
     m.box((0.6, 0.6, 0.2), k["dark"], at=(0, 0, 0.1), bevel=0.03)
-    m.lathe([(0.0, 0.0), (0.5, 0.06), (0.75, 0.2), (0.8, 0.28)], dish_face, sides=12, at=(0, -0.2, 2.2), rot=(-60, 0, 0),
+    # Its face (the profile run in from the rim, so it looks out of the bowl) and its back.
+    m.lathe([(0.8, 0.28), (0.75, 0.2), (0.5, 0.06), (0.0, 0.0)], dish_face, sides=12, at=(0, -0.2, 2.2), rot=(-60, 0, 0),
+            cap_start=False)
+    m.lathe([(0.0, -0.02), (0.5, 0.04), (0.75, 0.18), (0.8, 0.26)], k["dark"], sides=12, at=(0, -0.2, 2.2), rot=(-60, 0, 0),
             cap_end=False)
     m.pipe([(0, -0.2, 2.2), (0, -0.75, 2.55)], 0.02, k["steel"], sides=4)
     for x in (-0.12, 0.12):

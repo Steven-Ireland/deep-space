@@ -35,6 +35,11 @@ def render(name, objects, angles=()):
     hidden = {obj.name: obj.hide_render for obj in objects}
     for obj in objects:
         obj.hide_render = False
+        # Godot draws only the side a face looks out of: so does the preview, so a face turned the
+        # wrong way shows up here as a hole (the .blend and .glb are written before this).
+        for slot in getattr(obj, "material_slots", []):
+            if slot.material is not None:
+                slot.material.use_backface_culling = True
     centre, radius = _bounds(objects)
     rig = _lights(centre, radius)
     camera_data = bpy.data.cameras.new("preview")

@@ -27,6 +27,7 @@ var ragdoll: Ragdoll
 var handle: Pickup.Handle
 var _sent := 0.0
 var _settled := false
+var _weight := 1.0 # the gravity its bones are under, in g
 
 
 func _init() -> void:
@@ -63,6 +64,12 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	# Every copy weighs what the zone it's in gives it: weightless, it drifts, limp.
+	var weight := Zone.weight_at(get_world_3d(), ragdoll.centre())
+	if weight != _weight:
+		_weight = weight
+		for bone in ragdoll.bones:
+			bone.gravity_scale = weight
 	if not multiplayer.is_server():
 		return
 	_sent += delta

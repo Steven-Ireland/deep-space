@@ -85,11 +85,12 @@ const MODULES := {
 		"spots": [Vector3(-1.3, 0.05, 1.3), Vector3(0.9, 1.5, 0.9), Vector3(1.3, 0.05, -1.3)],
 		"finds": {&"supplies": 4.0},
 	},
-	# Station-keeping propellant: two spherical tanks in their cradles; room for a fuel cell.
+	# Station-keeping propellant: two spherical tanks in their cradles against the north wall, fed
+	# from it; room for a fuel cell.
 	&"propellant": {
 		"name": "PROPELLANT", "kind": "room", "cells": ["##"], "weight": 2, "most": 1,
 		"doors": ["0,0,W", "1,0,N", "1,0,S"],
-		"props": [["satellite/sp_tank", Vector3(0.1, 0, 0), 0.0], ["satellite/sp_tank", Vector3(2.0, 0, 0), 90.0]],
+		"props": [["satellite/sp_tank", Vector3(0.1, 0, -1.0), 0.0], ["satellite/sp_tank", Vector3(2.0, 0, -1.0), 0.0]],
 		"spots": [Vector3(5.4, 0.05, 1.4), Vector3(-1.4, 0.05, -1.4), Vector3(1.05, 1.9, 1.3)],
 		"big": [[Vector3(4.2, 0.02, 0.0), 80.0]],
 		"finds": {&"power": 1.5, &"salvage": 1.0},

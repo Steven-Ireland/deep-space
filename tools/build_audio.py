@@ -15,6 +15,9 @@ same files. What it makes:
              hatch_open and hatch_close (a round pressure hatch), airlock_vent and airlock_fill
              (the collar's airlock cycling), dock_contact, dock_clamps and collar_motor
              (docking); and ambient/dock_siren, a 2 s loop (the undock warning)
+  EVA        ambient/satellite_hum (a working relay, through the hull: an 8 s loop), foley/rcs_jet
+             (the EVA harness's jets: a 2 s loop), foley/harness_clip (putting it on or stowing
+             it), foley/suit_bump (a suit knocking into something, weightless)
 A loop's .import file has it loop forward over the whole file: edit/loop_mode=2 (in Godot's WAV
 importer 1 is Disabled) and edit/loop_end its length in samples (-1 drops the last).
 """
@@ -1255,6 +1258,113 @@ def generate_siren():
 # MAIN
 # =============================================================================
 
+# =============================================================================
+# EVA: THE RELAY SATELLITE AND THE HARNESS
+# =============================================================================
+
+def generate_satellite_hum():
+    """
+    satellite_hum (8 s loop): a relay still working, heard through the hull by touch (the vacuum
+    low-pass takes most of it away): a thin switching-supply whine at 400 Hz and its octave, two
+    cooling fans' air and their blade tones beating slowly against each other, a relay ticking
+    over twice a second, and a soft telemetry chirp now and then. Busy, clean, nobody home.
+    """
+    length = int(SAMPLE_RATE * LOOP_SECONDS)
+    n = length + SAMPLE_RATE
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=1401)
+    rng = random.Random(1402)
+    fan_a = Biquad.bandpass(520, q=1.1)
+    fan_b = Biquad.bandpass(1150, q=1.6)
+    tick_bp = Biquad.bandpass(3100, q=4.0)
+    chirps = (1.3, 4.1, 6.6)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        whine = 0.16 * math.sin(2.0 * math.pi * 400.0 * t) + 0.07 * math.sin(2.0 * math.pi * 800.0 * t + 0.6)
+        blades = 0.1 * math.sin(2.0 * math.pi * 93.0 * t) + 0.09 * math.sin(2.0 * math.pi * 93.5 * t + 1.0)
+        air = fan_a.process(noise[i]) * 0.55 + fan_b.process(noise[i]) * 0.25
+        tick = 0.0
+        phase = (t * 2.0) % 1.0
+        if phase < 0.012:
+            tick = tick_bp.process(rng.random() * 2.0 - 1.0) * math.exp(-phase * 500.0) * 1.6
+        else:
+            tick_bp.process(0.0)
+        chirp = 0.0
+        for c in chirps:
+            if c <= t < c + 0.18:
+                dt = t - c
+                chirp += math.sin(2.0 * math.pi * (1800.0 + 900.0 * (dt / 0.18)) * dt) * math.sin(dt / 0.18 * math.pi) * 0.12
+        samples[i] = whine + blades + air + tick + chirp
+    samples = Biquad.highpass(60, q=0.7).process_all(samples)
+    save_wav("ambient/satellite_hum.wav", seamless(samples, length), normalize_to=0.78, saturate=False)
+
+
+def generate_rcs_jet():
+    """
+    rcs_jet (2 s loop): the EVA harness's cold-gas jets firing, heard inside the helmet: a
+    pressurised hiss with a fluttering edge as the valves chatter, a little low rush of the gas
+    through the suit's frame under it. Played at the jets' push.
+    """
+    length = int(SAMPLE_RATE * 2.0)
+    n = length + SAMPLE_RATE // 4
+    samples = [0.0] * n
+    rng = random.Random(1501)
+    noise = pink_noise(n, seed=1502)
+    hiss_a = Biquad.bandpass(2400, q=1.2)
+    hiss_b = Biquad.bandpass(4200, q=1.8)
+    rush = Biquad.lowpass(260, q=0.8)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        w = rng.random() * 2.0 - 1.0
+        flutter = 1.0 + 0.18 * math.sin(2.0 * math.pi * 23.0 * t) + 0.1 * math.sin(2.0 * math.pi * 37.0 * t + 1.1)
+        samples[i] = (hiss_a.process(w) * 1.0 + hiss_b.process(w) * 0.55) * flutter + rush.process(noise[i]) * 1.1
+    samples = Biquad.highpass(80, q=0.7).process_all(samples)
+    save_wav("foley/rcs_jet.wav", seamless(samples, length, fade_seconds=0.08), normalize_to=0.8, saturate=False)
+
+
+def generate_harness_clip():
+    """
+    harness_clip (0.7 s): the EVA harness going on (or coming off) at the rack: webbing pulled
+    through a buckle, two latches snapping home, the pack's weight settling on the suit.
+    """
+    n = int(SAMPLE_RATE * 0.7)
+    samples = [0.0] * n
+    rng = random.Random(1601)
+    cloth = Biquad.bandpass(900, q=1.2)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        pull = cloth.process(rng.random() * 2.0 - 1.0) * (math.sin(min(t, 0.22) / 0.22 * math.pi) if t < 0.22 else 0.0) * 0.8
+        samples[i] = pull
+    for start, seed in ((0.26, 1610), (0.36, 1611)):
+        clink = Biquad.bandpass(2700, q=3.5)
+        r = random.Random(seed)
+        first = int(SAMPLE_RATE * start)
+        for k in range(int(SAMPLE_RATE * 0.06)):
+            dt = k / SAMPLE_RATE
+            env = math.exp(-dt * 140.0)
+            samples[first + k] += (clink.process(r.random() * 2.0 - 1.0) * 1.3 + math.sin(2.0 * math.pi * 3300.0 * dt) * 0.35) * env
+    _thunk(samples, 0.42, 1612, weight=0.8, gain=0.6)
+    samples = Biquad.highpass(70, q=0.7).process_all(samples)
+    save_wav("foley/harness_clip.wav", samples, normalize_to=0.82, saturate=False)
+
+
+def generate_suit_bump():
+    """
+    suit_bump (0.3 s): a suited body knocking into a wall or a rack, weightless: a padded thud,
+    the suit's fabric scuffing, the knock carried through the structure.
+    """
+    n = int(SAMPLE_RATE * 0.3)
+    samples = [0.0] * n
+    rng = random.Random(1701)
+    scuff = Biquad.bandpass(1300, q=1.0)
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        samples[i] = scuff.process(rng.random() * 2.0 - 1.0) * math.exp(-t * 28.0) * 0.5
+    _thunk(samples, 0.005, 1702, weight=1.3, gain=0.9)
+    samples = Biquad.highpass(50, q=0.7).process_all(samples)
+    save_wav("foley/suit_bump.wav", samples, normalize_to=0.8, saturate=False)
+
+
 def main():
     generate_flashlight_clicks()
     generate_all_footsteps()
@@ -1272,6 +1382,10 @@ def main():
     generate_airlock_sounds()
     generate_dock_sounds()
     generate_siren()
+    generate_satellite_hum()
+    generate_rcs_jet()
+    generate_harness_clip()
+    generate_suit_bump()
 
 
 if __name__ == "__main__":

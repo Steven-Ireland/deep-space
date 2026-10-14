@@ -26,8 +26,8 @@ const HULL_OUT := 0.56
 const HULL_BOTTOM := -0.5
 const HULL_TOP := 3.5
 ## The hero pieces' reach (art/blender/satellite.py): a solar wing from its mount (its width and
-## thickness, out along +Z), the dish over its mount, the mast.
-const WING := Vector3(2.9, 0.4, 11.6)
+## height, out along +Z: its panels stand on edge), the dish over its mount, the mast.
+const WING := Vector3(0.4, 2.9, 11.6)
 const DISH := Vector3(4.4, 4.6, 4.4)
 const MAST := Vector3(0.6, 3.2, 0.6)
 const SIDES := {"N": Vector2i(0, -1), "E": Vector2i(1, 0), "S": Vector2i(0, 1), "W": Vector2i(-1, 0)}

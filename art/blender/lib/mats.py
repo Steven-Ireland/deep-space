@@ -299,3 +299,23 @@ def decal(name, color, glow=False):
     c = srgb(color)
     g.finish(c, glow=c if glow else None, mask=1.0)
     return name
+
+
+def foil(name, color, scale=1.0):
+    """Metallised film, a satellite's insulation blanket (gold, or silver): a crinkled sheet whose
+    creases break the light into bright and dark facets, with a few glints along the folds."""
+    g = _material(name)
+    if g is None:
+        return name
+    base = srgb(color)
+    # Creases: ridges where a noise field crosses its middle (|n - 0.5|), at two scales.
+    coarse = g.math("ABSOLUTE", g.math("SUBTRACT", g.noise(9.0 * scale, detail=2.0, roughness=0.4), 0.5))
+    fine = g.math("ABSOLUTE", g.math("SUBTRACT", g.noise(31.0 * scale, detail=1.0, roughness=0.3, seed=2), 0.5))
+    facet = g.math("ADD", g.math("MULTIPLY", coarse, 1.3), g.math("MULTIPLY", fine, 0.7))
+    dark = tuple(c * 0.42 for c in base[:3]) + (1.0,)
+    light = tuple(min(1.0, c * 1.3 + 0.04) for c in base[:3]) + (1.0,)
+    colour = g.mix(g.ramp(facet, 0.02, 0.55), light, dark)
+    glint = g.ramp(g.math("SUBTRACT", 0.05, fine), 0.0, 0.04)
+    colour = g.mix(g.math("MULTIPLY", glint, 0.6), colour, tuple(min(1.0, c * 1.6 + 0.15) for c in base[:3]) + (1.0,))
+    g.finish(colour)
+    return name

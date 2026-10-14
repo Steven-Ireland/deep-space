@@ -43,6 +43,15 @@ extends Node
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-
 ##                         forward; with --sprint or --crouch (Player)
 ##   --operate=<screen>    step up to the terminal on that screen mesh, e.g. screen_survey (Player)
+##   --satellite           set the departure's own relay satellite out off the EVA airlock (Run)
+##   --harness             the local crew member starts wearing the EVA harness (Player)
+##   --brake               weightless, they hold the harness's jets against their drift (Player)
+##   --tour=<dir>          (with --satellite) float through every room of the satellite, a shot
+##                         four ways from each (<dir>/<room>_<way>.png), and quit
+##   --check-eva[=<dir>]   (with --satellite) an EVA, played through with the keys: put on a harness
+##                         at the rack, cycle the EVA airlock out, fly across to the satellite on the
+##                         jets, stop, open its hatch, go in and float up through it; say how each
+##                         step went, shots of it in <dir> if given, and quit
 
 
 func _ready() -> void:
@@ -60,6 +69,10 @@ func _ready() -> void:
 		_check_jump()
 	if Args.flag("--check-lever"):
 		_check_lever()
+	if Args.flag("--check-eva"):
+		_check_eva(Args.value("--check-eva", ""))
+	if Args.flag("--tour"):
+		_tour(Args.value("--tour", ""))
 	if Args.flag("--clone"):
 		_clone(float(Args.value("--clone", "3")))
 	if Args.flag("--interact"):
@@ -186,6 +199,170 @@ func _check_lever() -> void:
 	await get_tree().create_timer(0.5).timeout
 	print("Lever check: %s." % ("the jump began" if run.jumping() else "no jump (%s)" % run.jump_blocker()))
 	get_tree().quit()
+
+
+## An EVA from the suit room to a satellite and into it, with the keys, as a crew member would
+## (GDD §8.1, §9.1).
+func _check_eva(shots: String) -> void:
+	await get_tree().create_timer(2.0).timeout
+	var player := get_tree().get_first_node_in_group(&"local_player") as Player
+	var lantern := get_tree().get_first_node_in_group(&"lantern")
+	var satellite := get_tree().get_first_node_in_group(&"satellite") as Satellite
+	if player == null or satellite == null:
+		print("EVA check: no %s." % ("crew" if player == null else "satellite (pass --satellite)"))
+		get_tree().quit()
+		return
+	var lock: Airlock = lantern.eva
+	# 1. The harness, from the rack.
+	player.teleport(Vector3(-8.6, 0, 0.6))
+	_aim(player, Vector3(-8.75, 1.2, 1.9))
+	await get_tree().create_timer(0.3).timeout
+	print("EVA check: at the rack, aiming at %s (%s)." % [player.aimed_at.name if player.aimed_at else "nothing",
+			player.aimed_at.prompt(player) if player.aimed_at else "-"])
+	await _hold("interact", HarnessRack.HOLD + 0.3)
+	await get_tree().create_timer(0.5).timeout
+	print("EVA check: harness %s, RCS %.0f s." % ["on" if player.harness else "NOT ON", player.rcs])
+	await _shot(shots, "1_rack")
+	# 2. Through the airlock: in by its inner hatch, then the lever.
+	player.teleport(Vector3(-12.6, 0, 1.0))
+	_aim(player, Vector3(-13.63, 1.06, 1.6))
+	await get_tree().create_timer(0.3).timeout
+	print("EVA check: at the cycle lever, aiming at %s (%s)." % [player.aimed_at.name if player.aimed_at else "nothing",
+			player.aimed_at.prompt(player) if player.aimed_at else "-"])
+	await _hold("interact", Airlock.LEVER_HOLD + 0.3)
+	var cycled := await _wait(func() -> bool: return lock.state == &"out" and lock.outer.passable(), 10.0)
+	print("EVA check: airlock %s; in vacuum %s, O2 %.0f s." % ["out" if cycled else "STUCK (%s)" % lock.state, player.in_vacuum, player.o2])
+	_aim(player, lock.outer.centre() + (lock.outer.centre() - lock.chamber.global_position) * 4.0)
+	await get_tree().create_timer(0.3).timeout
+	await _shot(shots, "1_airlock")
+	# 3. Out, and across on the jets: steer for a point off the satellite's hatch.
+	var hatch := satellite.entry.centre()
+	var off := satellite.entry.global_transform.basis.z * (-1.0 if satellite.entry.inward > 0.0 else 1.0)
+	var target := hatch + Vector3(off.x, 0, off.z).normalized() * 2.5
+	var started := Time.get_ticks_msec()
+	var fuel := player.rcs
+	_press("move_forward", true)
+	var top := 0.0
+	var outside := false
+	while Time.get_ticks_msec() - started < 40000:
+		await get_tree().process_frame
+		_aim(player, target)
+		top = maxf(top, player.velocity.length())
+		outside = outside or player.floating
+		if outside and player.global_position.distance_to(target - Vector3.UP * Player.CHEST_HEIGHT) < 4.0 + player.velocity.length() * 1.6:
+			break
+	_press("move_forward", false)
+	print("EVA check: out and across in %.1f s, weightless %s, top speed %.2f m/s, RCS used %.1f s." % [
+			(Time.get_ticks_msec() - started) / 1000.0, outside, top, fuel - player.rcs])
+	await _shot(shots, "2_crossing")
+	_press("sprint", true)
+	await _wait(func() -> bool: return player.velocity.length() < 0.05, 8.0)
+	_press("sprint", false)
+	print("EVA check: braked to %.2f m/s, %.1f m from the hatch, RCS left %.0f s." % [player.velocity.length(),
+			(player.global_position + Vector3.UP * Player.CHEST_HEIGHT).distance_to(hatch), player.rcs])
+	# 4. The satellite's hatch, by hand.
+	_press("move_forward", true)
+	await _wait(func() -> bool:
+		_aim(player, hatch)
+		return player.aimed_at is Satellite.HatchHandle, 15.0)
+	_press("move_forward", false)
+	_press("sprint", true)
+	await get_tree().create_timer(1.0).timeout
+	_press("sprint", false)
+	print("EVA check: at the hatch, aiming at %s (%s)." % [player.aimed_at.name if player.aimed_at else "nothing",
+			player.aimed_at.prompt(player) if player.aimed_at else "-"])
+	await _hold("interact", 0.2)
+	var opened := await _wait(func() -> bool: return satellite.entry.passable(), 4.0)
+	print("EVA check: the satellite's hatch %s." % ("opened" if opened else "STAYED SHUT"))
+	await _shot(shots, "3_hatch")
+	# 5. In, and up through a hatchway if there's one over the entry.
+	var inside := Deck.centre_of(Vector2i.ZERO) + Vector3.UP * 1.9
+	inside = satellite.global_transform * inside
+	_press("move_forward", true)
+	var aboard := await _wait(func() -> bool:
+		_aim(player, inside)
+		return Satellite.at(player.get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT) == satellite, 20.0)
+	_press("move_forward", false)
+	print("EVA check: aboard %s, weightless %s, %s." % [aboard, player.floating, Sound.place_of(player)])
+	await get_tree().create_timer(1.5).timeout
+	await _shot(shots, "4_inside")
+	if Vector2i.ZERO in satellite.layout.hatchways(0):
+		# Steer for the room over the entry, up through the hatchway in its ceiling.
+		var above := satellite.global_transform * (Deck.centre_of(Vector2i.ZERO) + Vector3.UP * (RoomLayout.PITCH + 1.9))
+		_press("move_forward", true)
+		var up := await _wait(func() -> bool:
+			_aim(player, above)
+			return satellite.to_local(player.global_position).y > RoomLayout.PITCH - 0.5, 20.0)
+		_press("move_forward", false)
+		_press("sprint", true)
+		await get_tree().create_timer(1.0).timeout
+		_press("sprint", false)
+		print("EVA check: up the hatchway to the level above %s." % ("ok" if up else "FAILED"))
+		await _shot(shots, "5_hatchway")
+	print("EVA check: done; O2 %.0f s, RCS %.0f s." % [player.o2, player.rcs])
+	get_tree().quit()
+
+
+## Shots of every room of the satellite: from beside each room's middle, looking along its four
+## ways (the satellite's +X, +Z, -X, -Z) and a little down.
+func _tour(dir: String) -> void:
+	await get_tree().create_timer(2.0).timeout
+	var player := get_tree().get_first_node_in_group(&"local_player") as Player
+	var satellite := get_tree().get_first_node_in_group(&"satellite") as Satellite
+	if player == null or satellite == null or dir == "":
+		print("Tour: needs --satellite and a folder.")
+		get_tree().quit()
+		return
+	var layout := satellite.layout
+	for index in layout.rooms.size():
+		var room: Dictionary = layout.rooms[index]
+		var middle := Vector3.ZERO
+		for cell: Vector3i in room.cells:
+			if cell.y == room.cells[0].y:
+				middle += RoomLayout.centre_of(cell)
+		middle /= room.cells.filter(func(cell: Vector3i) -> bool: return cell.y == room.cells[0].y).size()
+		for way in 4:
+			var along := Basis(Vector3.UP, way * PI / 2) * Vector3(1, 0, 0)
+			var spot := satellite.global_transform * (middle - along * 1.2 + Vector3.UP * 0.2)
+			player.teleport(spot)
+			player.velocity = Vector3.ZERO
+			_aim(player, satellite.global_transform * (middle + along * 3.0 + Vector3.UP * 1.0))
+			for i in 8:
+				await get_tree().process_frame
+			await _shot(dir, "%02d_%s_%d" % [index, room.type, way])
+	print("Tour: %d rooms." % layout.rooms.size())
+	get_tree().quit()
+
+
+## Turns `player` to look at `at`.
+func _aim(player: Player, at: Vector3) -> void:
+	var look := at - player.camera.global_position
+	player.look = Vector2(atan2(-look.x, -look.z), asin(clampf(look.normalized().y, -0.99, 0.99)))
+
+
+## Holds `action` for `seconds`.
+func _hold(action: StringName, seconds: float) -> void:
+	_press(action, true)
+	await get_tree().create_timer(seconds).timeout
+	_press(action, false)
+
+
+## Waits until `done`, or `seconds`; whether it was done.
+func _wait(done: Callable, seconds: float) -> bool:
+	var deadline := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while not done.call():
+		if Time.get_ticks_msec() > deadline:
+			return false
+		await get_tree().process_frame
+	return true
+
+
+## A screenshot `<dir>/<name>.png`, if shots are wanted.
+func _shot(dir: String, name: String) -> void:
+	if dir == "":
+		return
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png("%s/%s.png" % [dir, name])
 
 
 func _interact(seconds: float) -> void:

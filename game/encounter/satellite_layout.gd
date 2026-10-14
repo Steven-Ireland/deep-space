@@ -115,7 +115,9 @@ func _mount() -> void:
 				best = cell
 				found = true
 		var face := centre_of(best) + Vector3(0, WING_HEIGHT, side * (Deck.CELL / 2 + HULL_OUT))
-		exterior.append({"model": "satellite/sh_solar_wing", "at": Transform3D(Basis(Vector3.UP, 0.0 if side > 0 else PI), face)})
+		# Out north or south; the north one rolled over too, so both show their cells to the west.
+		var turn := Basis() if side > 0 else Basis(Vector3.UP, PI) * Basis(Vector3.BACK, PI)
+		exterior.append({"model": "satellite/sh_solar_wing", "at": Transform3D(turn, face)})
 	var top: int = levels().back()
 	var roof := room_of.keys().filter(func(cell: Vector3i) -> bool: return cell.y == top)
 	roof.sort_custom(func(a: Vector3i, b: Vector3i) -> bool: return a.x > b.x or (a.x == b.x and a.z < b.z))

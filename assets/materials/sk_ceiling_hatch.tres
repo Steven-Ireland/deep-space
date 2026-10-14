@@ -1,0 +1,14 @@
+[gd_resource type="ShaderMaterial" format=3]
+
+[ext_resource type="Shader" path="res://game/rendering/psx_lit.gdshader" id="shader"]
+[ext_resource type="Texture2D" path="res://assets/textures/sk_ceiling_hatch_albedo.png" id="albedo"]
+[ext_resource type="Texture2D" path="res://assets/textures/sk_ceiling_hatch_glow.png" id="glow"]
+
+[resource]
+resource_name = "sk_ceiling_hatch"
+shader = ExtResource("shader")
+shader_parameter/albedo_texture = ExtResource("albedo")
+shader_parameter/emission_texture = ExtResource("glow")
+shader_parameter/roughness = 0.85
+shader_parameter/metallic = 0.0
+shader_parameter/specular = 0.3

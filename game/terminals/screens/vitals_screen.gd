@@ -45,7 +45,8 @@ func _draw_screen() -> void:
 	text(0.5, 8.2, _where(player), AMBER)
 
 
-## Where a crew member is: a room aboard, a derelict, or outside in space; or LOST, left behind.
+## Where a crew member is: a room aboard, a derelict, a satellite, or outside in space (on EVA); or
+## LOST, left behind.
 func _where(player: Player) -> String:
 	if player.cause == &"lost":
 		return "LOST"
@@ -55,4 +56,4 @@ func _where(player: Player) -> String:
 	var deck := zone.get_parent()
 	if deck.is_in_group(&"lantern"):
 		return deck.room_at(player.global_position)
-	return "DERELICT"
+	return "SATELLITE" if deck.get_parent() is Satellite else "DERELICT"

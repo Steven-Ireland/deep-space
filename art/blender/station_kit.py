@@ -6,7 +6,10 @@ Visual language, cassette futurism: cream wall panels set proud of a dark backin
 read in 3D, a dark steel kick plate, a steel grab rail at hip height, a safety-orange trim band,
 and the classic sloped chamfer where wall meets ceiling, with vent grilles. Decks are diamond
 plate with bolted seams; ceilings carry recessed warm light fixtures. Derelicts re-bake the same
-pieces with decayed recipes (later).
+pieces with decayed recipes (dk_*), and a working relay satellite with clean ones in its own livery
+(sk_*): cool white panels, relay-blue trim, yellow-and-black hazard marks, cold white light. A
+satellite's levels join through hatchways: a floor with a round opening and a ceiling with one,
+its short trunk rising to the next level's floor (sk_floor_hatch, sk_ceiling_hatch).
 """
 
 import math
@@ -27,14 +30,21 @@ DOOR_W = 2.2
 DOOR_H = 2.45
 
 
-# The kit's two looks: the LANTERN's ("station") and a derelict's ("derelict"): the same geometry,
-# re-baked with decayed recipes (discoloured paint eaten by rust, heavy grime and streaks, dead lamps).
+# The kit's three looks: the LANTERN's ("station"), a derelict's ("derelict"): the same geometry,
+# re-baked with decayed recipes (discoloured paint eaten by rust, heavy grime and streaks, dead lamps),
+# and a working relay's ("relay"): clean, cool and blue.
 STYLE = {"name": "station"}
+# The stencil on a wall's first panel, by look.
+WALL_MARK = {"station": "LTN", "derelict": "LTN", "relay": "RLY"}
+# Each look's kit prefix.
+PREFIX = {"station": "lk", "derelict": "dk", "relay": "sk"}
 
 
 def _materials():
     if STYLE["name"] == "derelict":
         return _derelict_materials()
+    if STYLE["name"] == "relay":
+        return _relay_materials()
     return dict(
         panel=mats.paint("lk_panel", (0.78, 0.74, 0.64), wear=0.2, grime=0.3, streaks=0.15,
                          under=(0.55, 0.55, 0.52), detail_strength=0.25),
@@ -62,7 +72,32 @@ def _derelict_materials():
     )
 
 
+def _relay_materials():
+    return dict(
+        panel=mats.paint("sk_panel", (0.8, 0.82, 0.83), wear=0.08, grime=0.12, under=(0.6, 0.62, 0.64),
+                         detail="PaintedMetal013", detail_strength=0.18),
+        backing=mats.paint("sk_backing", (0.13, 0.15, 0.18), wear=0.0, grime=0.1),
+        kick=mats.metal("sk_kick", (0.42, 0.44, 0.47), grime=0.25, detail="DiamondPlate008A"),
+        trim=mats.paint("sk_trim", (0.16, 0.42, 0.68), wear=0.1, grime=0.1),
+        chamfer=mats.paint("sk_chamfer", (0.66, 0.68, 0.7), wear=0.06, grime=0.15),
+        vent=mats.metal("sk_vent", (0.1, 0.11, 0.13), grime=0.15),
+        steel=mats.metal("sk_steel", (0.66, 0.67, 0.68), grime=0.15),
+        frame=mats.paint("sk_frame", (0.24, 0.27, 0.31), wear=0.12, grime=0.15),
+    )
+
+
 def _decal_materials():
+    if STYLE["name"] == "relay":
+        return dict(
+            black=mats.decal("sk_d_black", (0.06, 0.06, 0.07)),
+            orange=mats.decal("sk_d_yellow", (0.9, 0.72, 0.12)),
+            cream=mats.decal("sk_d_white", (0.9, 0.91, 0.9)),
+            dark=mats.decal("sk_d_dark", (0.14, 0.15, 0.17)),
+            bolt=mats.decal("sk_d_bolt", (0.6, 0.62, 0.64)),
+            green=mats.decal("sk_d_green", (0.4, 1.0, 0.6), glow=True),
+            red=mats.decal("sk_d_red", (1.0, 0.25, 0.15), glow=True),
+            blue=mats.decal("sk_d_blue", (0.16, 0.42, 0.68)),
+        )
     if STYLE["name"] == "derelict":
         return dict(
             black=mats.decal("dk_d_black", (0.05, 0.05, 0.05)),
@@ -170,7 +205,7 @@ def _wall_decals(d, k, x0, x1, side, markings=True):
     if centres:
         f = frame((centres[0] - pw * 0.25, face_y, 1.62), normal, lift=0.001)
         d.polygon([(-0.16, -0.06), (0.16, -0.06), (0.16, 0.06), (-0.16, 0.06)], k["dark"], f)
-        geo_text.append(geo.text("LTN", 0.07, k["orange"], matrix=frame((centres[0] - pw * 0.25, face_y, 1.62), normal, lift=0.002)))
+        geo_text.append(geo.text(WALL_MARK[STYLE["name"]], 0.07, k["orange"], matrix=frame((centres[0] - pw * 0.25, face_y, 1.62), normal, lift=0.002)))
     if len(centres) > 1:
         f = frame((centres[1] + pw * 0.28, face_y, 1.45), normal, lift=0.001)
         d.polygon([(-0.07, -0.05), (0.07, -0.05), (0.07, 0.05), (-0.07, 0.05)], k["black"], f)
@@ -456,14 +491,35 @@ def corner():
     return Model(low=low, decals=[d.to_object()], extras=[collider])
 
 
+def _deck():
+    """Each look's deck plate."""
+    if STYLE["name"] == "derelict":
+        return mats.metal("dk_deck", (0.22, 0.21, 0.2), grime=0.85, brushed=False, detail="Metal021")
+    if STYLE["name"] == "relay":
+        return mats.metal("sk_deck", (0.38, 0.4, 0.43), grime=0.2, brushed=False, detail="DiamondPlate008A")
+    return mats.metal("lk_deck", (0.3, 0.32, 0.34), grime=0.5, brushed=False, detail="DiamondPlate008A")
+
+
+def _ceiling_materials():
+    """Each look's ceiling tile and its light fixture's diffuser: warm sodium aboard the LANTERN,
+    dead in a derelict, cold white in a working relay."""
+    if STYLE["name"] == "derelict":
+        return (mats.paint("dk_ceiling", (0.34, 0.34, 0.32), wear=0.3, grime=0.7, streaks=0.5, rust=0.3),
+                mats.plain("dk_light_dead", (0.32, 0.31, 0.28), grime=0.6))
+    if STYLE["name"] == "relay":
+        return (mats.paint("sk_ceiling", (0.7, 0.72, 0.74), wear=0.05, grime=0.12),
+                mats.glowing("sk_light", (0.82, 0.93, 1.0), base=(0.76, 0.82, 0.88), flicker=0.05))
+    return (mats.paint("lk_ceiling", (0.56, 0.57, 0.55), wear=0.1, grime=0.35),
+            mats.glowing("lk_light", (1.0, 0.84, 0.6), base=(0.9, 0.85, 0.75), flicker=0.1))
+
+
 @asset("lk_floor", "station", texture=256, colors=32, ao=0.4)
 def floor():
     """LANTERN deck plate, 4 x 4 m: diamond-plate panels on a 1 m grid with dark seams and corner
     bolts, a darker drainage strip around the edge where it meets the walls."""
     k = _materials()
     dm = _decal_materials()
-    deck = (mats.metal("dk_deck", (0.22, 0.21, 0.2), grime=0.85, brushed=False, detail="Metal021")
-            if STYLE["name"] == "derelict" else mats.metal("lk_deck", (0.3, 0.32, 0.34), grime=0.5, brushed=False, detail="DiamondPlate008A"))
+    deck = _deck()
     m = Mesh("lk_floor")
     m.box((WIDTH, WIDTH, 0.1), deck, at=(0, 0, -0.05))
     m.subdivide(1.0)
@@ -494,10 +550,7 @@ def ceiling():
     a warm fluorescent panel behind a steel grille (Godot adds the light itself)."""
     k = _materials()
     dm = _decal_materials()
-    tile = (mats.paint("dk_ceiling", (0.34, 0.34, 0.32), wear=0.3, grime=0.7, streaks=0.5, rust=0.3)
-            if STYLE["name"] == "derelict" else mats.paint("lk_ceiling", (0.56, 0.57, 0.55), wear=0.1, grime=0.35))
-    light = (mats.plain("dk_light_dead", (0.32, 0.31, 0.28), grime=0.6) if STYLE["name"] == "derelict"
-             else mats.glowing("lk_light", (1.0, 0.84, 0.6), base=(0.9, 0.85, 0.75), flicker=0.1))
+    tile, light = _ceiling_materials()
     m = Mesh("lk_ceiling")
     faces = m.box((WIDTH, WIDTH, 0.1), tile, at=(0, 0, HEIGHT + 0.05))
     bottom = m.faces(among=faces, normal=(0, 0, -1), min_dot=0.99)
@@ -547,10 +600,13 @@ def wall_hatch():
             _wall_side(m, k, x0, x1, side, rail=False)
         m.box((WIDTH, 0.035, 0.07), k["trim"], at=(0, side * (HALF + 0.0175), CHAMFER_START - 0.035), bevel=0.006)
         _chamfer(m, k, -WIDTH / 2, WIDTH / 2, side)
+    # The ring round the hatch, its faces looking the way they're seen from (a lathe's faces look out
+    # from its axis along a profile run upward): its outside, its bore in toward the opening (its
+    # profile run down), and its ends out of the wall on either side.
     m.lathe([(r + 0.3, -0.22), (r + 0.3, 0.22)], k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
-    m.lathe([(r, -0.22), (r, 0.22)], k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
+    m.lathe([(r, 0.22), (r, -0.22)], k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
     for side in (-1, 1):
-        m.lathe([(r, side * 0.22), (r + 0.3, side * 0.22)] if side > 0 else [(r + 0.3, side * 0.22), (r, side * 0.22)],
+        m.lathe([(r + 0.3, side * 0.22), (r, side * 0.22)] if side > 0 else [(r, side * 0.22), (r + 0.3, side * 0.22)],
                 k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0), cap_start=False, cap_end=False)
         # Locking dogs around the ring.
         for i in range(8):
@@ -564,7 +620,7 @@ def wall_hatch():
     # side's piece reaches out along its corners' rays; the four that span a corner take it in).
     _ring_flange(m, k["frame"], r + 0.3, 1.1, cz, HALF)
     # The hatch itself: baked with the wall, split off after (hatch_door) so it can swing open.
-    m.cylinder(r - 0.01, 0.16, k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0))
+    m.cylinder(r - 0.03, 0.16, k["frame"], sides=16, at=(0, 0, cz), rot=(90, 0, 0))
     for side in (-1, 1):
         m.cylinder(r * 0.6, 0.02, k["panel"], sides=16, at=(0, side * 0.09, cz), rot=(90, 0, 0))
         m.cylinder(0.14, 0.06, k["steel"], sides=8, at=(0, side * 0.11, cz), rot=(90, 0, 0))
@@ -596,13 +652,174 @@ def wall_hatch():
                  _collider("lk_wall_hatch_col_r", (WIDTH / 2 - 1.1, THICK, HEIGHT), ((WIDTH / 2 + 1.1) / 2, 0, HEIGHT / 2)),
                  _collider("lk_wall_hatch_col_t", (2.2, THICK, HEIGHT - cz - 1.1), (0, 0, (HEIGHT + cz + 1.1) / 2))]
     def split(model):
+        # The door stands 3 cm inside the ring's bore, so the bore's faces stay in the wall.
         def in_hatch(c):
-            return math.hypot(c.x, c.z - cz) < r - 0.005 and abs(c.y) < 0.17
+            return math.hypot(c.x, c.z - cz) < r - 0.025 and abs(c.y) < 0.17
         wall, hatch = geo.split_object(model.low, {"lk_wall_hatch": lambda c: not in_hatch(c), "hatch_door": in_hatch})
         model.low = wall
         model.extras.append(hatch)
 
     return Model(low=low, decals=decals, extras=colliders + [lamp_obj], after_bake=split)
+
+
+# Hatchways: the way between one level and the next, through a round opening in the floor above and
+# the ceiling below, a short trunk between them (RoomLayout.PITCH: 4 m from deck to deck, so the
+# trunk runs from the ceiling's top, 3.1, to the next floor's underside, 3.9).
+HATCHWAY_R = 0.8
+LEVEL = 4.0
+
+
+def _holed_plate(m, material, radius, half, z, facing, sides=16):
+    """A flat square plate (±half) at height z, facing up (+1) or down (-1), with a round opening
+    of `radius` in its middle: a ring of `sides` sides, as Mesh.lathe turns them (half a side off
+    the axes), so a lathed rim meets it exactly."""
+    def ring(a):
+        return (math.cos(a) * radius, math.sin(a) * radius)
+
+    def square(a):
+        c, s = math.cos(a), math.sin(a)
+        reach = half / max(abs(c), abs(s))
+        return (c * reach, s * reach)
+
+    corners = [math.pi / 4 + i * math.pi / 2 for i in range(4)]
+    f = frame((0, 0, z), (0, 0, facing), up=(0, 1, 0), lift=0.0)
+    for i in range(sides):
+        a0 = math.pi / sides + i / sides * math.tau
+        a1 = a0 + math.tau / sides
+        pts = [ring(a0), square(a0)]
+        pts += [(math.copysign(half, math.cos(c)), math.copysign(half, math.sin(c))) for c in corners if a0 < c < a1]
+        pts += [square(a1), ring(a1)]
+        # The same winding either way up: the frame turns it to face `facing` (the outline's
+        # symmetric, so the frame's mirroring of a downward face changes nothing else).
+        m.polygon(pts, material, f)
+
+
+def _hazard_ring(d, dm, z, facing, r0, r1, count=20):
+    """Black and yellow (or orange) segments round a hatchway's opening, flat on a floor or ceiling."""
+    f = frame((0, 0, z), (0, 0, facing), up=(0, 1, 0), lift=0.001)
+    for i in range(count):
+        a0, a1 = i / count * math.tau, (i + 1) / count * math.tau
+        pts = [(math.cos(a0) * r0, math.sin(a0) * r0), (math.cos(a1) * r0, math.sin(a1) * r0),
+               (math.cos(a1) * r1, math.sin(a1) * r1), (math.cos(a0) * r1, math.sin(a0) * r1)]
+        d.polygon(pts, dm["black"] if i % 2 else dm["orange"], f)
+
+
+def _hole_colliders(name, z0, z1, hole):
+    """A slab's colliders round a square hole `hole` wide: four boxes, the cell's full width."""
+    t = z1 - z0
+    side = (WIDTH - hole) / 2
+    mid = (z0 + z1) / 2
+    return [_collider(f"{name}_n", (WIDTH, side, t), (0, -(hole + side) / 2, mid)),
+            _collider(f"{name}_s", (WIDTH, side, t), (0, (hole + side) / 2, mid)),
+            _collider(f"{name}_w", (side, hole, t), (-(hole + side) / 2, 0, mid)),
+            _collider(f"{name}_e", (side, hole, t), ((hole + side) / 2, 0, mid))]
+
+
+def floor_hatch():
+    """A deck plate, 4 x 4 m, with a hatchway down through its middle: a round 1.6 m opening in a
+    raised coaming ring, a hazard ring painted round it, four grab handles to haul through by, the
+    deck's seams and bolts round it. The level below's ceiling_hatch trunk meets its underside."""
+    k = _materials()
+    dm = _decal_materials()
+    deck = _deck()
+    name = PREFIX[STYLE["name"]] + "_floor_hatch"
+    m = Mesh(name)
+    d = Mesh(f"{name}_decals")
+    geo_text.clear()
+    r = HATCHWAY_R
+    _holed_plate(m, deck, r, WIDTH / 2, 0.0, 1)
+    _holed_plate(m, deck, r, WIDTH / 2, -0.1, -1)
+    m.lathe([(r, 0.0), (r, -0.1)], k["frame"], sides=16, cap_start=False, cap_end=False)
+    # The coaming: up from the deck outside, across, and down into the opening.
+    m.lathe([(r + 0.2, 0.0), (r + 0.18, 0.08), (r + 0.03, 0.08), (r, 0.0)], k["frame"], sides=16, cap_start=False, cap_end=False)
+    # Grab handles at the diagonals.
+    for i in range(4):
+        a = math.pi / 4 + i * math.pi / 2
+        c, s_ = math.cos(a), math.sin(a)
+        tx, ty = -s_ * 0.18, c * 0.18
+        bx, by = c * 1.32, s_ * 1.32
+        m.pipe([(bx - tx, by - ty, 0.0), (bx - tx, by - ty, 0.13), (bx + tx, by + ty, 0.13), (bx + tx, by + ty, 0.0)], 0.018, k["steel"], sides=6)
+    m.subdivide(1.0)
+    low = m.to_object()
+    up = Vector((0, 0, 1))
+    _hazard_ring(d, dm, 0.0, 1, r + 0.22, r + 0.4)
+    for i in range(5):
+        x = -WIDTH / 2 + i
+        for a, b in ((-2.0, -1.25), (1.25, 2.0)) if abs(x) < 1.25 else ((-2.0, 2.0),):
+            f = frame((x, 0, 0), up, up=(0, 1, 0), lift=0.001)
+            d.polygon([(-0.012, a), (0.012, a), (0.012, b), (-0.012, b)], dm["dark"], f)
+            f = frame((0, x, 0), up, up=(0, 1, 0), lift=0.001)
+            d.polygon([(a, -0.012), (b, -0.012), (b, 0.012), (a, 0.012)], dm["dark"], f)
+    for i in range(5):
+        for j in range(5):
+            for ox, oy in ((0.06, 0.06), (-0.06, 0.06), (0.06, -0.06), (-0.06, -0.06)):
+                x, y = -2 + i + ox, -2 + j + oy
+                if abs(x) < 2 and abs(y) < 2 and math.hypot(x, y) > 1.3:
+                    d.polygon([(-0.014, -0.014), (0.014, -0.014), (0.014, 0.014), (-0.014, 0.014)], dm["bolt"],
+                              frame((x, y, 0), up, up=(0, 1, 0), lift=0.0015))
+    geo_text.append(geo.text("DECK BELOW", 0.09, dm["cream"], matrix=frame((0, 1.62, 0), up, up=(0, -1, 0), lift=0.002)))
+    decals = [d.to_object()] + geo_text
+    geo_text.clear()
+    return Model(low=low, decals=decals, extras=_hole_colliders(f"{name}_col", -0.1, 0.0, 1.7))
+
+
+def ceiling_hatch():
+    """A ceiling panel, 4 x 4 m, with a hatchway up through its middle: a round 1.6 m opening with a
+    hazard ring painted round it, its trunk rising 0.8 m to the next level's floor, ribbed, with
+    two rungs to haul up by and a cold light band round it; the room's light fixtures stand either
+    side of the opening."""
+    k = _materials()
+    dm = _decal_materials()
+    tile, light = _ceiling_materials()
+    name = PREFIX[STYLE["name"]] + "_ceiling_hatch"
+    m = Mesh(name)
+    d = Mesh(f"{name}_decals")
+    geo_text.clear()
+    r = HATCHWAY_R
+    top = LEVEL - 0.1  # the next level's floor's underside
+    _holed_plate(m, tile, r, WIDTH / 2, HEIGHT, -1)
+    m.lathe([(r, HEIGHT + 0.1), (r, HEIGHT)], k["frame"], sides=16, cap_start=False, cap_end=False)
+    # The trunk, seen from inside: its wall, two ribs and the light band (each profile runs down,
+    # so its faces look in).
+    m.lathe([(r, top), (r, HEIGHT + 0.1)], k["panel"], sides=16, cap_start=False, cap_end=False)
+    for z in (HEIGHT + 0.22, top - 0.08):
+        m.lathe([(r, z + 0.04), (r - 0.035, z + 0.03), (r - 0.035, z - 0.03), (r, z - 0.04)], k["frame"], sides=16,
+                cap_start=False, cap_end=False)
+    mid = (HEIGHT + 0.1 + top) / 2
+    m.lathe([(r, mid + 0.06), (r - 0.02, mid + 0.05), (r - 0.02, mid - 0.05), (r, mid - 0.06)], light, sides=16,
+            cap_start=False, cap_end=False)
+    # Rungs on the east side, on stand-offs.
+    for z in (HEIGHT + 0.36, HEIGHT + 0.62):
+        m.pipe([(r - 0.01, -0.3, z), (r - 0.14, -0.3, z), (r - 0.14, 0.3, z), (r - 0.01, 0.3, z)], 0.016, k["steel"], sides=6)
+    # The fixtures either side: a frame and a cold diffuser, as the plain ceiling's.
+    for x in (-1.2, 1.2):
+        m.box((0.42, 2.1, 0.04), k["frame"], at=(x, 0, HEIGHT - 0.01), bevel=0.01)
+        m.box((0.3, 1.9, 0.09), light, at=(x, 0, HEIGHT - 0.075), bevel=0.01)
+    m.subdivide(1.0)
+    low = m.to_object()
+    down = Vector((0, 0, -1))
+    _hazard_ring(d, dm, HEIGHT, -1, r + 0.02, r + 0.17)
+    for x in (-2, 2):
+        f = frame((x, 0, HEIGHT), down, up=(0, 1, 0), lift=0.001)
+        d.polygon([(-0.012, -2), (0.012, -2), (0.012, 2), (-0.012, 2)], dm["dark"], f)
+    for y in (-2, 2):
+        f = frame((0, y, HEIGHT), down, up=(0, 1, 0), lift=0.001)
+        d.polygon([(-2, -0.012), (2, -0.012), (2, 0.012), (-2, 0.012)], dm["dark"], f)
+    for x in (-1.2, 1.2):
+        for i in range(7):
+            y = -0.9 + i * 0.3
+            f = frame((x, y, HEIGHT - 0.12), down, up=(0, 1, 0), lift=0.001)
+            d.polygon([(-0.15, -0.015), (0.15, -0.015), (0.15, 0.015), (-0.15, 0.015)], dm["dark"], f)
+    geo_text.append(geo.text("HATCHWAY", 0.08, dm["cream"], matrix=frame((0, -1.25, HEIGHT), down, up=(0, 1, 0), lift=0.002)))
+    decals = [d.to_object()] + geo_text
+    geo_text.clear()
+    trunk = r + 0.1
+    colliders = _hole_colliders(f"{name}_col", HEIGHT, HEIGHT + 0.1, 1.7) + [
+        _collider(f"{name}_trunk_n", (2 * trunk + 0.1, 0.1, top - HEIGHT - 0.1), (0, -trunk, (HEIGHT + 0.1 + top) / 2)),
+        _collider(f"{name}_trunk_s", (2 * trunk + 0.1, 0.1, top - HEIGHT - 0.1), (0, trunk, (HEIGHT + 0.1 + top) / 2)),
+        _collider(f"{name}_trunk_w", (0.1, 2 * trunk, top - HEIGHT - 0.1), (-trunk, 0, (HEIGHT + 0.1 + top) / 2)),
+        _collider(f"{name}_trunk_e", (0.1, 2 * trunk, top - HEIGHT - 0.1), (trunk, 0, (HEIGHT + 0.1 + top) / 2))]
+    return Model(low=low, decals=decals, extras=colliders)
 
 
 # Derelict variants: every kit piece re-baked in the derelict style, as dk_* in assets/models/derelict.
@@ -621,3 +838,22 @@ import lib as _lib  # noqa: E402
 for _name in ("lk_wall", "lk_wall_door", "lk_door", "lk_wall_window", "lk_corner", "lk_floor", "lk_ceiling", "lk_wall_hatch"):
     _spec = _lib.ASSETS[_name]
     asset("dk" + _name[2:], "derelict", texture=_spec.texture, colors=_spec.colors, ao=_spec.ao, angles=_spec.angles)(_derelict(_spec.build))
+
+
+# The relay satellite's kit (GDD §8.1): every piece re-baked clean in the relay's livery, as sk_* in
+# assets/models/satellite, and its hatchways.
+def _styled(build, look):
+    def variant():
+        STYLE["name"] = look
+        try:
+            return build()
+        finally:
+            STYLE["name"] = "station"
+    return variant
+
+
+for _name in ("lk_wall", "lk_wall_door", "lk_door", "lk_wall_window", "lk_corner", "lk_floor", "lk_ceiling", "lk_wall_hatch"):
+    _spec = _lib.ASSETS[_name]
+    asset("sk" + _name[2:], "satellite", texture=_spec.texture, colors=_spec.colors, ao=_spec.ao, angles=_spec.angles)(_styled(_spec.build, "relay"))
+asset("sk_floor_hatch", "satellite", texture=256, colors=32, ao=0.45, angles=((-35, 40), (145, 45), (0, 75), (60, 20)))(_styled(floor_hatch, "relay"))
+asset("sk_ceiling_hatch", "satellite", texture=256, colors=32, ao=0.5, angles=((-35, -25), (145, -30), (0, -75), (60, -12)))(_styled(ceiling_hatch, "relay"))

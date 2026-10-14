@@ -167,6 +167,69 @@ def suit():
     return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, lens_obj, grip, lamp, carry])
 
 
+def harness_materials():
+    return dict(
+        frame=mats.metal("ch_harness_frame", (0.22, 0.23, 0.25), grime=0.3),
+        bottle=mats.paint("ch_harness_bottle", (0.86, 0.42, 0.1), wear=0.35, grime=0.35),
+        steel=mats.metal("ch_harness_steel", (0.6, 0.6, 0.58), grime=0.25),
+        webbing=mats.plain("ch_harness_webbing", (0.82, 0.66, 0.14), grime=0.35, detail_strength=0.3),
+        dark=mats.plain("ch_harness_dark", (0.13, 0.13, 0.14), grime=0.2),
+    )
+
+
+# The harness's four thruster blocks, at the corners of its pack (suit space): where their jets puff.
+HARNESS_JETS = ((-0.27, 0.41, 1.57), (0.27, 0.41, 1.57), (-0.27, 0.41, 1.03), (0.27, 0.41, 1.03))
+
+
+def harness_pack(m, k):
+    """The EVA harness's pack, in the suit's space (it rides the life support pack's back): a dark
+    frame, two orange propellant bottles and their manifold, and four thruster blocks at its
+    corners, each with three little nozzles (out to the side, back, and up or down)."""
+    m.box((0.5, 0.04, 0.58), k["frame"], at=(0, 0.375, 1.3))
+    for x in (-0.23, 0.23):
+        m.box((0.04, 0.06, 0.6), k["frame"], at=(x, 0.39, 1.3))
+    for x in (-0.13, 0.13):
+        m.lathe([(0.0, -0.2), (0.05, -0.17), (0.055, 0.15), (0.03, 0.2)], k["bottle"], sides=6, at=(x, 0.45, 1.3))
+    m.pipe([(-0.13, 0.45, 1.53), (-0.13, 0.45, 1.56), (0.13, 0.45, 1.56), (0.13, 0.45, 1.53)], 0.012, k["steel"], sides=4, caps=False)
+    for x, y, z in HARNESS_JETS:
+        m.box((0.08, 0.08, 0.08), k["dark"], at=(x, y, z))
+        side = 1 if x > 0 else -1
+        up = 1 if z > 1.3 else -1
+        for rot, at in (((0, side * 90, 0), (x + side * 0.04, y, z)), ((-90, 0, 0), (x, y + 0.04, z)), (((0 if up > 0 else 180), 0, 0), (x, y, z + up * 0.04))):
+            m.lathe([(0.012, 0.0), (0.024, 0.035)], k["steel"], sides=4, at=at, rot=rot, cap_start=False, cap_end=False)
+
+
+@asset("ch_harness", "characters", texture=128, colors=24, ao=0.5)
+def harness():
+    """The EVA thruster harness (GDD §8.1), worn over the suit: a small cold-gas pack strapped over
+    the life support pack (harness_pack), yellow webbing over the shoulders and down the front, a
+    chest strap and its buckle, side straps to the belt, and the hand controller clipped to the
+    belt's front. Rigged to the suit's own bones (the pack and straps ride the chest, the belt's
+    parts the hips), so Godot binds it to a suit's skeleton when its wearer puts it on;
+    SOCKET_jet_0..3 at its thruster blocks, where the jets puff."""
+    k = harness_materials()
+    m = Mesh("ch_harness")
+    d = Mesh("ch_harness_decals")
+    dk = br._decals()
+    m.bone("chest")
+    harness_pack(m, k)
+    for x in (-0.13, 0.13):
+        m.pipe([(x, 0.36, 1.55), (x, 0.13, 1.61), (x, -0.1, 1.565), (x, -0.165, 1.45), (x, -0.165, 1.24)], 0.018, k["webbing"], sides=4)
+    m.pipe([(-0.13, -0.168, 1.27), (0.13, -0.168, 1.27)], 0.014, k["webbing"], sides=4)
+    m.box((0.05, 0.025, 0.045), k["steel"], at=(0, -0.18, 1.27), bevel=0.006)
+    m.bone("hips")
+    for x in (-0.205, 0.205):
+        m.pipe([(x, 0.34, 1.12), (x, 0.15, 1.08), (x, -0.06, 1.075)], 0.016, k["webbing"], sides=4)
+    m.box((0.08, 0.05, 0.055), k["dark"], at=(-0.15, -0.175, 1.02), bevel=0.008)
+    m.pipe([(-0.15, -0.2, 1.045), (-0.15, -0.215, 1.08)], 0.009, k["bottle"], sides=4)
+    low = m.to_object()
+    d.polygon([(-0.025, -0.006), (0.025, -0.006), (0.025, 0.006), (-0.025, 0.006)], dk["amber_lit"], frame((-0.15, -0.2005, 1.03), (0, -1, 0)))
+    skeleton = rig.armature("harness_rig", SUIT_BONES)
+    rig.bind(low, skeleton)
+    jets = [_bone_socket(skeleton, f"SOCKET_jet_{i}", "chest", at) for i, at in enumerate(HARNESS_JETS)]
+    return Model(low=low, decals=[d.to_object()], extras=[skeleton] + jets)
+
+
 # The front of the helmet lamp's barrel, on the left of the helmet (the suit faces -Y, its left +X):
 # 0.2 m out from the middle of the head, 0.1 m above the eye. game/player/player.gd keeps it.
 LAMP = (0.2, -0.117, 1.72)
@@ -503,6 +566,19 @@ def _suit_clips(skeleton, cuff, holds):
                 "upper_arm.L": (40 * e, 0, 30 * e), "upper_arm.R": (50 * e, 0, -25 * e),
                 "root": (85 * fall, 0, 0), "root_location": (0, 0.25 * e, -0.55 * fall)}
 
+    def drift(t):
+        # Weightless (GDD §9.1): the body's neutral float, legs drawn up a little and apart, knees
+        # bent, arms out from the sides and forward, ready to catch hold; the spine curled a touch
+        # and the head up against it. A slow sway, breathing.
+        b = rig.wave(t)
+        sway = rig.wave(t, 1, 0.3)
+        return {"hips": (0, 0, 0), "spine": (10 + 1.5 * b, 0, 0), "chest": (6 + 1.5 * b, 0, 0), "head": (-16 - b, 2 * sway, 0),
+                "thigh.L": (-46 + 3 * sway, 0, -9), "thigh.R": (-40 - 3 * sway, 0, 9),
+                "shin.L": (56 + 4 * sway, 0, 0), "shin.R": (48 - 4 * sway, 0, 0),
+                "foot.L": (-16, 0, 0), "foot.R": (-14, 0, 0),
+                "upper_arm.L": (-38 + 3 * b, 0, -30), "upper_arm.R": (-34 - 3 * b, 0, 28),
+                "forearm.L": (-62, 0, 0), "forearm.R": (-56, 0, 0), "hand.L": (-10, 0, 0), "hand.R": (-10, 0, 0)}
+
     def held(base):
         def pose(t):
             b = rig.wave(t)
@@ -521,6 +597,7 @@ def _suit_clips(skeleton, cuff, holds):
     rig.clip(skeleton, "hold_carry", 2.0, held(holds["carry"]), smooth=True)
     rig.clip(skeleton, "swing", 0.6, _swing(holds["tool"], SUIT_SWING), loop=False, smooth=True)
     rig.clip(skeleton, "death", 1.4, death, loop=False)
+    rig.clip(skeleton, "float", 4.0, drift, smooth=True)
 
 
 ARM_BONES = [("root", (0, 0, 0), (0, -0.1, 0), None)]

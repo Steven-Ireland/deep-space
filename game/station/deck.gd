@@ -8,6 +8,11 @@ extends Node3D
 ## Layout rows run fore (top, -Z) to aft; columns port (left, -X) to starboard. Each character is
 ## a room ('.' is outside). Cell (col, row) of the layout sits at (col - origin.x, row - origin.y)
 ## on the grid, so `origin` is the layout cell placed at the world origin.
+##
+## A structure on several levels (a satellite) is a Deck per level, stacked RoomLayout.PITCH apart:
+## each is told which of its cells have a hatchway up through the ceiling (`hatch_up`: the ceiling's
+## hatchway and its trunk, and the trunk's zone) or down through the floor (`hatch_down`), and which
+## have a level over or under them (`roofed`, `floored`: no roof or belly plating there).
 
 const CELL := 4.0
 const SIDES := {"N": Vector2i(0, -1), "E": Vector2i(1, 0), "S": Vector2i(0, 1), "W": Vector2i(-1, 0)}
@@ -16,12 +21,14 @@ const OPPOSITE := {"N": "S", "E": "W", "S": "N", "W": "E"}
 ## Kit pieces by kind, for each look: the LANTERN's ("lk") and a derelict's ("dk", decayed). Kinds
 ## a look lacks fall back to the LANTERN's.
 const PIECES := {"wall": "wall", "door": "wall_door", "window": "wall_window", "viewport": "wall_viewport",
-		"hatch": "wall_hatch", "breach": "wall_breach", "corner": "corner", "floor": "floor", "ceiling": "ceiling"}
-const KIT_FOLDERS := {"lk": "station", "dk": "derelict"}
+		"hatch": "wall_hatch", "breach": "wall_breach", "corner": "corner", "floor": "floor", "ceiling": "ceiling",
+		"floor_hatch": "floor_hatch", "ceiling_hatch": "ceiling_hatch"}
+const KIT_FOLDERS := {"lk": "station", "dk": "derelict", "sk": "satellite"}
 
-## Hull plating by kind, for each look: the LANTERN's, and a derelict's (art/blender/hull.py: dh_*,
-## two plain sides with different wounds, picked by where they stand). Kinds a look lacks fall back
-## to the LANTERN's.
+## Hull plating by kind, for each look: the LANTERN's, a derelict's (art/blender/hull.py: dh_*,
+## two plain sides with different wounds, picked by where they stand) and a relay satellite's
+## (art/blender/satellite.py: sh_*, a level's band, so stacked levels close up). Kinds a look lacks
+## fall back to the LANTERN's.
 const HULLS := {
 	"lk": {
 		"wall": [preload("res://assets/models/hull/hl_side.glb")],
@@ -40,6 +47,14 @@ const HULLS := {
 		"roof": [preload("res://assets/models/hull/dh_roof.glb")],
 		"belly": [preload("res://assets/models/hull/dh_belly.glb")],
 	},
+	"sk": {
+		"wall": [preload("res://assets/models/satellite/sh_side.glb")],
+		"window": [preload("res://assets/models/satellite/sh_side_window.glb")],
+		"hatch": [preload("res://assets/models/satellite/sh_side_hatch.glb")],
+		"corner": [preload("res://assets/models/satellite/sh_corner.glb")],
+		"roof": [preload("res://assets/models/satellite/sh_roof.glb")],
+		"belly": [preload("res://assets/models/satellite/sh_belly.glb")],
+	},
 }
 const DOOR := preload("res://game/station/door.tscn")
 ## Render layer for interiors: the star's light skips it (StarSystem), so it can't leak through
@@ -53,7 +68,7 @@ const HULL_LAYER := 4
 @export var light_energy := 1.35
 @export var light_range := 7.0
 
-## Which look the deck is built in: "lk" (the LANTERN) or "dk" (a derelict).
+## Which look the deck is built in: "lk" (the LANTERN), "dk" (a derelict) or "sk" (a satellite).
 @export var kit := "lk"
 ## Whether each cell's ceiling fixture is lit (derelicts are dark).
 @export var lit := true
@@ -62,8 +77,22 @@ const HULL_LAYER := 4
 @export var hull := true
 ## Rooms open to space (layout characters): their zones hold no air (GDD §9.2).
 @export var vacuum := ""
+## How heavy things are in its zones, in g (GDD §9.1): the LANTERN's plating and a derelict's give
+## 1; a working relay is weightless.
+@export var weight := 1.0
+## On a structure of several levels: the grid cells with a hatchway up through their ceiling or down
+## through their floor, and those with a level over or under them.
+var hatch_up: Array[Vector2i] = []
+var hatch_down: Array[Vector2i] = []
+var roofed := {}
+var floored := {}
 ## How high a room's air goes, for its zone.
 const ROOM_HEIGHT := 3.0
+## A hatchway's trunk: from a room's ceiling to the next level's floor, and how wide its zone is;
+## the room's light stands this far east of the opening (art/blender/station_kit.py: ceiling_hatch).
+const TRUNK := 1.0
+const TRUNK_WIDTH := 1.8
+const HATCHWAY_LIGHT := 1.2
 
 ## Room character at each grid cell.
 var cells := {}
@@ -90,14 +119,22 @@ func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark
 	var edges := _edges(openings, origin)
 	for cell: Vector2i in cells:
 		var at := _centre(cell)
-		_place("floor", at, 0.0)
-		ceilings.append(_place("ceiling", at, 0.0))
+		var up := hatch_up.has(cell)
+		_place("floor_hatch" if hatch_down.has(cell) else "floor", at, 0.0)
+		ceilings.append(_place("ceiling_hatch" if up else "ceiling", at, 0.0))
 		if lit and not dark.contains(cells[cell]):
-			_light(at)
-		var zone := Zone.make(at + Vector3.UP * ROOM_HEIGHT / 2, Vector3(CELL, ROOM_HEIGHT, CELL), not vacuum.contains(cells[cell]))
+			# Under a hatchway, the light's beside it, where its fixtures are.
+			_light(at + (Vector3(HATCHWAY_LIGHT, 0, 0) if up else Vector3.ZERO))
+		var zone := Zone.make(at + Vector3.UP * ROOM_HEIGHT / 2, Vector3(CELL, ROOM_HEIGHT, CELL), not vacuum.contains(cells[cell]), weight)
 		zone.name = "Zone_%d_%d" % [cell.x, cell.y]
 		add_child(zone)
 		zones[cell] = zone
+		if up:
+			# The trunk up to the next level's floor: its own air (and weight) too.
+			var trunk := Zone.make(at + Vector3.UP * (ROOM_HEIGHT + TRUNK / 2), Vector3(TRUNK_WIDTH, TRUNK, TRUNK_WIDTH),
+					not vacuum.contains(cells[cell]), weight)
+			trunk.name = "Trunk_%d_%d" % [cell.x, cell.y]
+			add_child(trunk)
 	var wall_ends := {}
 	for key: String in edges:
 		var edge: Dictionary = edges[key]
@@ -262,8 +299,10 @@ func _build_hull(edges: Dictionary) -> void:
 			var out: Vector2i = outer[vertex]
 			_place_hull("corner", Vector3(vertex.x * CELL - CELL / 2 + out.x * 0.2, 0, vertex.y * CELL - CELL / 2 + out.y * 0.2), 0.0)
 	for cell: Vector2i in cells:
-		_place_hull("roof", centre_of(cell), 0.0)
-		_place_hull("belly", centre_of(cell), 0.0)
+		if not roofed.has(cell):
+			_place_hull("roof", centre_of(cell), 0.0)
+		if not floored.has(cell):
+			_place_hull("belly", centre_of(cell), 0.0)
 
 
 func _place_hull(kind: String, at: Vector3, yaw: float) -> Node3D:
