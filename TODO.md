@@ -12,19 +12,8 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   (vertex snap with true depth, 270-line pixelation, 15-bit dither), the Blender build harness.
 - **Crew, enough to walk the station together (part of M1):** the networked first-person controller
   (owner-authoritative), gaits blended in step with legs that turn toward travel, the belt (four
-  slots, `1–4`/wheel), the helmet lamp (`F`), held items mirrored to everyone, the wrist cuff
-  (`Tab`), the visor HUD (a floating prompt, the belt), terminals you step up to.
-- **Loose items (M1, 2026-10-14):** `E` takes a thing into the belt, `Q` sets it down, held `Q`
-  throws it; the host owns what's loose, and everyone sees it land. The stores, the docking port and
-  the sample derelict are stocked.
-- **Two-handed carries:** the fuel cell, held in both hands with solved poses; slow, no sprint, no
-  belt or cuff until it's set down. One waits in the docking port, one in the derelict's Prize
-  room.
-- **Suit O2:** per-room zones with or without air (the sample derelict's breached rooms have
-  none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
-  board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
-- **Use (`LMB`):** tools swing (everyone sees it, and it knocks loose things about), an O2
-  canister tops up the suit, a flare is struck and burns red for 60 s in the hand or thrown.
+  slots, `1–4`/wheel), held items mirrored to everyone, the wrist cuff (`Tab`), the visor HUD (a
+  floating prompt, the belt), terminals you step up to.
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
   star systems with sky, star and planets, the lighting pass (SSIL/SSR, Godot's default shadows).
@@ -40,8 +29,24 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   - first-person tools (crowbar, shock prod, flare) have their own solved hold: a hammer grip,
     diagonal across the view and clear of the crosshair; no hold bends a wrist back
 
-The **gameplay loop doesn't exist yet**: no pickups, O2, jumps, docking, creature behaviour or
-death. The consoles and cuff show placeholder numbers.
+The **gameplay loop's crew half (most of M1, 2026-10-14)**:
+
+- **Helmet lamp (GDD A8, decided):** on the left of every helmet from the start, `F` toggles it,
+  its offset shadows visible; teammates see its beam and glare. The handheld flashlight is gone.
+- **Loose items:** `E` takes a thing into the belt (loot as well as gear), `Q` sets it down, held
+  `Q` throws it; the host owns what's loose, and everyone sees it land. The stores, the docking
+  port and the sample derelict are stocked.
+- **Two-handed carries:** the fuel cell, held in both hands with solved poses; slow, no sprint, no
+  belt or cuff until it's set down. One waits in the docking port, one in the derelict's Prize
+  room.
+- **Suit O2:** per-room zones with or without air (the sample derelict's breached rooms have
+  none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
+  board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
+- **Use (`LMB`):** tools swing (everyone sees it, and it knocks loose things about), an O2
+  canister tops up the suit, a flare is struck and burns red for 60 s in the hand or thrown.
+
+Still to come: jumps, docking, creature behaviour, death. The nav, scan, survey and power screens
+show placeholder numbers.
 
 ## Next: the gameplay loop (proposed order)
 
@@ -88,6 +93,13 @@ death. The consoles and cuff show placeholder numbers.
 
 - **A9 (GDD §17): where the starting kit starts.** On the belt (as now: crowbar, shock prod and
   flare, one slot free), or racked in the Suit Room so each crew member chooses what to take?
+- **To judge in play (2026-10-14):**
+  - A teammate's lamp glares whenever they look at you, so talking face to face is blinding.
+    Realistic; it could be softened at close range.
+  - Carrying in first person shows only the top of the fuel cell across the bottom of the view;
+    the hands stay below the frame. Higher would show the hands but hide more of the view.
+  - Numbers: 6 minutes of O2, 3 a canister, 20 s to suffocate, 1.6 m/s carrying, throws of 3–9
+    m/s.
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
 - **The beam in the air:** teammates' beams show everywhere, faintly. GDD §14 says haze makes beams
   visible in derelicts. It could be made stronger there and fainter aboard the station.
