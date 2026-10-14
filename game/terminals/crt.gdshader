@@ -12,12 +12,17 @@ uniform float lines = 240.0;
 uniform vec3 glass : source_color = vec3(0.03, 0.045, 0.04);
 uniform float power : hint_range(0.0, 1.0) = 1.0;
 
+varying vec4 psx_xy;
+varying float psx_w;
 void vertex() {
 	vec4 clip = PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	POSITION = IN_SHADOW_PASS ? clip : psx_snap(clip, VIEWPORT_SIZE);
+	psx_xy = vec4(clip.xy, POSITION.xy);
+	psx_w = clip.w;
 }
 
 void fragment() {
+	DEPTH = IN_SHADOW_PASS ? FRAGCOORD.z : psx_true_depth(VERTEX, psx_xy, psx_w, PROJECTION_MATRIX);
 	vec3 c = texture(screen, UV).rgb;
 	float row = fract(UV.y * lines);
 	c *= 1.0 - scanlines * smoothstep(0.35, 0.5, abs(row - 0.5));

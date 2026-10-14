@@ -86,9 +86,6 @@ func generate(new_seed: int) -> void:
 	sun.light_color = star.colour
 	sun.light_energy = star.energy
 	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 80.0
-	sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
-	sun.shadow_blur = 0.0
 	sun.light_cull_mask = ~Deck.INTERIOR_LAYER # interiors are lit by their own practicals
 	add_child(sun)
 	sun.look_at_from_position(Vector3.ZERO, -sun_direction, Vector3.UP if absf(sun_direction.y) < 0.99 else Vector3.RIGHT)

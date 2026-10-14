@@ -402,15 +402,17 @@ def arms():
         m.box((0.019, 0.019, 0.017), k["dark"], at=g + Vector((-0.031, -0.03 + i * 0.021, 0.03)), rot=(0, -35, 0), bevel=0.004)
     m.box((0.024, 0.062, 0.022), k["dark"], at=g + Vector((0.021, -0.034, 0.036)), rot=(-6, 0, 18), bevel=0.006)
     m.box((0.06, 0.012, 0.05), k["dark"], at=g + Vector((-0.006, -0.042, -0.012)), bevel=0.006)  # the curled fingers' front
-    # The wrist cuff on the left forearm: a chunky box, a hinged visor lip over its little screen.
+    # The wrist cuff on the left forearm: a chunky box standing clear of the sleeve (whose edges
+    # would cut through its screen), a hinged visor lip over its little screen.
     m.bone("forearm.L")
-    m.box((0.09, 0.13, 0.045), k["hard"], at=(0.2, -0.27, -0.272), rot=(-17, 0, 10), bevel=0.01)
-    m.box((0.1, 0.02, 0.03), k["dark"], at=(0.2, -0.2, -0.26), rot=(-17, 0, 10), bevel=0.006)
+    cuff_rot = geo.place((0, 0, 0), (-17, 0, 10)).to_3x3()
+    cuff_centre = Vector((0.2, -0.27, -0.272)) + cuff_rot @ Vector((0, 0, 0.0075))
+    m.box((0.09, 0.13, 0.06), k["hard"], at=cuff_centre, rot=(-17, 0, 10), bevel=0.01)
+    m.box((0.1, 0.02, 0.03), k["dark"], at=Vector((0.2, -0.2, -0.26)) + cuff_rot @ Vector((0, 0, 0.015)), rot=(-17, 0, 10), bevel=0.006)
     low = m.to_object()
     # The screen lies on the cuff's top face, its top toward the wrist: lifted to the eye, the
     # forearm points away, so that reads upright.
-    cuff_rot = geo.place((0, 0, 0), (-17, 0, 10)).to_3x3()
-    cuff_top = Vector((0.2, -0.27, -0.272)) + cuff_rot @ Vector((0, 0, 0.0245))
+    cuff_top = cuff_centre + cuff_rot @ Vector((0, 0, 0.032))
     cuff_frame = frame(cuff_top, cuff_rot @ Vector((0, 0, 1)), up=cuff_rot @ Vector((0, -1, 0)), lift=0.0)
     screen = geo.screen("screen_cuff", 0.07, 0.085, cuff_frame, bulge=0.003, grid=(2, 2))
     screen.vertex_groups.new(name="forearm.L").add(list(range(len(screen.data.vertices))), 1.0, "REPLACE")

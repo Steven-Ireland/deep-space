@@ -21,12 +21,6 @@ const CROUCH_EYE_HEIGHT := 1.0
 const HEIGHT := 1.8
 const CROUCH_HEIGHT := 1.2
 const REACH := 2.2
-## The flashlight's bounce off whatever it's pointed at (GDD §14): a soft fill at the spot, so a
-## lit wall lights the room a little the way a real one does.
-const BOUNCE_ENERGY := 0.55
-## Render layer for crew bodies: walls shade a flashlight's bounce, so it can't light the next
-## room, but bodies don't; a bounce is broad, and a hard body-shaped shadow from it looks wrong.
-const CREW_LAYER := 1 << 4
 
 ## Emitted on the owner's machine when the belt or the held slot changes (the visor shows it).
 signal belt_changed
@@ -63,7 +57,6 @@ var _held_item: Node3D
 var _shown := &"-"
 var _lens: Node3D
 var _lens_material: ShaderMaterial
-var _bounce: OmniLight3D
 var _cuff_screen: MeshInstance3D
 var _stride := 0.0 # stride cycles walked, for the head bob
 var _bob := 0.0
@@ -84,16 +77,6 @@ func _ready() -> void:
 	view_model.visible = local
 	look.x = rotation.y
 	flashlight.top_level = true
-	_bounce = OmniLight3D.new()
-	_bounce.top_level = true
-	_bounce.light_color = flashlight.light_color
-	_bounce.shadow_enabled = true
-	_bounce.light_cull_mask = ~Deck.HULL_LAYER
-	_bounce.shadow_caster_mask = ~CREW_LAYER
-	for mesh: VisualInstance3D in body_visual.find_children("*", "VisualInstance3D", true, false):
-		mesh.layers = CREW_LAYER
-	_bounce.visible = false
-	add_child(_bounce)
 	if local:
 		add_to_group(&"local_player")
 		_equip_view_model()
@@ -397,9 +380,6 @@ func _show_held() -> void:
 		print("Crew %s (%s): holds %s" % [name, "own" if is_multiplayer_authority() else "remote", held])
 	var rig := view_model if is_multiplayer_authority() else body_visual
 	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D)
-	if _held_item != null:
-		for mesh: VisualInstance3D in _held_item.find_children("*", "VisualInstance3D", true, false):
-			mesh.layers = CREW_LAYER
 	_lens = null
 	_lens_material = null
 	if _held_item != null:
@@ -412,11 +392,10 @@ func _show_held() -> void:
 
 ## The flashlight shines from the torch's lens, where the torch points; the owner's from the torch
 ## in their fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks.
-## Never through a wall the lens has been pushed into. Its bounce fills in around the spot.
+## Never through a wall the lens has been pushed into.
 func _place_flashlight() -> void:
 	var on := flashlight_on and held == &"flashlight" and _lens != null
 	flashlight.visible = on
-	_bounce.visible = on and not Args.flag("--no-gi")
 	if _lens_material != null:
 		_lens_material.set_shader_parameter("energy", 2.0 if on else 0.15)
 	if _held_item != null and not is_multiplayer_authority() and held == &"flashlight":
@@ -432,16 +411,6 @@ func _place_flashlight() -> void:
 	if not blocked.is_empty():
 		lens = blocked.position + (eye - lens).normalized() * 0.06
 	flashlight.global_transform = Transform3D(Basis.looking_at(forward, _held_item.global_basis.y), lens)
-	query = PhysicsRayQueryParameters3D.create(lens, lens + forward * flashlight.spot_range, 1, [get_rid()])
-	var hit := space.intersect_ray(query)
-	if hit.is_empty():
-		_bounce.visible = false
-		return
-	var reach := clampf(lens.distance_to(hit.position) / flashlight.spot_range, 0.0, 1.0)
-	_bounce.global_position = hit.position + hit.normal * 0.4
-	_bounce.light_energy = BOUNCE_ENERGY * pow(1.0 - reach, 1.5)
-	_bounce.omni_range = lerpf(2.6, 5.0, reach)
-	_bounce.omni_attenuation = 1.2
 
 
 ## Arms (owner) and suit (everyone else) blend their clips by what the crew member's doing.

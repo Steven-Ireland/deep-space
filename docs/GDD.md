@@ -378,11 +378,11 @@ Death is frequent and specific.
 | Resolution | The world is drawn at about 270 lines (roughly the PS1's 320 × 240), shown as big square pixels with no smoothing |
 | Colour | 15-bit colour with a 4×4 ordered dither; players can turn the dither off |
 | Wobble | Geometry snaps to whole pixels, so objects jitter as they move |
-| Textures | Unfiltered: 64×64 or 128×128 with ≤16–32 colours each. Perspective-correct: the PS1's affine swim tore the big wall and floor triangles into dark wedges, so it's off (a setting can bring it back) |
+| Textures | Unfiltered: 64×64 or 128×128 with ≤16–32 colours each. Perspective-correct: the PS1's affine swim tore the big wall and floor triangles, so it's off (a setting can bring it back) |
 | Poly budgets (triangles) | Characters 600–1,200 · creatures 400–900 · view-model tools 150–400 · props 20–300 · kit pieces 50–400 · LANTERN exterior 2–4k |
 | Bodies | Characters and creatures are built from **segmented rigid parts** that don't stretch or bend at the joints, PSX style |
 | Animation | Creatures move at 12 fps, stepped. The crew's motion is smooth so feet stay planted as they walk, and it blends between standing, walking, running and crouching |
-| A little modern light (PSX+) | Light bounces: a flashlight's spot spills a soft fill around it, lit surfaces light their neighbours, and glossy surfaces and glass show screen-space reflections. Still no motion blur, little or no bloom, and no ambient occlusion beyond the baked vertex AO |
+| A little modern light (PSX+) | Light bounces: lit surfaces, a flashlight's spot most of all, light their neighbours a little, and glossy surfaces and glass show screen-space reflections. Shadows are plain. Still no motion blur, little or no bloom, and no ambient occlusion beyond the baked vertex AO |
 
 **Lighting (the main atmospheric tool):**
 - **LANTERN:** warm sodium-amber practicals, off-white panels, CRT green and amber screens. It reads as home.

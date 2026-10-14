@@ -87,13 +87,15 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - `psx_affine()` gives affine (non-perspective) UVs: multiply by w in the vertex shader, divide in the fragment shader. Scaled by `global uniform float psx_affine_amount`, **default 0 (off)**: on the kit's big triangles it slid UVs out of their atlas islands into dark wedges. `Psx.set_affine()` can bring it back.
   - `psx_dither()` does the 15-bit conversion.
 - **Gotcha:** a shader that writes `POSITION` must write it in every pass, so use `POSITION = IN_SHADOW_PASS ? clip : psx_snap(...)`. Otherwise shadows collapse to a point.
+- **True depth under the wobble:** snapping moves each corner up to half a pixel on its own, and at a glancing angle half a pixel is centimetres of depth. Layered surfaces (a panel proud of its wall, a door in its frame, a screen in its housing) cut through each other in dark wedges. So every snapped material writes `DEPTH` from the *unsnapped* surface at the pixel drawn (`psx_true_depth()`): the picture wobbles, but depth testing compares the real shapes. Shadow passes don't snap and keep `FRAGCOORD.z`.
 - **Materials:** a small set of shared materials: PSX lit, unlit/emissive, CRT screen, skybox, planet, hyperspace tunnel.
   - Textures use nearest filtering.
   - Each material's `affine_amount` scales the global one, for when it's on.
 - **Lighting:**
   - Real-time per-pixel lights only, with no baked GI (layouts are procedural).
   - **Flashlights** are `SpotLight3D`s at the held torch's lens (`SOCKET_light`): the owner's from the torch in their first-person fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks. The light is pulled back if the lens is pushed into a wall. Held items and the first-person arms cast no shadows, so a torch can't shade its own beam. (A projector texture for the lens pattern is still to come.)
-  - **PSX+ bounce (GDD §14):** the environment runs SSIL and SSR. Each lit flashlight also places an `OmniLight3D` just off the spot its beam hits, dimmer with distance: a soft fill around the spot. It's shadowed by walls only (`shadow_caster_mask` leaves out crew bodies on `Player.CREW_LAYER`), so it can't light the next room or throw a hard body silhouette. `--no-gi` turns all three off for comparison.
+  - **PSX+ bounce (GDD §14):** the environment runs Godot's SSIL and SSR at their default settings, so a flashlight's spot lights what's around it on screen. `--no-gi` turns them off for comparison. (A custom bounce light at the spot was tried and dropped: its shadows threw odd shapes.)
+  - **Shadows are Godot's defaults**: filter quality, bias, and the sun's splits and distance are all left at stock values.
   - **Shadow budget:** the local player's flashlight always casts shadows. Teammates' lights cast shadows only within about 12 m, with at most 4 shadowed spots at once. Room practicals are unshadowed apart from hand-picked key lights.
   - No SSAO or SDFGI. Environment ambient is near black in derelicts.
 - **Hull clearance:** hull plating stands 2 cm off the walls' outer faces and 3 cm off the ceiling and floor, and its outer face (0.56 m out from the wall line) clears the walls' outer chamfer. A plane shared with the deck, or a wall detail poking through, flickers as vertices snap.
@@ -248,3 +250,7 @@ deep-space/
   - Held items and the cuff are mirrored to everyone.
   - One hand item at a time, the flashlight included (GDD A8, to confirm).
   - The aim ignores an interactable's own housing (`Interactable.housing`). A console's collision box enclosed its screens, so the bridge terminals couldn't be used.
+- **2026-10-13: Second review.**
+  - Snapped materials write true depth: the wall and door wedges were snapping, not affine.
+  - Shadows back to Godot defaults; the flashlight bounce light removed (SSIL/SSR at defaults remain).
+  - The cuff stands clear of the sleeve, whose edges cut its screen.

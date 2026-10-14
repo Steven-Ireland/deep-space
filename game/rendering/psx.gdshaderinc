@@ -22,6 +22,22 @@ vec4 psx_snap(vec4 clip, vec2 size) {
 	return vec4(at * clip.w, clip.zw);
 }
 
+// The depth of the unsnapped surface at the pixel a snapped triangle drew, for DEPTH. Snapping moves
+// each corner up to half a pixel on its own, and at a glancing angle half a pixel is centimetres
+// of depth: a panel standing proud of its wall would lose to the wall behind it in wedges, and a
+// screen to the housing it's set in. So the picture wobbles but depth testing sees the true shape.
+// In vertex(): `xy = vec4(clip.xy, POSITION.xy)` and `w = clip.w`, as varyings (interpolated,
+// times w, so they divide back to positions laid linearly across the screen). In fragment(): the
+// view-space VERTEX and PROJECTION_MATRIX. (Shadow passes don't snap: use FRAGCOORD.z there.)
+float psx_true_depth(vec3 vertex, vec4 xy, float w, mat4 projection) {
+	vec2 at = xy.xy / w; // where this point of the true surface projects
+	vec2 drawn = xy.zw / w; // where it was drawn
+	mat2 rate = mat2(dFdx(at), dFdy(at));
+	vec2 move = abs(determinant(rate)) > 1e-12 ? inverse(rate) * (drawn - at) : vec2(0.0);
+	vec4 clip = projection * vec4(vertex + dFdx(vertex) * move.x + dFdy(vertex) * move.y, 1.0);
+	return clip.z / clip.w;
+}
+
 // A value to lay across a triangle without perspective. Interpolated as it comes from here,
 // psx_affine(...).xyz / .w in the fragment shader gives the value interpolated across the screen.
 vec4 psx_affine(vec3 value, vec4 clip) {

@@ -12,7 +12,7 @@ extends Node
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)
 ##   --hold=<kind>         and holds this from their belt, e.g. crowbar (Player)
-##   --no-gi               no bounced light or reflections, for comparing (Dev, Player)
+##   --no-gi               no screen-space bounced light or reflections, for comparing
 ##   --check-aim           stand in front of every terminal, check the crosshair finds it, quit
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-
 ##                         forward; with --sprint or --crouch (Player)

@@ -21,14 +21,19 @@ uniform float specular : hint_range(0.0, 1.0) = 0.3;
 uniform float alpha_scissor : hint_range(0.0, 1.0) = 0.0;
 
 varying vec4 affine_uv;
+varying vec4 psx_xy;
+varying float psx_w;
 
 void vertex() {
 	vec4 clip = PROJECTION_MATRIX * MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	affine_uv = psx_affine(vec3(UV, 0.0), clip);
 	POSITION = IN_SHADOW_PASS ? clip : psx_snap(clip, VIEWPORT_SIZE);
+	psx_xy = vec4(clip.xy, POSITION.xy);
+	psx_w = clip.w;
 }
 
 void fragment() {
+	DEPTH = IN_SHADOW_PASS ? FRAGCOORD.z : psx_true_depth(VERTEX, psx_xy, psx_w, PROJECTION_MATRIX);
 	vec2 uv = mix(UV, affine_uv.xy / affine_uv.w, affine_amount * psx_affine_amount);
 	vec4 tex = texture(albedo_texture, uv);
 	vec3 tint = mix(vec3(1.0), COLOR.rgb, vertex_color_amount);
