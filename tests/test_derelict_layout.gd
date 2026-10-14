@@ -121,7 +121,7 @@ func _check_walls(layout, label: String) -> void:
 				if opening not in ["door", "open"]:
 					continue
 				if cells[next] == prize_mark or cells[at] == prize_mark:
-					prize_doors[layouts.edge_key(at, side)] = true
+					prize_doors[layouts.edge_key(Vector3i(at.x, 0, at.y), side)] = true
 				if not depth.has(cells[next]):
 					depth[cells[next]] = depth[cells[at]] + 1
 			reached[next] = true
@@ -137,7 +137,7 @@ func _check_creatures(layout, label: String) -> void:
 	var dens := {}
 	for creature: Dictionary in layout.creatures:
 		var spot: Vector3 = creature.at.origin
-		var cell := Vector2i(roundi(spot.x / CELL), roundi(spot.z / CELL))
+		var cell := Vector3i(roundi(spot.x / CELL), 0, roundi(spot.z / CELL))
 		var room: int = layout.room_of.get(cell, -1)
 		_check(room > 0 and room != layout.prize, "%s: a %s in room %d" % [label, creature.kind, room])
 		_check(not dens.has(room), "%s: two creatures in room %d" % [label, room])
@@ -159,7 +159,7 @@ func _check_loot(layout, label: String) -> void:
 			_check(find.rack < layout.props.size() and find.kind in layout.props[find.rack].rack, "%s: a %s on no rack" % [label, find.kind])
 		else:
 			var spot: Vector3 = find.at.origin
-			_check(layout.room_of.has(Vector2i(roundi(spot.x / CELL), roundi(spot.z / CELL))), "%s: a %s outside the rooms" % [label, find.kind])
+			_check(layout.room_of.has(Vector3i(roundi(spot.x / CELL), 0, roundi(spot.z / CELL))), "%s: a %s outside the rooms" % [label, find.kind])
 
 
 ## Each module as authored: its doors and windows on its own outer edges, everything it holds
@@ -167,7 +167,10 @@ func _check_loot(layout, label: String) -> void:
 func _check_modules() -> void:
 	for type: StringName in rooms.MODULES:
 		var module: Dictionary = rooms.of(type)
-		var cells: Array[Vector2i] = rooms.cells_of(type)
+		var cells: Array[Vector2i] = []
+		for cell: Vector3i in rooms.cells_of(type):
+			_check(cell.y == 0, "%s: a derelict's room stands on more than one level" % type)
+			cells.append(Vector2i(cell.x, cell.z))
 		for list: String in ["doors", "windows"]:
 			for edge: String in module.get(list, []) + ([module.hatch] if module.has("hatch") and list == "doors" else []):
 				var parts := edge.split(",")

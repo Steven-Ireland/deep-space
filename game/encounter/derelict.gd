@@ -44,8 +44,9 @@ func _ready() -> void:
 	lit = false
 	entry_opening = layout.entry_opening()
 	build(layout.rows(), layout.origin(), layout.openings())
+	var shut := layout.shut_on(0)
 	for key: String in doors:
-		doors[key].open = not layout.shut.has(key)
+		doors[key].open = not shut.has(key)
 	_dress()
 
 

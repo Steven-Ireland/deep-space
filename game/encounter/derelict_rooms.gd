@@ -1,8 +1,8 @@
 class_name DerelictRooms
 ## The rooms a derelict is assembled from (GDD §8.2, TECH §5): hand-built modules on the 4 m grid,
 ## each with its footprint, the edges where it can join another (its door sockets), and how it's
-## furnished. DerelictLayout grows a derelict from them; the derelict's Deck builds their walls,
-## floors and ceilings in the derelict kit.
+## furnished. DerelictLayout grows a derelict from them (RoomLayout's way); the derelict's Deck
+## builds their walls, floors and ceilings in the derelict kit. A derelict stands on one level.
 ##
 ## A module is authored in its own space: cell (c, r) of `cells` (rows run north to south, '#' a
 ## cell) has its centre at (4c, 0, 4r), so cell (0, 0) is at the origin, and a wall's face stands
@@ -203,12 +203,6 @@ static func of(type: StringName) -> Dictionary:
 	return MODULES[type]
 
 
-## The module's cells, in its own space.
-static func cells_of(type: StringName) -> Array[Vector2i]:
-	var out: Array[Vector2i] = []
-	var rows: Array = MODULES[type].cells
-	for r in rows.size():
-		for c in rows[r].length():
-			if rows[r][c] == "#":
-				out.append(Vector2i(c, r))
-	return out
+## The module's cells, in its own space (c, level, r).
+static func cells_of(type: StringName) -> Array[Vector3i]:
+	return RoomLayout.cells_in(MODULES[type])

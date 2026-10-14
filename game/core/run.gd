@@ -508,7 +508,7 @@ func _bring_derelict(node: Vector2i, chart: SectorMap, docked: bool) -> void:
 		collar.reset(docked)
 		collar.attach(derelict)
 	if multiplayer.is_server():
-		print(layout.describe())
+		print(layout.describe_docked())
 		LooseItems.of(self).stock(derelict)
 	else:
 		_report_derelict.rpc_id(1, layout.seed, layout.checksum())
