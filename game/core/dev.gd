@@ -30,6 +30,10 @@ extends Node
 ##                         long: 0 sets it down (Player)
 ##   --no-gi               no screen-space bounced light or reflections, for comparing
 ##   --check-aim           stand in front of every terminal, check the crosshair finds it, quit
+##   --check-jump          press jump ten times, about a second apart; say how many took off, quit
+##   --check-lever         a second and a half in, hold interact 2.4 s on what's under the
+##                         crosshair (put them at the Jump Lever with --at and --look, and plot a
+##                         route with --route); say whether the jump began, quit
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-
 ##                         forward; with --sprint or --crouch (Player)
 ##   --operate=<screen>    step up to the terminal on that screen mesh, e.g. screen_survey (Player)
@@ -46,6 +50,10 @@ func _ready() -> void:
 		_no_gi.call_deferred()
 	if Args.flag("--check-aim"):
 		_check_aim()
+	if Args.flag("--check-jump"):
+		_check_jump()
+	if Args.flag("--check-lever"):
+		_check_lever()
 	var quit_after := float(Args.value("--quit-after", "0"))
 	if quit_after > 0.0:
 		get_tree().create_timer(quit_after).timeout.connect(get_tree().quit)
@@ -135,3 +143,44 @@ func _check_aim() -> void:
 		print("Aim %s %s/%s" % ["ok    " if ok else "MISSED", terminal.get_parent().name, terminal.screen_mesh_name])
 	print("Aim check: %d missed." % failed)
 	get_tree().quit()
+
+
+func _check_jump() -> void:
+	await get_tree().create_timer(2.0).timeout
+	var player := get_tree().get_first_node_in_group(&"local_player") as Player
+	var took_off := 0
+	for i in 10:
+		var floor_y := player.global_position.y
+		_press("jump", true)
+		await get_tree().process_frame
+		_press("jump", false)
+		var rose := false
+		for f in 30:
+			await get_tree().physics_frame
+			rose = rose or player.global_position.y > floor_y + 0.05
+		took_off += 1 if rose else 0
+		await get_tree().create_timer(0.8).timeout
+	print("Jump check: %d of 10 took off." % took_off)
+	get_tree().quit()
+
+
+func _check_lever() -> void:
+	await get_tree().create_timer(1.5).timeout
+	var player := get_tree().get_first_node_in_group(&"local_player") as Player
+	var run := Run.of(self)
+	var aimed := player.aimed_at
+	print("Lever check: aiming at %s (%s)." % [aimed.name if aimed != null else "nothing", aimed.prompt(player) if aimed != null else "-"])
+	_press("interact", true)
+	await get_tree().create_timer(2.4).timeout
+	_press("interact", false)
+	await get_tree().create_timer(0.5).timeout
+	print("Lever check: %s." % ("the jump began" if run.jumping() else "no jump (%s)" % run.jump_blocker()))
+	get_tree().quit()
+
+
+## Presses or lets go of an input action, as the keyboard would.
+func _press(action: StringName, pressed: bool) -> void:
+	var event := InputEventAction.new()
+	event.action = action
+	event.pressed = pressed
+	Input.parse_input_event(event)

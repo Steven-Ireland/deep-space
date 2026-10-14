@@ -439,13 +439,13 @@ def chair():
 
 @asset("br_chart_table", "bridge", texture=256, colors=32, ao=0.5, angles=((-35, 30), (145, 30), (90, 10), (-20, 70)))
 def chart_table():
-    """The chart table at the bridge's heart (GDD §5, §6), on the command dais: the sector chart
-    for the whole crew to stand round. A waist-high octagonal table in the consoles' beige, on a
-    dark column flaring out from a steel plinth; a rubber bumper round its rim. Its top is a dark
-    glass well with etched range rings, a glowing emitter ring at its edge and the projector's lens
-    at its centre; the hologram itself is the game's (`SOCKET_holo`, on the lens). Push buttons on
-    the rim's aft side and a stencil, CHART, on its aft face. The emitter ring and lens glow green. Faces -Y like the consoles (aft in
-    the game), where the crew comes up from the corridor.
+    """The chart table at the bridge's heart (GDD §5, §6), standing on the deck: the sector chart
+    for the whole crew to stand round. A low octagonal table (its glass at 0.8 m, to look down on)
+    on a dark column flaring out from a steel plinth; a beige band and a rubber bumper round its
+    rim. Its top is a dark glass well with etched range rings, a glowing green emitter ring at its
+    edge and the projector's lens at its centre; the hologram itself is the game's (`SOCKET_holo`,
+    on the lens). Push buttons on the rim's aft side and a stencil, CHART, on its aft face. Faces
+    -Y like the consoles (aft in the game), where the crew comes up from the corridor.
     """
     k = _materials()
     dk = _decals()
@@ -454,19 +454,21 @@ def chart_table():
     d = Mesh("br_chart_table_decals")
     texts = []
     eighth = math.pi / 8
-    top = 0.97
+    top = 0.8
     # Plinth, column and the skirt flaring out under the top.
     m.lathe([(0.56, 0.0), (0.56, 0.07), (0.5, 0.1), (0.34, 0.1)], k["dark_steel"], sides=8, angle_offset=eighth,
             cap_start=False, cap_end=False)
-    m.lathe([(0.34, 0.1), (0.3, 0.14), (0.3, 0.62), (0.34, 0.66)], k["casing_dark"], sides=8, angle_offset=eighth,
-            cap_start=False, cap_end=False)
-    m.lathe([(0.34, 0.66), (0.84, 0.84), (0.9, 0.86)], k["casing"], sides=8, angle_offset=eighth,
+    m.lathe([(0.34, 0.1), (0.3, 0.14), (0.3, top - 0.35), (0.34, top - 0.31)], k["casing_dark"], sides=8,
+            angle_offset=eighth, cap_start=False, cap_end=False)
+    m.lathe([(0.34, top - 0.31), (0.84, top - 0.13), (0.9, top - 0.11)], k["casing"], sides=8, angle_offset=eighth,
             cap_start=False, cap_end=False)
     # The rim: a casing band with an orange stripe, the rubber bumper over it.
-    m.lathe([(0.9, 0.86), (0.9, 0.94)], k["casing"], sides=8, angle_offset=eighth, cap_start=False, cap_end=False)
-    m.lathe([(0.905, 0.885), (0.905, 0.915)], k["orange"], sides=8, angle_offset=eighth, cap_start=False, cap_end=False)
-    m.lathe([(0.9, 0.94), (0.94, 0.955), (0.94, 0.985), (0.9, 1.0), (0.8, 1.0), (0.78, top)], k["rubber"], sides=8,
-            angle_offset=eighth, cap_start=False, cap_end=False)
+    m.lathe([(0.9, top - 0.11), (0.9, top - 0.03)], k["casing"], sides=8, angle_offset=eighth, cap_start=False,
+            cap_end=False)
+    m.lathe([(0.905, top - 0.085), (0.905, top - 0.055)], k["orange"], sides=8, angle_offset=eighth, cap_start=False,
+            cap_end=False)
+    m.lathe([(0.9, top - 0.03), (0.94, top - 0.015), (0.94, top + 0.015), (0.9, top + 0.03), (0.8, top + 0.03),
+             (0.78, top)], k["rubber"], sides=8, angle_offset=eighth, cap_start=False, cap_end=False)
     # The glass well, and the lens in its middle.
     m.lathe([(0.78, top), (0.0, top)], glass, sides=8, angle_offset=eighth, cap_start=False, cap_end=False)
     m.lathe([(0.15, top), (0.15, top + 0.03), (0.12, top + 0.035), (0.1, top + 0.02)], k["steel"], sides=8,
@@ -497,17 +499,17 @@ def chart_table():
     # Push buttons on the rim's aft flat, either side of the middle; the stencil on the band below.
     slope = Vector((0, -0.4, 1)).normalized()
     for x in (-0.24, 0.24):
-        rim = (Vector((x, -0.865, 0.992)), slope, Vector((0, 1, 0.4)).normalized())
+        rim = (Vector((x, -0.865, top + 0.022)), slope, Vector((0, 1, 0.4)).normalized())
         buttons(d, dk, rim, (0, 0), 4, 1, pitch=0.042, pattern=(0, 2, 1, 2) if x < 0 else (2, 4, 2, 0))
     face = 0.9 * math.cos(eighth)
-    texts.append(label(dk, "CHART", 0.035, "cream", frame((0, -face - 0.001, 0.9), (0, -1, 0))))
-    # Cables from the column down into the dais.
+    texts.append(label(dk, "CHART", 0.035, "cream", frame((0, -face - 0.001, top - 0.07), (0, -1, 0))))
+    # Cables from the column down into the deck.
     cables(m, k, [[(0.2, -0.22, 0.3), (0.32, -0.3, 0.1), (0.42, -0.36, 0.0)],
                   [(-0.22, 0.2, 0.34), (-0.34, 0.3, 0.12), (-0.46, 0.34, 0.0)]])
     m.subdivide(0.6)
     low = m.to_object()
     collider = Mesh("br_chart_table_col-colonly")
-    collider.lathe([(0.0, 0.0), (0.92, 0.0), (0.92, 1.0), (0.0, 1.0)], mats.plain("collider", (1, 0, 1)), sides=8,
+    collider.lathe([(0.0, 0.0), (0.92, 0.0), (0.92, top + 0.03), (0.0, top + 0.03)], mats.plain("collider", (1, 0, 1)), sides=8,
                    angle_offset=eighth, cap_start=False, cap_end=False)
     holo = _socket("holo", (0, 0, top + 0.03))
     return Model(low=low, decals=[d.to_object()] + texts, extras=[collider.to_object(), holo])

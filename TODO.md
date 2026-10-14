@@ -64,8 +64,10 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   into an empty bay.
 - **Tests:** `tools/test.sh` runs sector map rules, determinism and a smoke test that plays a jump.
 
-- **The chart table:** in place of the captain's chair, on the dais; its green hologram is the
-  sector chart, for the whole crew.
+- **The chart table:** in place of the captain's chair and its dais, standing low on the deck; its
+  green hologram is the sector chart, for the whole crew.
+- **Fixed:** jump (space) missed most presses (read on the 30 Hz movement tick); the Jump Lever's
+  hold no longer drops if the crosshair slips off the handle for a moment.
 
 Still to come: docking, creature behaviour, death.
 
@@ -175,6 +177,7 @@ Still to come: docking, creature behaviour, death.
   | `tools/clip_angles.py` | A clip's bone turns. |
   | `tools/sheet.py` | Contact sheets and crisp crops. |
   | `--check-aim` | Checks every terminal can be used. |
+  | `--check-jump`, `--check-lever` | Presses jump ten times and counts take-offs; holds interact on the aimed thing (the Jump Lever: `--route --at=-1.85,0,-3.2 --look=0,-22`) and says whether the jump began. |
   | `tools/test.sh [name]` | The headless tests: sector map rules, determinism, the smoke test. |
   | `--run-seed=n`, `--scanned`, `--route`, `--jump`, `--derelict` | The run: its seed; scanned, a route plotted, jumping a second in; the sample derelict docked at the start. `--operate=screen_nav` steps up to a terminal. |
 - **Getting around:**

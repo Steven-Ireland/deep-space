@@ -76,7 +76,7 @@ The home base is a jump-capable station on a single deck. It is warm, lit and hu
 | **Ops** | Crew status and comms | **Vitals board** (each crew member's heartbeat, O2 and last-known location); station cameras; PA |
 | **Engineering** | Power and drive status | Fuel and drive gauges; power distribution; breaker panel |
 
-The forward viewport looks out onto the system. At the bridge's centre, on the command dais, stands the **chart table**: a waist-high octagonal table whose glass top projects the sector chart as a green hologram, for the whole crew to stand round. It shows what the Nav Chart shows, laid out from the departure point (aft) rising to the boss (fore), like the way ahead through the viewport. It's display only (routes are plotted at the Helm), it flickers and drops out now and then, and it judders in a jump.
+The forward viewport looks out onto the system. At the bridge's centre stands the **chart table**: a low octagonal table (its glass at about thigh height, to look down on) whose glass top projects the sector chart as a green hologram, for the whole crew to stand round. It shows what the Nav Chart shows, laid out from the departure point (aft) rising to the boss (fore), like the way ahead through the viewport. It's display only (routes are plotted at the Helm), it flickers and drops out now and then, and it judders in a jump.
 
 **Rooms:**
 
@@ -453,7 +453,7 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 5. **The light is a helmet lamp from the start** (was A8). Both hands stay free, so the crew can still see while carrying something two-handed. There is no Helmet Lamp upgrade, and no handheld flashlight.
 6. **The belt holds loot as well as gear**, as in *Lethal Company* (§9.4). Two-handed carries stay out of the belt and take both hands.
 7. **The crew starts with one crowbar and one flare between them**, racked in the Docking Port (was A9). Everything else is found. The helmet lamp recharges at a charger in the Suit Room, with no cells.
-8. **A chart table replaces the captain's chair** at the bridge's centre: the chair had no use and took up the room's middle. The table's hologram gives the bridge a centrepiece the whole crew can read.
+8. **A chart table replaces the captain's chair** at the bridge's centre: the chair had no use and took up the room's middle. The table's hologram gives the bridge a centrepiece the whole crew can read. The dais under it is gone too (crew caught on its step), and the table stands low on the deck.
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.

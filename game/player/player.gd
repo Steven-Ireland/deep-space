@@ -14,6 +14,12 @@ const ACCELERATION := 9.0 # m/s² toward the target speed, on the ground
 const BRAKING := 14.0
 const AIR_CONTROL := 0.12
 const JUMP_SPEED := 3.0
+## How long a press of jump is kept for the movement tick to act on: ticks come 30 times a second,
+## fewer than frames, so a press read on the tick itself was usually missed. Pressed just before
+## landing, it jumps on touching down.
+const JUMP_BUFFER := 0.2
+## Seconds the crosshair can slip off a thing being held (the Jump Lever) before the hold's lost.
+const HOLD_SLACK := 0.3
 const GRAVITY := 9.8
 const MOUSE_SENSITIVITY := 0.0022
 const PITCH_LIMIT := 1.45
@@ -96,6 +102,7 @@ var aimed_at: Interactable
 ## The thing interact is being held on (one that takes a hold, like the Jump Lever), and how long.
 var _holding: Interactable
 var _hold_time := 0.0
+var _hold_lost := 0.0 # seconds the crosshair has been off it
 ## The terminal this crew member is working at, if any (GDD §10).
 var operating: Terminal
 var _camera_tween: Tween
@@ -120,6 +127,7 @@ var _legs_yaw := 0.0
 var _crouch := 0.0
 var _cuff := 0.0
 var _winding := -1.0 # seconds Q has been held, or -1
+var _jump_wanted := 0.0 # seconds left on a press of jump not yet acted on
 var _swing_left := 0.0
 var _swings_seen := 0
 var _shown_lit := false
@@ -198,12 +206,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif event.is_action_pressed("jump"):
+		_jump_wanted = JUMP_BUFFER
 	elif event.is_action_pressed("lamp"):
 		lamp_on = not lamp_on and battery > 0.0
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
 		if aimed_at.hold > 0.0:
 			_holding = aimed_at
 			_hold_time = 0.0
+			_hold_lost = 0.0
 		else:
 			aimed_at.request_use()
 	elif event.is_action_pressed("use") and not cuff_up:
@@ -436,6 +447,7 @@ func _process(delta: float) -> void:
 		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty()
 		if _winding >= 0.0:
 			_winding += delta
+		_jump_wanted = maxf(0.0, _jump_wanted - delta)
 		_swing_left = maxf(0.0, _swing_left - delta)
 		_burn_flares(delta)
 		if operating == null:
@@ -483,8 +495,9 @@ func _tick(delta: float, _tick_number: int) -> void:
 	velocity.x = horizontal.x
 	velocity.z = horizontal.z
 	if is_on_floor():
-		if Input.is_action_just_pressed("jump") and not crouching:
+		if _jump_wanted > 0.0 and not crouching:
 			velocity.y = JUMP_SPEED
+			_jump_wanted = 0.0
 	else:
 		velocity.y -= GRAVITY * delta
 
@@ -509,11 +522,13 @@ func _breathe(delta: float) -> void:
 
 
 ## Interact held on a thing that takes a hold: used once it's been held long enough, given up if
-## interact is let go or the crosshair leaves it.
+## interact is let go, it can't be used now, or the crosshair is off it for longer than HOLD_SLACK
+## (a small handle is easy to slip off for a moment).
 func _keep_holding(delta: float) -> void:
 	if _holding == null:
 		return
-	if not Input.is_action_pressed("interact") or aimed_at != _holding or not _holding.usable_by(self):
+	_hold_lost = 0.0 if aimed_at == _holding else _hold_lost + delta
+	if not Input.is_action_pressed("interact") or _hold_lost > HOLD_SLACK or not _holding.usable_by(self):
 		_holding = null
 		return
 	_hold_time += delta
