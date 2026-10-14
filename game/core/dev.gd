@@ -3,6 +3,8 @@ extends Node
 ## without anyone at the keyboard. Flags (after `--`):
 ##   --screenshot=<path>   save the window's image after `--frames` frames, then quit
 ##   --frames=<n>          frames to wait first (default 90)
+##   --wait-crew=<n>       and before counting them, wait (up to 30 s) for n crew aboard, e.g. 2
+##                         for a host waiting on a client (tools/pair.sh)
 ##   --shots=<n>           take n screenshots, <path>_0.png..., --shot-gap frames apart (default 4)
 ##   --quit-after=<s>      quit after this many seconds
 ##   --flashlight          the local crew member starts with the flashlight on (Player)
@@ -36,6 +38,12 @@ func _ready() -> void:
 
 
 func _screenshot(path: String, frames: int) -> void:
+	var crew := int(Args.value("--wait-crew", "0"))
+	var deadline := Time.get_ticks_msec() + 30000
+	while get_tree().get_nodes_in_group(&"crew").size() < crew and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	if get_tree().get_nodes_in_group(&"crew").size() < crew:
+		push_warning("Screenshot: only %d of %d crew aboard." % [get_tree().get_nodes_in_group(&"crew").size(), crew])
 	for i in frames:
 		await get_tree().process_frame
 	var shots := int(Args.value("--shots", "1"))

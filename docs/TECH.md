@@ -194,7 +194,7 @@ deep-space/
     blender/              generators + lib/
     source/               generated .blend files
     previews/             turntable renders
-  tools/                  launch scripts (host + N clients), asset build
+  tools/                  launch scripts (host + N clients), asset build, QA shots and sheets
   docs/                   GDD.md, TECH.md
 ```
 
@@ -206,7 +206,14 @@ deep-space/
   - a scene smoke test that loads every scene
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
-- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--flashlight` set up a shot; `--shots`/`--shot-gap` take a burst of screenshots, e.g. of a teammate walking past.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--flashlight` set up a shot; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
+- **QA tools** (`tools/`), for checking changes by eye in the real game and in Blender:
+  - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--flashlight] --screenshot=<out> --frames=150`.
+  - `pair.sh <out> "<host flags>" "<client flags>"`: a host and a client on one machine; the host shoots once the client is aboard. With `--view` in the host flags it's the way to see a teammate's suit, held item, beam or glare.
+  - `pose_sheet.py`: a built rig's clips at chosen moments, from any angle or the first-person eye; `--hold` puts an item in the hand as the game does, `--focus`/`--lens` close in on a bone.
+  - `clip_angles.py`: the turns a clip keys at a moment, for a solved pose's numbers.
+  - `sheet.py`: contact sheets of several shots, and enlarged crops that keep the pixels crisp.
+  - Built assets need a reimport before the game sees them: `godot --headless --path . --import`.
 
 ## 9. Milestones
 
