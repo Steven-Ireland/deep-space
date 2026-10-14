@@ -294,7 +294,7 @@ Still to come: creature behaviour.
 ## How to build and check
 
 - **Godot:** `/Applications/Godot.app/Contents/MacOS/Godot` (or `tools/godot.sh`). Launch a
-  local crew with `tools/run.sh [clients]`.
+  local crew with `tools/run.sh [clients] [host flags]` (e.g. `tools/run.sh 1 --satellite`).
 - **Build models:** `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P
   art/blender/build.py -- <names>`. This writes the `.glb`, textures, preview and belt icon. Then
   reimport: `Godot --headless --path . --import`.

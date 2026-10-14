@@ -4,12 +4,15 @@
 #   tools/run.sh            host + 1 client
 #   tools/run.sh 3          host + 3 clients (a full crew)
 #   tools/run.sh 0          host alone
+#   tools/run.sh 1 --satellite   anything after the count goes to the host (here: a relay
+#                           satellite off the EVA airlock at the departure)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 clients="${1:-1}"
+shift || true
 pids=()
 trap 'kill "${pids[@]}" 2>/dev/null || true' EXIT INT TERM
-tools/godot.sh -- --host & pids+=($!)
+tools/godot.sh -- --host "$@" & pids+=($!)
 sleep 1
 for ((i = 0; i < clients; i++)); do
 	tools/godot.sh -- --join=127.0.0.1 & pids+=($!)
