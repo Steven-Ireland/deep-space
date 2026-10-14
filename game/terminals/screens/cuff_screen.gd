@@ -1,7 +1,7 @@
 extends CrtScreen
 ## The wrist cuff's little screen (GDD §10): too small for words, so it speaks in bars and blips.
-## O2 as a bar, suit integrity as a bar, a heartbeat blip at the crew member's pulse, the flashlight
-## battery as a row of cells.
+## O2 as a bar, suit integrity as a bar, a heartbeat blip at the crew member's pulse, the helmet
+## lamp's battery as a row of cells.
 
 var player: Player
 
@@ -24,7 +24,7 @@ func _draw_screen() -> void:
 	var blip := Color(GREEN, 1.0 - beat * 1.5)
 	draw_circle(Vector2(10, h - 16), 4, blip)
 	draw_line(Vector2(18, h - 16), Vector2(w - 4, h - 16), DIM, 1.0)
-	# Flashlight cells.
+	# The helmet lamp's battery.
 	for i in 4:
 		var lit := battery > i / 4.0
 		draw_rect(Rect2(4 + i * ((w - 8) / 4.0), h - 7, (w - 8) / 4.0 - 2, 4), AMBER if lit else DIM)

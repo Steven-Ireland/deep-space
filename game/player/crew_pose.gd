@@ -2,15 +2,13 @@ class_name CrewPose
 extends SkeletonModifier3D
 ## Runs on the suit after its clips (CrewAnimation): turns the legs toward where its crew member
 ## is going while the body keeps facing where they look, so a strafe or a diagonal walks instead of
-## sliding, and tips the head, chest and a torch held out with their gaze. Bones pitch forward and
-## turn left with positive angles (TECH §5).
+## sliding, and tips the head and chest with their gaze. Bones pitch forward and turn left with
+## positive angles (TECH §5).
 
 ## Radians the legs turn from the facing, + toward the suit's left.
 var legs_yaw := 0.0
 ## Radians the crew member looks up (+) or down.
 var pitch := 0.0
-## 0..1, how far the right arm is holding a torch out (it follows the gaze).
-var torch := 0.0
 
 
 func _process_modification_with_delta(_delta: float) -> void:
@@ -22,9 +20,6 @@ func _process_modification_with_delta(_delta: float) -> void:
 	_turn(skeleton, &"chest", Vector3.UP, -legs_yaw * 0.5)
 	_turn(skeleton, &"chest", Vector3.RIGHT, -pitch * 0.25)
 	_turn(skeleton, &"head", Vector3.RIGHT, -pitch * 0.6)
-	# The torch arm swings from the shoulder about the chest's own side-to-side axis (the hold pose
-	# has turned the arm's): with the chest's share, the torch tips as far as the gaze.
-	_turn(skeleton, &"upper_arm.R", Vector3.RIGHT, -pitch * 0.75 * torch, true)
 
 
 ## Turns `bone` by `angle` about `axis`: its own, or its parent's.

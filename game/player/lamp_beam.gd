@@ -1,13 +1,13 @@
-class_name TorchBeam
+class_name LampBeam
 extends Node3D
-## A teammate's flashlight as you see it from outside (GDD §9.3, §9.4, §14): a faint cone of lit
+## A teammate's helmet lamp as you see it from outside (GDD §9.3, §9.4, §14): a faint cone of lit
 ## air from the lens to where the light lands, and the lens's glare, which flares across your view
-## when the beam points at you. It rides their SpotLight3D (Player keeps that at the torch's lens,
-## pointing -Z), so it shows when the light does. Only other people's lights get one: you never
+## when the beam points at you. It rides their SpotLight3D (Player keeps that at the lamp's lens,
+## pointing -Z), so it shows when the light does. Only other people's lamps get one: you never
 ## see your own from outside.
 
-const BEAM_SHADER := preload("res://game/rendering/torch_beam.gdshader")
-const FLARE_SHADER := preload("res://game/rendering/torch_flare.gdshader")
+const BEAM_SHADER := preload("res://game/rendering/lamp_beam.gdshader")
+const FLARE_SHADER := preload("res://game/rendering/lamp_flare.gdshader")
 ## Metres the cone shows before it fades (the light itself reaches further).
 const BEAM_RANGE := 7.0
 ## Bodies and walls that stop the beam.

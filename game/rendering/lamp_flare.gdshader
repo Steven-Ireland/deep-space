@@ -1,4 +1,4 @@
-// The glare off a teammate's flashlight lens (TorchBeam). Whenever the lens faces you it's a small
+// The glare off a teammate's helmet lamp lens (LampBeam). Whenever the lens faces you it's a small
 // hot point with a little halo, so a light that's on looks on. Pointed into your eyes, it flares
 // across the view: a wide halo, a long level streak, a six-point star and a faint veil. It's drawn
 // over everything at a size fixed on screen, as bright as the share of the lens itself that's in

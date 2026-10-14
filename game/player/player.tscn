@@ -36,7 +36,7 @@ transform = Transform3D(-1, 0, 8.742278e-08, 0, 1, 0, -8.742278e-08, 0, -1, 0, 0
 
 [node name="Arms" parent="Head/Camera3D/ViewModel" instance=ExtResource("5")]
 
-[node name="Flashlight" type="SpotLight3D" parent="Head"]
+[node name="Lamp" type="SpotLight3D" parent="Head"]
 top_level = true
 light_color = Color(1, 0.95, 0.86, 1)
 light_energy = 6.0
@@ -49,7 +49,7 @@ spot_angle_attenuation = 0.7
 [node name="StateSynchronizer" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("2")
 root = NodePath("..")
-properties = Array[String]([":position", ":velocity", ":look", ":flashlight_on", ":crouching", ":sprinting", ":held", ":cuff_up"])
+properties = Array[String]([":position", ":velocity", ":look", ":lamp_on", ":crouching", ":sprinting", ":held", ":cuff_up"])
 
 [node name="TickInterpolator" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("3")

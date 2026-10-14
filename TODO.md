@@ -1,6 +1,6 @@
 # Deep Space: status and next steps
 
-Last updated 2026-10-13. Read this with [docs/GDD.md](docs/GDD.md) (design, look and feel) and
+Last updated 2026-10-14. Read this with [docs/GDD.md](docs/GDD.md) (design, look and feel) and
 [docs/TECH.md](docs/TECH.md) (how it's built). The target is the **vertical slice** in GDD §16;
 the build order is TECH §9.
 
@@ -12,7 +12,7 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   (vertex snap with true depth, 270-line pixelation, 15-bit dither), the Blender build harness.
 - **Crew, enough to walk the station together (part of M1):** the networked first-person controller
   (owner-authoritative), gaits blended in step with legs that turn toward travel, the belt (four
-  slots, `1–4`/wheel, `F` for the flashlight), held items mirrored to everyone, the wrist cuff
+  slots, `1–4`/wheel), the helmet lamp (`F`), held items mirrored to everyone, the wrist cuff
   (`Tab`), the visor HUD (a floating prompt, the belt), terminals you step up to.
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
@@ -21,9 +21,9 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   collar, the Crawler and the Hanger with clips, the suit and first-person arms, every slice item,
   Tier 0–1 weapons and energy cartridges.
 - **Latest review fixes:**
-  - teammates' flashlights show a beam in the air and glare when pointed at you; the glare hides
+  - teammates' lamps show a beam in the air and glare when pointed at you; the glare hides
     behind whatever's drawn in front of the lens
-  - the suit's hold poses are solved (torch level in front of the belly, tools low and ready)
+  - the suit's tool hold is solved (low and ready)
   - the first-person left hand is relaxed when reading the cuff, and the cuff sits square on its
     forearm
   - first-person tools (crowbar, shock prod, flare) have their own solved hold: a hammer grip,
@@ -40,7 +40,6 @@ death. The consoles and cuff show placeholder numbers.
    - two-handed carries (fuel cell, the Prize, a body) that slow you and take your hand light
    - use (`LMB`) for tools and weapons (the arms already have a swing clip)
    - suit O2 and pressure zones, driving the cuff, the Vitals board and the spine lights
-   - needs decision A8 first (below)
 2. **M3, navigation:**
    - sector map generation (all of Sector 1, the boss node a greybox)
    - the Nav Chart terminal and the Jump Lever
@@ -61,7 +60,7 @@ death. The consoles and cuff show placeholder numbers.
    - death in specific ways, spectating through the station's cameras, and revive
    - extraction
 4. **Slice wrap-up:**
-   - upgrades: Helmet Lamp, O2 Capacity I, Med Bay
+   - upgrades: O2 Capacity I, Med Bay
    - the Workshop's recycler and Fabricator
    - Tier 1 weapons in use, with energy cartridges
    - placeholder Signal and Anomaly nodes
@@ -76,8 +75,8 @@ death. The consoles and cuff show placeholder numbers.
 
 ## Decisions needed
 
-- **A8 (GDD §17): the flashlight hand.** Does the flashlight take the hand like any belt item, as
-  now, or go in the off hand alongside a one-handed tool? Decide before carrying is built.
+- **A9 (GDD §17): where the starting kit starts.** On the belt (as now: crowbar, shock prod and
+  flare, one slot free), or racked in the Suit Room so each crew member chooses what to take?
 - **What Survey Data is for (GDD §7).** This can wait until after the slice.
 - **The beam in the air:** teammates' beams show everywhere, faintly. GDD §14 says haze makes beams
   visible in derelicts. It could be made stronger there and fainter aboard the station.
@@ -94,7 +93,7 @@ death. The consoles and cuff show placeholder numbers.
 - **Partly verified animation:** the run is checked only in Blender pose sheets, and the strafe leg
   turn hasn't been checked in-game.
 - **SSIL intensity** could be raised if rooms want more fill.
-- **The torch beam shows 15-bit banding** up close. This is accepted as the PSX look.
+- **The lamp's beam shows 15-bit banding** up close. This is accepted as the PSX look.
 - **Test shots pick up keyboard and mouse input:** the game window takes focus and captures the
   mouse, so input at the machine during a run can move a `--screenshot` shot. Keep hands off while
   one runs. (Shot runs could ignore input later, if it becomes a nuisance.)
@@ -129,7 +128,7 @@ death. The consoles and cuff show placeholder numbers.
   | Tool | What it does |
   |---|---|
   | `tools/shot.sh` | One frame from a fixed camera. |
-  | The game with `-- --host --at=x,y,z --look=yaw,pitch [--hold=crowbar] [--cuff] [--flashlight] --screenshot=out.png --frames=150` | Your own first-person view. |
+  | The game with `-- --host --at=x,y,z --look=yaw,pitch [--hold=crowbar] [--cuff] [--lamp] --screenshot=out.png --frames=150` | Your own first-person view. |
   | `tools/pair.sh out.png "<host flags>" "<client flags>"` | A teammate, seen by the host (`--view=x,y,z,yaw,pitch` in the host flags for a fixed camera). |
   | `tools/pose_sheet.py` | Clips from a built `.blend`, with `--hold`, `--focus`, `--lens` and `--size`. |
   | `tools/clip_angles.py` | A clip's bone turns. |

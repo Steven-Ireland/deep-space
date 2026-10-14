@@ -11,7 +11,7 @@ const KEYS := {
 	"crouch": [KEY_CTRL, KEY_C],
 	"jump": [KEY_SPACE],
 	"interact": [KEY_E],
-	"flashlight": [KEY_F],
+	"lamp": [KEY_F],
 	"drop": [KEY_Q],
 	"slot_1": [KEY_1],
 	"slot_2": [KEY_2],

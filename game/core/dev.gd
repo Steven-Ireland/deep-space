@@ -7,7 +7,7 @@ extends Node
 ##                         for a host waiting on a client (tools/pair.sh)
 ##   --shots=<n>           take n screenshots, <path>_0.png..., --shot-gap frames apart (default 4)
 ##   --quit-after=<s>      quit after this many seconds
-##   --flashlight          the local crew member starts with the flashlight on (Player)
+##   --lamp                the local crew member starts with their helmet lamp on (Player)
 ##   --look=<yaw>,<pitch>  their starting view, in degrees (Player)
 ##   --view=<x>,<y>,<z>,<yaw>,<pitch>  look from a fixed camera instead (degrees), e.g. for shots
 ##   --system-seed=<n>     build this star system instead of the default (StarSystem)
@@ -66,15 +66,15 @@ func _fixed_camera(v: PackedFloat64Array) -> void:
 	camera.position = Vector3(v[0], v[1], v[2])
 	camera.rotation_degrees = Vector3(v[4] if v.size() > 4 else 0.0, v[3] if v.size() > 3 else 0.0, 0)
 	add_child(camera)
-	if Args.flag("--flashlight"):
-		var torch := SpotLight3D.new()
-		torch.position = Vector3(0.22, -0.2, 0)
-		torch.light_color = Color(1, 0.95, 0.86)
-		torch.light_energy = 6.0
-		torch.shadow_enabled = true
-		torch.spot_range = 18.0
-		torch.spot_angle = 22.0
-		camera.add_child(torch)
+	if Args.flag("--lamp"):
+		var lamp := SpotLight3D.new()
+		lamp.position = Player.LAMP_OFFSET
+		lamp.light_color = Color(1, 0.95, 0.86)
+		lamp.light_energy = 6.0
+		lamp.shadow_enabled = true
+		lamp.spot_range = 18.0
+		lamp.spot_angle = 22.0
+		camera.add_child(lamp)
 	# Players make their own cameras current as they spawn; take over after them.
 	for i in 30:
 		await get_tree().process_frame

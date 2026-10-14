@@ -3,7 +3,7 @@
 [ext_resource type="Shader" path="res://game/rendering/psx_unlit.gdshader" id="shader"]
 
 [resource]
-resource_name = "it_lens"
+resource_name = "ch_lamp_lens"
 shader = ExtResource("shader")
 shader_parameter/albedo = Color(1.0, 0.95, 0.82, 1)
 shader_parameter/energy = 2.0

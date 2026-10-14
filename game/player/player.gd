@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## A crew member (GDD §9). The owning peer moves it on netfox's tick: slow, weighty movement with
 ## real acceleration, short jumps, crouching under pipes. Everyone else sees it through its
 ## StateSynchronizer, with TickInterpolator smoothing its position (TECH §2): its suit walking in
-## step, whatever's in its hand, its flashlight's beam, its wrist cuff when raised. Mouse look is
+## step, whatever's in its hand, its helmet lamp's beam, its wrist cuff when raised. Mouse look is
 ## applied immediately every frame, never smoothed.
 
 const WALK_SPEED := 2.2
@@ -21,13 +21,19 @@ const CROUCH_EYE_HEIGHT := 1.0
 const HEIGHT := 1.8
 const CROUCH_HEIGHT := 1.2
 const REACH := 2.2
+## Where the helmet lamp's lens is from the eye (art/blender/characters.py: LAMP): on the left of
+## the helmet, a little above the eye and in front of it.
+const LAMP_OFFSET := Vector3(-0.2, 0.1, -0.127)
+## Metres ahead the lamp is aimed to cross the line of sight: nearer than that, its spot sits a
+## little left of where you look; beyond it, a little right.
+const LAMP_CONVERGE := 6.0
 
 ## Emitted on the owner's machine when the belt or the held slot changes (the visor shows it).
 signal belt_changed
 
 ## Synced from the owner (StateSynchronizer).
 var look := Vector2.ZERO # yaw, pitch in radians
-var flashlight_on := false
+var lamp_on := false
 var crouching := false
 var sprinting := false
 ## The item kind in the right hand (Items), and whether the wrist cuff is raised to read.
@@ -46,7 +52,7 @@ var _camera_tween: Tween
 
 @onready var head: Node3D = $Head
 @onready var camera: Camera3D = $Head/Camera3D
-@onready var flashlight: SpotLight3D = $Head/Flashlight
+@onready var lamp: SpotLight3D = $Head/Lamp
 @onready var body_visual: Node3D = $Body
 @onready var shape: CollisionShape3D = $Shape
 @onready var view_model: Node3D = $Head/Camera3D/ViewModel
@@ -54,9 +60,8 @@ var _camera_tween: Tween
 var _animation: CrewAnimation # the arms (owner) or the suit (everyone else)
 var _pose: CrewPose
 var _held_item: Node3D
-var _grip_offset := Vector3.ZERO # where the held item's grip is, in its own space
 var _shown := &"-"
-var _lens: Node3D
+var _lamp_socket: Node3D # the suit's helmet lamp, everyone else's view
 var _lens_material: ShaderMaterial
 var _cuff_screen: MeshInstance3D
 var _stride := 0.0 # stride cycles walked, for the head bob
@@ -77,7 +82,7 @@ func _ready() -> void:
 	body_visual.visible = not local
 	view_model.visible = local
 	look.x = rotation.y
-	flashlight.top_level = true
+	lamp.top_level = true
 	if local:
 		add_to_group(&"local_player")
 		_equip_view_model()
@@ -93,9 +98,14 @@ func _ready() -> void:
 		_pose = CrewPose.new()
 		body_visual.find_child("Skeleton3D", true, false).add_child(_pose)
 		_cuff_screen = body_visual.find_child("cuff_screen", true, false) as MeshInstance3D
-		var beam := TorchBeam.new()
+		_lamp_socket = body_visual.find_child("SOCKET_lamp", true, false) as Node3D
+		var glass := body_visual.find_child("lamp_lens", true, false) as MeshInstance3D
+		if glass != null and glass.get_active_material(0) is ShaderMaterial:
+			_lens_material = glass.get_active_material(0).duplicate()
+			glass.material_override = _lens_material
+		var beam := LampBeam.new()
 		beam.holder = self
-		flashlight.add_child(beam)
+		lamp.add_child(beam)
 	NetworkTime.on_tick.connect(_tick)
 
 
@@ -119,8 +129,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("pause"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif event.is_action_pressed("flashlight"):
-		_flashlight_key()
+	elif event.is_action_pressed("lamp"):
+		lamp_on = not lamp_on
 	elif event.is_action_pressed("interact") and aimed_at != null:
 		aimed_at.request_use()
 	elif event.is_action_pressed("slot_next"):
@@ -151,17 +161,6 @@ func select_slot(index: int) -> void:
 	belt_changed.emit()
 
 
-## F: the flashlight on or off, drawing it from the belt first if something else is in hand.
-func _flashlight_key() -> void:
-	if held == &"flashlight":
-		flashlight_on = not flashlight_on
-		return
-	var index := belt.find(&"flashlight")
-	if index >= 0:
-		select_slot(index)
-		flashlight_on = true
-
-
 func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		rotation.y = look.x
@@ -178,7 +177,7 @@ func _process(delta: float) -> void:
 	if held != _shown:
 		_show_held()
 	_animate(delta)
-	_place_flashlight()
+	_place_lamp()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -273,18 +272,18 @@ func _can_stand() -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 
-## Dev flags (Dev): `--flashlight` starts with the light on; `--look=<yaw>,<pitch>` (degrees)
+## Dev flags (Dev): `--lamp` starts with the helmet lamp on; `--look=<yaw>,<pitch>` (degrees)
 ## sets the starting view; `--at=<x>,<y>,<z>` the starting spot; `--hold=<kind>` puts an item
 ## in hand. For checking builds unattended.
 func _apply_dev_flags() -> void:
-	if Args.flag("--flashlight"):
-		flashlight_on = true
+	if Args.flag("--lamp"):
+		lamp_on = true
 	var at := Args.value("--at", "")
 	if at != "":
 		var v := at.split_floats(",")
 		teleport(Vector3(v[0], v[1], v[2]))
 	var kind := StringName(Args.value("--hold", ""))
-	if belt.has(kind):
+	if kind != &"" and belt.has(kind):
 		select_slot(belt.find(kind))
 	var target := Args.value("--operate", "")
 	if target != "":
@@ -351,8 +350,8 @@ func _operate_when_ready(screen_mesh: String) -> void:
 			return
 
 
-## The first-person arms: shadowless (they'd shade the flashlight in them), the wrist cuff's
-## screen live.
+## The first-person arms: shadowless (they'd shade the lamp's light on what's in hand), the wrist
+## cuff's screen live.
 func _equip_view_model() -> void:
 	for mesh: GeometryInstance3D in view_model.find_children("*", "GeometryInstance3D", true, false):
 		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -385,42 +384,30 @@ func _show_held() -> void:
 	var own := is_multiplayer_authority()
 	var rig := view_model if own else body_visual
 	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D, not own)
-	_lens = null
-	_lens_material = null
-	if _held_item != null:
-		_grip_offset = Items.grip_offset(_held_item)
-		_lens = _held_item.find_child("SOCKET_light", true, false) as Node3D
-		var glass := _held_item.find_child("lens", true, false) as MeshInstance3D
-		if glass != null and glass.get_active_material(0) is ShaderMaterial:
-			_lens_material = glass.get_active_material(0).duplicate()
-			glass.material_override = _lens_material
 
 
-## The flashlight shines from the torch's lens, where the torch points; the owner's from the torch
-## in their fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks
-## (the hold pose already has it near enough: it turns the last bit about the grip). Never through
-## a wall the lens has been pushed into. Everyone else also sees its beam in the air and its glare
-## (TorchBeam, riding the light).
-func _place_flashlight() -> void:
-	var on := flashlight_on and held == &"flashlight" and _lens != null
-	flashlight.visible = on
+## The helmet lamp shines from its lens on the left of the helmet, aimed to cross the line of sight
+## LAMP_CONVERGE ahead: the owner's beside their eye (bobbing with the view), everyone else's from
+## the suit's lamp, which the head carries. Never through a wall the lens has been pushed into.
+## Everyone else also sees its beam in the air and its glare (LampBeam, riding the light).
+func _place_lamp() -> void:
+	lamp.visible = lamp_on
 	if _lens_material != null:
-		_lens_material.set_shader_parameter("energy", 2.0 if on else 0.15)
-	if _held_item != null and not is_multiplayer_authority() and held == &"flashlight":
-		var aim := head.global_basis * Basis(Vector3.UP, PI)
-		var grip := (_held_item.get_parent() as Node3D).global_position
-		_held_item.global_transform = Transform3D(aim, grip - aim * _grip_offset)
-	if not on:
+		_lens_material.set_shader_parameter("energy", 2.0 if lamp_on else 0.15)
+	if not lamp_on:
 		return
-	var forward := _held_item.global_basis.z.normalized()
-	var eye := head.global_position
-	var lens := _lens.global_position + forward * 0.04
+	var view := head.global_transform
+	if is_multiplayer_authority() and not camera.top_level:
+		view = camera.global_transform
+	var lens := view * LAMP_OFFSET
+	if _lamp_socket != null:
+		lens = _lamp_socket.global_position
 	var space := get_world_3d().direct_space_state
-	var query := PhysicsRayQueryParameters3D.create(eye, lens, 1, [get_rid()])
-	var blocked := space.intersect_ray(query)
+	var blocked := space.intersect_ray(PhysicsRayQueryParameters3D.create(view.origin, lens, 1, [get_rid()]))
 	if not blocked.is_empty():
-		lens = blocked.position + (eye - lens).normalized() * 0.06
-	flashlight.global_transform = Transform3D(Basis.looking_at(forward, _held_item.global_basis.y), lens)
+		lens = blocked.position + (view.origin - lens).normalized() * 0.06
+	var target := view.origin - view.basis.z * LAMP_CONVERGE
+	lamp.global_transform = Transform3D(Basis.looking_at(target - lens, view.basis.y), lens)
 
 
 ## Arms (owner) and suit (everyone else) blend their clips by what the crew member's doing.
@@ -458,4 +445,3 @@ func _animate(delta: float) -> void:
 		_legs_yaw = lerp_angle(_legs_yaw, wanted, ease)
 		_pose.legs_yaw = _legs_yaw
 		_pose.pitch = head.rotation.x
-		_pose.torch = lerpf(_pose.torch, 1.0 if Items.hold_style(held) == "torch" else 0.0, 1.0 - exp(-delta * 10.0))

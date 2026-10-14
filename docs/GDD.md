@@ -1,6 +1,6 @@
 # DEEP SPACE — Game Design Document (working title)
 
-*Draft 0.1 — 2026-10-13. Living document. It covers game design and look/feel only; implementation notes live in [`TECH.md`](TECH.md). Open questions and assumptions are collected in §17.*
+*Draft 0.1 — 2026-10-14. Living document. It covers game design and look/feel only; implementation notes live in [`TECH.md`](TECH.md). Open questions and assumptions are collected in §17.*
 
 ---
 
@@ -88,7 +88,7 @@ The forward viewport looks out onto the system.
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
 | **Crew cabins** | Rear corridor | Spawn, lore, save point. One small cabin per crew member | Bunk, personal locker, log terminal |
 | **Med Bay** | Rear corridor | Healing / revive (§11) | Offline at run start; shown dark behind glass until it's upgraded |
-| **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters, flashlight cells, sealant |
+| **Stores** | Rear corridor | Spare supplies | Shelving for O2 canisters, lamp cells, sealant |
 
 - **The jump procedure:**
   1. A route is selected at the Helm, a fuel cell is loaded in the Drive Room, and the outer hatches are sealed.
@@ -193,7 +193,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 | Walk | ~2.2 m/s | Quiet |
 | Sprint | ~4.0 m/s | Triples O2 use, loud, short stamina |
 | Crouch | ~1.2 m/s | Near-silent; fits under vents and low pipes |
-| Carry (heavy) | ~1.6 m/s | Two-handed, so no sprinting and no handheld light |
+| Carry (heavy) | ~1.6 m/s | Two-handed, so no sprinting and nothing from the belt |
 
 - **Jumps and mantling:** jumps are short. Mantling handles crates and ledges.
 - **Gravity and inertia:**
@@ -211,19 +211,27 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **Integrity:** damage can breach the suit, which leaks O2 (audible hiss, frost on the visor) until it is patched with sealant.
 
 ### 9.3 Light
-- **Handheld flashlight:** the main light. Its battery runs about 6 minutes of continuous use per cell. It flickers when low, and spare cells are loot.
-- **Helmet lamp:** an upgrade. It is weak and wide, but frees the hands for carrying.
+- **Helmet lamp:** the main light, on every suit from the start. `F` turns it on and off.
+  - It sits on the left of the helmet and points where you look, so both hands stay free: the crew can carry a fuel cell or the Prize and still see.
+  - It's offset from the eye, so the shadows it casts are visible.
+  - Its battery runs about 6 minutes of continuous use per cell. It flickers when low, and spare cells are loot.
 - **Flares:** thrown light that burns for about 60 s, hisses and draws attention.
 
 ### 9.4 Inventory
-- **Belt:** 4 slots for small items. `1–4` or the wheel takes one in hand; `F` draws the flashlight and switches it on.
-- **Hands:** one item drawn from the belt, or one large two-handed carry. The flashlight is a held item too, so light and tool compete for the hand until the helmet lamp frees it (see A8). Heavy items such as fuel cells, the Prize or a body slow you down and take your handheld light.
-- **Starting kit (Tier 0):** flashlight, crowbar, shock prod and flares, on the belt.
-- **Everyone can see it:** what's in each crew member's hand, their flashlight beam, and when they raise their cuff.
+- **Belt:** 4 slots that hold anything small, gear and loot alike: tools, weapons, salvage, O2 canisters, data cores, cartridges. This works as in *Lethal Company*: every slot your kit fills is one you can't fill with loot on the way back.
+  - `1–4` or the wheel draws one into the hand.
+  - `E` takes a small thing into the slot in hand if it's empty, otherwise into the first empty slot, and draws it.
+  - With all four slots full, there's no room until something is dropped.
+- **Hands:** the item drawn from the belt, or one large two-handed carry (a fuel cell, the Prize, a body).
+  - A carry takes both hands. The belt keeps its items, but nothing can be drawn from it, and the cuff can't be raised, until the carry is set down.
+  - Heavy carries slow you down and stop you sprinting. The helmet lamp keeps shining.
+- **Drop and throw:** `Q` sets down what's in your hands. Hold `Q` to throw it: the longer you hold, the farther it goes. A heavy carry only goes a short way. Dropped and thrown things make noise.
+- **Starting kit (Tier 0):** the helmet lamp on the suit, and a crowbar, shock prod and flares on the belt, which leaves one slot free (see A9).
+- **Everyone can see it:** what's in each crew member's hands, their lamp's beam, and when they raise their cuff.
 - **On death:** everything drops on the body.
 
 ### 9.5 Controls (KB+M first)
-`WASD` move · mouse look · `Shift` sprint · `Ctrl` crouch · `Space` jump/mantle · `E` interact/pick up · `F` flashlight · `LMB` use · `RMB` alt-use/aim · `Q` drop (hold to throw) · `1–4`/wheel belt slots · `Tab` raise wrist cuff.
+`WASD` move · mouse look · `Shift` sprint · `Ctrl` crouch · `Space` jump/mantle · `E` interact/pick up · `F` helmet lamp · `LMB` use · `RMB` alt-use/aim · `Q` drop (hold to throw) · `1–4`/wheel belt slots · `Tab` raise wrist cuff.
 
 ## 10. Interface: Diegetic First, Minimal HUD
 
@@ -242,7 +250,7 @@ Most information lives in the world. A small **visor HUD** fills the gaps, and i
 | Damage | **Visor:** cracks, frost and condensation when O2 is low, a blood spatter | Readouts flicker and distort |
 | Your stress | Breathing and heartbeat audio, tied to vitals and threat proximity | — |
 | Other players' state | **Spine lights** on each suit (Dead Space-style) visible from behind; the item in their hand and their beam; their cuff's screen lighting up as they raise it to read; their breathing on the radio; the station's Vitals board | — |
-| Flashlight battery | An LED on the flashlight itself, plus flicker | — |
+| Helmet lamp battery | The wrist cuff, plus the lamp's flicker when low | — |
 | Tool and weapon state | Each tool's own screen or indicator (scanner CRT, motion tracker, charge LEDs) | — |
 | Map, route, fuel, salvage | The station's terminals and gauges (§5) | — |
 | Objectives | None explicit. Nav Chart info, plus PA announcements from the station's computer, "KEEPER" | — |
@@ -290,10 +298,10 @@ Death is frequent and specific.
   - An elongated, eyeless thing that moves on all fours. It may once have been crew.
   - Hunts by sound: sprinting, dropped items, doors, tools.
   - Its states are wander → investigate → hunt → lunge. Two hits kill, and a grab from behind is an instant execution.
-  - It ignores flashlight beams. A hissing flare can lure it.
+  - It ignores lamp beams. A hissing flare can lure it.
   - It can be stunned with a shock prod, cut down slowly with the plasma cutter, or crushed in a door or airlock. Reinforces the "move intentionally" pillar.
 - **Hanger** *(the ceiling trap)*:
-  - Hangs in dark rooms with long, translucent tendrils that are only visible under a flashlight beam.
+  - Hangs in dark rooms with long, translucent tendrils that are only visible under a lamp beam.
   - Touching a tendril yanks you up. You die within about 3 s unless a teammate hits it.
   - Teaches players to use the light and look up.
 
@@ -329,7 +337,7 @@ Death is frequent and specific.
 |---|---|---|---|
 | **0: Improvised** | Starting kit | Crowbar, shock prod (recharges at the station), flares | Stun, deter and buy time. Killing even a Crawler is a messy, risky fight |
 | **1: Industrial** | Sector 1 | Plasma cutter (mining tool: precise, slow, also cuts hatches), rivet driver (single heavy bolts, loud) | One-handed tools pressed into service. A Crawler dies to a few good hits |
-| **2: Security** | Sector 2 | Pulse carbine (standard security issue from the earlier waves), arc projector (chains between targets, including teammates) | Two-handed and loud, so aiming them needs the helmet lamp or a weapon light |
+| **2: Security** | Sector 2 | Pulse carbine (standard security issue from the earlier waves), arc projector (chains between targets, including teammates) | Two-handed and loud |
 | **3: Heavy / exotic** | Sector 3 | Mass driver, incinerator, a weapon grown from alien tissue | Heavy, slow to ready and devastating; they drain cartridges fast |
 
 - **Bigger weapons cost more:**
@@ -346,7 +354,7 @@ Death is frequent and specific.
 
 | Tool | Use |
 |---|---|
-| Flashlight | Starting kit |
+| Lamp cell | Recharges the helmet lamp |
 | Sealant patch | Fixes a suit breach |
 | O2 canister | Refills suit O2 |
 | Power cell | Powers a derelict zone |
@@ -355,7 +363,6 @@ Death is frequent and specific.
 | Tether gun | Zero-g traversal; can pull a teammate back |
 
 **Station upgrades** (Fabricator, paid in salvage):
-- **Helmet Lamp**
 - **O2 Capacity I/II**
 - **Long-Range Scanner II:** scans two jumps ahead and identifies Signals
 - **Docking Clamp II:** docks with more oddity types
@@ -382,13 +389,13 @@ Death is frequent and specific.
 | Poly budgets (triangles) | Characters 600–1,200 · creatures 400–900 · view-model tools 150–400 · props 20–300 · kit pieces 50–400 · LANTERN exterior 2–4k |
 | Bodies | Characters and creatures are built from **segmented rigid parts** that don't stretch or bend at the joints, PSX style |
 | Animation | Creatures move at 12 fps, stepped. The crew's motion is smooth so feet stay planted as they walk, and it blends between standing, walking, running and crouching |
-| A little modern light (PSX+) | Light bounces: lit surfaces, a flashlight's spot most of all, light their neighbours a little, and glossy surfaces and glass show screen-space reflections. Shadows are plain. Still no motion blur, little or no bloom, and no ambient occlusion beyond the baked vertex AO |
+| A little modern light (PSX+) | Light bounces: lit surfaces, a lamp's spot most of all, light their neighbours a little, and glossy surfaces and glass show screen-space reflections. Shadows are plain. Still no motion blur, little or no bloom, and no ambient occlusion beyond the baked vertex AO |
 
 **Lighting (the main atmospheric tool):**
 - **LANTERN:** warm sodium-amber practicals, off-white panels, CRT green and amber screens. It reads as home.
-- **Derelicts:** ambient light near black with a slight blue tint. At most 1–2 broken, flickering practicals per room, with red emergency strobes and rotating beacons. The flashlight carries the scene.
-- **Flashlight:** casts hard shadows, and a dirty-lens pattern shows in the beam. The beam is your whole view of a room, so what it reveals and what it leaves in shadow are the main horror tools.
-- **Fog:** closes in early, as on the PSX. A light haze in derelicts makes flashlight beams visible. This is a deliberate anachronism, to be judged in look-dev.
+- **Derelicts:** ambient light near black with a slight blue tint. At most 1–2 broken, flickering practicals per room, with red emergency strobes and rotating beacons. The helmet lamp carries the scene.
+- **Helmet lamp:** casts hard shadows, and a dirty-lens pattern shows in the beam. The beam is your whole view of a room, so what it reveals and what it leaves in shadow are the main horror tools.
+- **Fog:** closes in early, as on the PSX. A light haze in derelicts makes lamp beams visible. This is a deliberate anachronism, to be judged in look-dev.
 
 **Space:**
 - A starfield and nebula sky, dithered and tinted by the star type.
@@ -427,10 +434,10 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 | **LANTERN** | **Bridge hub** with forward viewport and four stations: Helm (Nav Chart, Jump Lever), Science (long-range scanner, Survey Console), Ops (Vitals board, cameras, PA), Engineering (gauges, breakers). **Off the bridge:** Suit Room and EVA airlock, Docking Port and collar, Drive Room (drive, fuel slots), Workshop (recycler hopper, Fabricator). **Rear corridor:** crew cabins, stores, Med Bay (offline). Hull exterior visible from EVA |
 | **Derelict** | The station's tech language, decayed: broken panels, debris, cable spills, blood and growth, emergency strobes, breaker boxes. 6–10 room types, plus a Prize room and an exterior hull |
 | **Space** | Starfield and nebula skies, star types, a planet set, debris and asteroids, hyperspace tunnel |
-| **Items** | Flashlight, fuel cell, salvage, O2 canister, power cell, data core, sealant patch; first-person arms |
+| **Items** | Helmet lamp, fuel cell, salvage, O2 canister, power cell, data core, sealant patch; first-person arms |
 | **Weapons** | Tier 0 (crowbar, shock prod, flares) and Tier 1 (plasma cutter, rivet driver); energy cartridges |
 | **Characters** | Player suit (with spine lights), Crawler, Hanger |
-| **Upgrades** | Helmet Lamp, O2 Capacity I, Med Bay (if revive is gated behind it) |
+| **Upgrades** | O2 Capacity I, Med Bay (if revive is gated behind it) |
 | **Events** | Prize events (security system, depressurization, structural breach, infestation, or nothing); the Signal and Anomaly nodes use simple placeholder versions |
 
 ## 17. Open Questions & Working Assumptions
@@ -441,6 +448,11 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 3. **Combat:** start avoidance-first with improvised weapons. Weapons are found as the run progresses, growing in complexity, size and damage, and all use scarce energy cartridges (§13).
 4. **Voice and connection:** direct IP for now, with voice through Discord. There is no in-game voice in the slice.
 
+**Decided (2026-10-14):**
+
+5. **The light is a helmet lamp from the start** (was A8). Both hands stay free, so the crew can still see while carrying something two-handed. There is no Helmet Lamp upgrade, and no handheld flashlight.
+6. **The belt holds loot as well as gear**, as in *Lethal Company* (§9.4). Two-handed carries stay out of the belt and take both hands.
+
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.
 - **A2.** Run length: 3 sectors at roughly 35–50 minutes each, with saves between jumps.
@@ -449,7 +461,7 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 - **A5.** Friendly fire is on.
 - **A6.** Encounter interiors are procedurally assembled from hand-built rooms. Boss arenas are fully hand-built.
 - **A7.** Difficulty scales with crew size. Solo must be viable.
-- **A8.** The flashlight takes the hand like any other belt item, so light and crowbar are a choice until the helmet lamp (§9.4). (The alternative: the flashlight in the off hand, alongside any one-handed tool.)
+- **A9.** The starting kit (crowbar, shock prod, flares) starts on the belt, so a crew member heads out with one free slot and drops gear to make room for more. (The alternative: the kit is racked in the Suit Room and each crew member chooses what to take.)
 
 **TODO:**
 - What Survey Data is used for (§7).

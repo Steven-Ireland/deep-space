@@ -1,6 +1,6 @@
 # DEEP SPACE — Technical Notes
 
-*Draft 0.1 — 2026-10-13. How the game in [`GDD.md`](GDD.md) gets built. Design decisions live in the GDD; this file covers engine, networking, rendering, pipeline and the build plan.*
+*Draft 0.1 — 2026-10-14. How the game in [`GDD.md`](GDD.md) gets built. Design decisions live in the GDD; this file covers engine, networking, rendering, pipeline and the build plan.*
 
 ---
 
@@ -29,7 +29,7 @@
 
 | Thing | Authority | Sync |
 |---|---|---|
-| Player body, look, flashlight, held item, cuff, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `flashlight_on`, `crouching`, `sprinting`, `held`, `cuff_up`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
+| Player body, look, helmet lamp, held item, cuff, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `cuff_up`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
 | Player actions (hits, interactions, pickups, throws) | **Owning client reports**; host applies | Reliable RPC to the host → host applies it to the target's state → state is broadcast |
 | Run state (map, fuel, salvage, upgrades, crew status) | Host | Reliable RPCs on change. Saved by the host to `user://` between jumps |
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
@@ -93,11 +93,11 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - Each material's `affine_amount` scales the global one, for when it's on.
 - **Lighting:**
   - Real-time per-pixel lights only, with no baked GI (layouts are procedural).
-  - **Flashlights** are `SpotLight3D`s at the held torch's lens (`SOCKET_light`): the owner's from the torch in their first-person fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks. The light is pulled back if the lens is pushed into a wall. Held items and the first-person arms cast no shadows, so a torch can't shade its own beam. (A projector texture for the lens pattern is still to come.)
-  - **A teammate's flashlight from outside** (`TorchBeam`, riding their light): a faint additive cone of lit air from the lens to where a ray says the light lands (at most 7 m), soft at its rim, its far end and where it meets the room (the depth buffer). Their lens glows whenever it faces you, and pointed into your eyes it flares: a halo, a level streak, a six-point star and a faint veil, drawn over everything at a fixed screen size, as bright as the share of the lens that's in sight: the depth buffer, sampled across the lens on screen, against the lens's own distance. (A physics ray let it show past door frames, whose trim stands proud of their collision.) You never see your own light from outside.
-  - **PSX+ bounce (GDD §14):** the environment runs Godot's SSIL and SSR at their default settings, so a flashlight's spot lights what's around it on screen. `--no-gi` turns them off for comparison. (A custom bounce light at the spot was tried and dropped: its shadows threw odd shapes.)
+  - **Helmet lamps** are `SpotLight3D`s at the lamp's lens on the left of the helmet, aimed to cross the line of sight 6 m ahead: the owner's at a fixed offset from their eye (`Player.LAMP_OFFSET`, bobbing with the view), everyone else's at the suit's `SOCKET_lamp`, which the head carries. The light is pulled back if the lens is pushed into a wall. Being off the eye, it throws shadows you can see. Held items and the first-person arms cast no shadows, so they can't shade the beam. (A projector texture for the lens pattern is still to come.)
+  - **A teammate's lamp from outside** (`LampBeam`, riding their light): a faint additive cone of lit air from the lens to where a ray says the light lands (at most 7 m), soft at its rim, its far end and where it meets the room (the depth buffer). Their lens glows whenever it faces you, and pointed into your eyes it flares: a halo, a level streak, a six-point star and a faint veil, drawn over everything at a fixed screen size, as bright as the share of the lens that's in sight: the depth buffer, sampled across the lens on screen, against the lens's own distance. (A physics ray let it show past door frames, whose trim stands proud of their collision.) You never see your own light from outside.
+  - **PSX+ bounce (GDD §14):** the environment runs Godot's SSIL and SSR at their default settings, so a lamp's spot lights what's around it on screen. `--no-gi` turns them off for comparison. (A custom bounce light at the spot was tried and dropped: its shadows threw odd shapes.)
   - **Shadows are Godot's defaults**: filter quality, bias, and the sun's splits and distance are all left at stock values.
-  - **Shadow budget:** the local player's flashlight always casts shadows. Teammates' lights cast shadows only within about 12 m, with at most 4 shadowed spots at once. Room practicals are unshadowed apart from hand-picked key lights.
+  - **Shadow budget:** the local player's lamp always casts shadows. Teammates' lights cast shadows only within about 12 m, with at most 4 shadowed spots at once. Room practicals are unshadowed apart from hand-picked key lights.
   - No SSAO or SDFGI. Environment ambient is near black in derelicts.
 - **Hull clearance:** hull plating stands 2 cm off the walls' outer faces and 3 cm off the ceiling and floor, and its outer face (0.56 m out from the wall line) clears the walls' outer chamfer. A plane shared with the deck, or a wall detail poking through, flickers as vertices snap.
 - **Fog:**
@@ -148,13 +148,13 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - **Crew locomotion** (`characters.py`): walk, run and crouch-walk are each one stride cycle in one second, left heel strike first, generated from a gait. Each foot is planted for its stance and rides back under the body at exactly the gait's speed, with a heel-to-toe roll. The legs reach their ankle targets by two-bone IK (`rig.leg_ik`), and the hips drop as far as the planted feet need.
   - **Poses solved for what they achieve** (`rig.solve`, Nelder–Mead over FK), within each joint's natural reach:
     - The wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view, the hand past it relaxed (the wrist only droops palm-ward). The cuff sits square to the forearm it's on.
-    - The suit's holds: the torch out in front of the belly, level, elbow bent; a tool low at the side, 35° up. Each is set by where the grip goes and which way the held thing points, with the elbow a hinge and the wrist in range.
-    - The first-person tool hold: the fist low in the right of the view, a tool's handle running up across it (a hammer grip) and leaning in, diagonal across the view and clear of the crosshair. The flashlight keeps the resting arms, pointing ahead out of the fist.
+    - The suit's tool hold: low at the side, 35° up. It's set by where the grip goes and which way the held thing points, with the elbow a hinge and the wrist in range.
+    - The first-person tool hold: the fist low in the right of the view, a tool's handle running up across it (a hammer grip) and leaning in, diagonal across the view and clear of the crosshair.
     - **Wrists never bend back** (toward the knuckles) holding something: they tilt toward the thumb or little finger, and bend palm-ward. A bent-back wrist was the giveaway in earlier holds.
   - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
-  - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and a torch held out with the gaze (the torch arm about the chest's axis, so it tips as far as the gaze; the torch then turns the last bit about its grip to point exactly where they look). The camera's bob follows the same stride.
+  - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and chest with the gaze. The camera's bob follows the same stride.
   - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye; `--hold=<model>:<tilt>` puts an item in the rig's hand as the game does.
-- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("torch" or "tool") and its tilt in each hand: `tilt` in the first-person fist, `glove` in the suit's. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove, across which a held thing lies the way a hanging fist holds a hammer. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
+- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("tool") and its tilt in each hand: `tilt` in the first-person fist, `glove` in the suit's. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove, across which a held thing lies the way a hanging fist holds a hammer. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
 - **Textures:**
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
@@ -182,7 +182,7 @@ deep-space/
   addons/                 netfox, netfox.extras, netfox.internals
   game/
     core/                 net, run state, seeds, save, zones
-    player/               controller, suit, flashlight, cuff, interaction, carry
+    player/               controller, suit, helmet lamp, cuff, interaction, carry
     station/              LANTERN scenes and its consoles
     space/                sky, star, planets, hyperspace
     map/                  sector generation, nav chart UI
@@ -208,9 +208,9 @@ deep-space/
   - a scene smoke test that loads every scene
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
-- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--flashlight` set up a shot; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
 - **QA tools** (`tools/`), for checking changes by eye in the real game and in Blender:
-  - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--flashlight] --screenshot=<out> --frames=150`.
+  - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--lamp] --screenshot=<out> --frames=150`.
   - `pair.sh <out> "<host flags>" "<client flags>"`: a host and a client on one machine; the host shoots once the client is aboard. With `--view` in the host flags it's the way to see a teammate's suit, held item, beam or glare.
   - `pose_sheet.py`: a built rig's clips at chosen moments, from any angle or the first-person eye; `--hold` puts an item in the hand as the game does, `--focus`/`--lens` close in on a bone.
   - `clip_angles.py`: the turns a clip keys at a moment, for a solved pose's numbers.
@@ -222,7 +222,7 @@ deep-space/
 | # | Milestone | Deliverable |
 |---|---|---|
 | M0 | **Foundations** | Godot project, netfox vendored, folder layout, git, PSX render pipeline, input map, launch scripts, Blender build harness |
-| M1 | **Crew** | Networked first-person controller (owner-authoritative), flashlight, interaction, carrying, wrist cuff, visor HUD, suit O2 and pressure zones |
+| M1 | **Crew** | Networked first-person controller (owner-authoritative), helmet lamp, interaction, carrying, wrist cuff, visor HUD, suit O2 and pressure zones |
 | M2 | **LANTERN & space** | Station kit and rooms modelled and assembled, lighting pass, sky, star and planets through the windows, terminal framework, Vitals board. **← art/feel review checkpoint** |
 | M3 | **Navigation** | Sector map generation, Nav Chart terminal, jump sequence and hyperspace effect, long-range scan and progressive charting, system generation, Survey Console, fuel economy |
 | M4 | **The derelict** | Docking, room-module generator and derelict kit, power zones, loot and Prize, hazards, Crawler and Hanger, death, spectating through the station and revive, extraction |
@@ -242,7 +242,7 @@ deep-space/
 | Risk | Mitigation |
 |---|---|
 | Terminal text unreadable at 270 lines | Camera eases in to fill the view; large bitmap fonts; prototype in M2 |
-| Shadowed-light cost with 4 flashlights in one room | Shadow budget (§4); measure early in M1 |
+| Shadowed-light cost with 4 lamps in one room | Shadow budget (§4); measure early in M1 |
 | Generated rooms plus dynamic lights look flat | Hand-placed practicals and decals in each module; lighting review at M2 |
 | Scripted Blender models look procedural or placeholder | The authored per-asset process (§5): spec, deliberate modelling, baked textures, multi-angle review. Nothing ships without passing review |
 | Generation drifting between peers | Seed discipline, a checksum on every generation, a determinism test |
@@ -271,3 +271,6 @@ deep-space/
   - The suit's hold poses are solved (torch at the belly, tools low and ready), and each item has its own tilt in the glove; the flare is held a third of the way up.
   - The first-person left hand is relaxed when reading the cuff, and the cuff is square to its forearm.
   - First-person tools have their own solved hold (a hammer grip, diagonal across the view); no hold bends a wrist back.
+- **2026-10-14: The helmet lamp** (GDD §17, decided 5).
+  - The light is the suit's helmet lamp, on the left of the helmet, for everyone from the start; `F` toggles it (`lamp_on`, the `lamp` action, `--lamp`).
+  - The handheld flashlight is gone: its model, the torch hold poses and `CrewPose`'s torch arm. `TorchBeam` is now `LampBeam`.

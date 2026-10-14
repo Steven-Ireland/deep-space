@@ -38,7 +38,6 @@ def _suit_materials():
         orange=mats.paint("ch_orange", (0.86, 0.42, 0.1), wear=0.4, grime=0.35),
         steel=mats.metal("ch_steel", (0.55, 0.55, 0.53), grime=0.3),
         visor=mats.glowing("ch_visor", (0.1, 0.16, 0.15), base=(0.04, 0.06, 0.06), flicker=0.0),
-        lamp=mats.glowing("ch_lamp", (1.0, 0.85, 0.6), base=(0.6, 0.5, 0.35)),
     )
 
 
@@ -49,10 +48,11 @@ def _limb(m, k, x, top, bottom, r_top, r_bottom, material, sides=6):
 @asset("ch_suit", "characters", texture=256, colors=32, ao=0.5)
 def suit():
     """The crew EVA suit (GDD §9, §10): 1.8 m. A bulky cream suit with ribbed joints and orange
-    bands, a domed helmet with a dark visor and a side lamp, a chest unit with status lamps, a life
-    support pack on the back carrying the SPINE LIGHTS (`spine_lights`, separate: Godot colours
-    them by health so the crew can read each other), dark gloves and heavy boots, a wrist cuff on
-    the left forearm. Rigid segments on 17 bones."""
+    bands, a domed helmet with a dark visor and the HELMET LAMP on its left (its lens `lamp_lens`,
+    separate: Godot lights it while the lamp is on; `SOCKET_lamp`, where it shines from), a chest
+    unit with status lamps, a life support pack on the back carrying the SPINE LIGHTS
+    (`spine_lights`, separate: Godot colours them by health so the crew can read each other), dark
+    gloves and heavy boots, a wrist cuff on the left forearm. Rigid segments on 17 bones."""
     k = _suit_materials()
     dk = br._decals()
     m = Mesh("ch_suit")
@@ -85,8 +85,14 @@ def suit():
             k["hard"], sides=8)
     m.box((0.24, 0.06, 0.13), k["visor"], at=(0, -0.145, 1.66), rot=(-8, 0, 0), bevel=0.03)
     m.box((0.28, 0.05, 0.03), k["dark"], at=(0, -0.15, 1.74), bevel=0.01)
-    m.box((0.05, 0.08, 0.06), k["dark"], at=(0.17, -0.06, 1.7), bevel=0.01)
-    m.box((0.03, 0.01, 0.03), k["lamp"], at=(0.17, -0.1, 1.7))
+    # The helmet lamp on the left of the helmet: a barrel on a bracket, an orange bezel round its
+    # lens, a lead into the helmet behind it.
+    m.box((0.04, 0.05, 0.03), k["dark"], at=(0.175, -0.05, 1.72))
+    m.lathe([(0.026, 0.0), (0.03, 0.01), (0.03, 0.085), (0.035, 0.1), (0.035, 0.112)], k["dark"], sides=6,
+            at=(LAMP[0], LAMP[1] + 0.112, LAMP[2]), rot=(90, 0, 0), cap_end=False)
+    m.lathe([(0.0365, 0.098), (0.0365, 0.112)], k["orange"], sides=6, at=(LAMP[0], LAMP[1] + 0.112, LAMP[2]), rot=(90, 0, 0),
+            cap_start=False, cap_end=False)
+    m.pipe([(0.2, -0.002, 1.72), (0.19, 0.05, 1.7), (0.16, 0.07, 1.68)], 0.007, k["dark"], sides=4)
     m.pipe([(-0.12, 0.08, 1.76), (-0.14, 0.12, 1.95)], 0.006, k["dark"], sides=4)
     # Arms.
     for side, sx in (("L", 1), ("R", -1)):
@@ -134,18 +140,32 @@ def suit():
     cuff.bone("forearm.L")
     cuff.polygon([(-0.03, -0.04), (0.03, -0.04), (0.03, 0.04), (-0.03, 0.04)], mats.plain("ch_cuff_screen", (0.2, 0.9, 0.4)), cuff_frame)
     cuff_obj = cuff.to_object()
+    # The helmet lamp's lens, separate: Godot lights it while the lamp is on.
+    lens = Mesh("lamp_lens")
+    lens.bone("head")
+    lens.cylinder(0.028, 0.004, mats.plain("ch_lamp_lens", (0.9, 0.88, 0.8)), sides=6, at=(LAMP[0], LAMP[1] + 0.003, LAMP[2]),
+                  rot=(90, 0, 0))
+    lens_obj = lens.to_object()
 
     skeleton = rig.armature("suit_rig", SUIT_BONES)
     rig.bind(low, skeleton)
     rig.bind(lights_obj, skeleton)
     rig.bind(cuff_obj, skeleton)
+    rig.bind(lens_obj, skeleton)
+    # The lamp shines from just in front of its lens (`SOCKET_lamp`, carried by the head).
+    lamp = _bone_socket(skeleton, "SOCKET_lamp", "head", (LAMP[0], LAMP[1] - 0.01, LAMP[2]))
     # Whatever's held sits in the right glove (`SOCKET_grip`), across the fist: with the arm at
     # rest it points ahead along the body's forward axis, the way a hanging fist holds a hammer.
     grip = _bone_socket(skeleton, "SOCKET_grip", "hand.R", GLOVE_GRIP)
     holds = {style: _hold_pose(skeleton, **spec) for style, spec in HOLDS.items()}
     print(f"ch_suit holds: {holds}")
     _suit_clips(skeleton, _cuff_pose(skeleton, cuff_centre, Vector((0, -1, 0)), Vector((0, 0, -1))), holds)
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, grip])
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, lens_obj, grip, lamp])
+
+
+# The front of the helmet lamp's barrel, on the left of the helmet (the suit faces -Y, its left +X):
+# 0.2 m out from the middle of the head, 0.1 m above the eye. game/player/player.gd keeps it.
+LAMP = (0.2, -0.117, 1.72)
 
 
 def _bone_socket(skeleton, name, bone, at):
@@ -272,14 +292,11 @@ def _stand(hip_z, feet, hips=(0.0, 0.0, 0.0)):
 
 # Holding things in the right glove (seen by the rest of the crew), by what each hold achieves:
 # where the grip is (model space, the suit facing -Y) and which way the held thing points, sitting
-# in the fist pitched up `tilt` degrees (game/items/items.gd keeps these: the flashlight's glove
-# tilt; a tool's is 0 here and its own, a few degrees either way, in the game).
-#   torch: out in front of the belly, elbow bent, pointed level ahead (the game then aims it with
-#          the gaze); a torch sits in a fist slanted toward the knuckles, so the wrist cocks less.
+# in the fist pitched up `tilt` degrees (a tool's is 0 here and its own, a few degrees either way,
+# in the game: game/items/items.gd).
 #   tool:  carried low at the side and ready, the handle 35° above level.
 GLOVE_GRIP = (-0.29, -0.035, 0.83)
 HOLDS = {
-    "torch": dict(at=(-0.21, -0.36, 1.1), aim=(0, -1, 0), tilt=-40),
     "tool": dict(at=(-0.27, -0.2, 0.98), aim=(0, -math.cos(math.radians(35)), math.sin(math.radians(35))), tilt=0),
 }
 
@@ -402,7 +419,6 @@ def _suit_clips(skeleton, cuff, holds):
              smooth=True)
     rig.clip(skeleton, "carry", 1.0, carry, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, held(cuff), smooth=True)
-    rig.clip(skeleton, "hold_torch", 2.0, held(holds["torch"]), smooth=True)
     rig.clip(skeleton, "hold_tool", 2.0, held(holds["tool"]), smooth=True)
     rig.clip(skeleton, "death", 1.4, death, loop=False)
 
@@ -520,10 +536,10 @@ def _digit(m, material, knuckle, lengths, curl, width):
 
 
 # Holding a tool in first person, by what it achieves, as the suit's holds are: the fist low in the
-# right of the view, the tool angled up and in across it. A torch lies along the fist, as the fist
-# is modelled (thumb along the top); a tool's handle runs up across it, the way a fist holds a
-# hammer: pitched up `tilt` degrees in it (game/items/items.gd: each tool's `tilt` is this, give or
-# take a few). The flashlight keeps the resting arms: it points ahead out of the fist as it is.
+# right of the view, the tool angled up and in across it. The fist is modelled round a handle
+# running straight ahead (thumb along the top); a tool's handle runs up across it, the way a fist
+# holds a hammer: pitched up `tilt` degrees in it (game/items/items.gd: each tool's `tilt` is this,
+# give or take a few).
 ARM_TOOL = dict(at=(-0.23, -0.4, -0.27), aim=(0.28, -0.5, 0.82), tilt=75)
 
 

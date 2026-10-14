@@ -228,7 +228,7 @@ def _hanger_bones():
 def hanger():
     """THE HANGER (GDD §12): the ceiling trap. A bulbous sac of wet flesh gripping the ceiling with
     six hooked legs, a puckered maw underneath, and seven long translucent tendrils hanging nearly
-    to the floor, each ending in a faintly glowing bead. They're only visible in a flashlight beam.
+    to the floor, each ending in a faintly glowing bead. They're only visible in a lamp beam.
     Touch one and it snaps up. Built hanging from z = 0 (the ceiling)."""
     k = _flesh()
     tendril = mats.glowing("cr_tendril", (0.85, 0.75, 0.78), base=(0.55, 0.45, 0.48), flicker=0.2)

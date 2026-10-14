@@ -4,7 +4,7 @@
 # the client to settle where its flags put it). The host's view is its own crew member's, or a
 # fixed camera with --view.
 #   tools/pair.sh <out.png> "<host flags>" "<client flags>" [frames]
-#   tools/pair.sh shot.png "--view=-3.1,1.6,-2.5,180,0" "--at=-3,0,0.5 --look=0,0 --flashlight"
+#   tools/pair.sh shot.png "--view=-3.1,1.6,-2.5,180,0" "--at=-3,0,0.5 --look=0,0 --lamp"
 #   tools/pair.sh shot.png "--at=4.4,0,18.3 --look=180,-10" "--at=4.2,0,20.4 --hold=crowbar"
 # Logs go to $TMPDIR/deep-space-pair-{host,client}.log; errors in them are printed at the end.
 set -euo pipefail

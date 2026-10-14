@@ -25,12 +25,11 @@ var run := 0.0
 var crouch := 0.0
 ## 0 .. 1 the wrist cuff raised.
 var cuff := 0.0
-## What the right hand holds: "torch", "tool" or "".
+## What the right hand holds: "tool" or "".
 var hold := ""
 ## Which way the stride plays: 1 forward, -1 walking backwards.
 var direction := 1.0
 
-var _torch := 0.0
 var _tool := 0.0
 var _clips: PackedStringArray
 
@@ -60,10 +59,9 @@ func setup(player: AnimationPlayer) -> void:
 	var first_person := player.get_animation("idle").find_track(NodePath("%s:arm.R" % skeleton), Animation.TYPE_ROTATION_3D) >= 0
 	var upper := "arm" if first_person else "upper_arm"
 	var right_arm := [upper + ".R", "forearm.R", "hand.R"]
-	for style in ["torch", "tool"]:
-		if _has("hold_" + style):
-			tree.add_node(style, _clip("hold_" + style))
-			top = _layer(tree, top, style, "with_" + style, skeleton, right_arm)
+	if _has("hold_tool"):
+		tree.add_node("tool", _clip("hold_tool"))
+		top = _layer(tree, top, "tool", "with_tool", skeleton, right_arm)
 	if _has("cuff"):
 		tree.add_node("cuff", _clip("cuff"))
 		var reading := [upper + ".L", "forearm.L", "hand.L"] + ([] if first_person else ["head", "chest"])
@@ -76,7 +74,6 @@ func setup(player: AnimationPlayer) -> void:
 ## Eases the blends toward their targets, and plays the stride at `speed` m/s.
 func step(delta: float, speed: float) -> void:
 	var ease := 1.0 - exp(-delta * 10.0)
-	_torch = lerpf(_torch, 1.0 if hold == "torch" else 0.0, ease)
 	_tool = lerpf(_tool, 1.0 if hold == "tool" else 0.0, ease)
 	set("parameters/gait/blend_amount", run)
 	set("parameters/stand/blend_amount", move)
@@ -85,8 +82,6 @@ func step(delta: float, speed: float) -> void:
 		set("parameters/low/blend_amount", move)
 		set("parameters/posture/blend_amount", crouch)
 		set("parameters/sneak_pace/scale", direction / SNEAK_PERIOD)
-	if _has("hold_torch"):
-		set("parameters/with_torch/blend_amount", _torch)
 	if _has("hold_tool"):
 		set("parameters/with_tool/blend_amount", _tool)
 	if _has("cuff"):

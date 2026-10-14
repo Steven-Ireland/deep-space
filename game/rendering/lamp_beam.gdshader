@@ -1,4 +1,4 @@
-// A teammate's flashlight beam seen from outside it (TorchBeam): a faint cone of lit air from the
+// A teammate's helmet lamp beam seen from outside it (LampBeam): a faint cone of lit air from the
 // lens to where the light lands. Brightest down its middle and near the lens; its rim, its far end
 // and where it meets the room fade out, so it never shows a hard edge. Added onto what's behind.
 shader_type spatial;

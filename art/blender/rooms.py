@@ -487,7 +487,7 @@ def crate():
 @asset("rm_shelf", "rooms", texture=256, colors=32, ao=0.5)
 def shelf():
     """Stores shelving (GDD §5): a steel rack of four shelves stocked with spares: O2 canisters,
-    flashlight cells in trays, sealant tubes, folded blankets, a labelled bin on each shelf."""
+    lamp cells in trays, sealant tubes, folded blankets, a labelled bin on each shelf."""
     k = br._materials()
     dk = br._decals()
     green = mats.paint("rm_o2_green", (0.18, 0.42, 0.26), wear=0.35, grime=0.35)

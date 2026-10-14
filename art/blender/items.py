@@ -179,34 +179,6 @@ def _dk():
     )
 
 
-@asset("it_flashlight", "items", texture=128, colors=32, ao=0.5)
-def flashlight():
-    """The crew flashlight (GDD §9.3): the main light, held in the right hand. 0.27 m: a knurled
-    rubber grip, a battery tube, a flared head with an orange bezel and a lens (`lens`, separate:
-    Godot lights it when on), a battery LED on top, a lanyard loop at the tail. Points along -Y."""
-    k = _k()
-    dk = _dk()
-    m = Mesh("it_flashlight")
-    d = Mesh("it_flashlight_decals")
-    m.lathe([(0.0, 0.0), (0.017, 0.0), (0.019, 0.006), (0.019, 0.12), (0.021, 0.13), (0.021, 0.17), (0.033, 0.22),
-             (0.036, 0.25), (0.036, 0.262), (0.031, 0.266)], k["dark"], sides=8, rot=(90, 0, 0), cap_start=False, cap_end=False)
-    m.lathe([(0.0205, 0.02), (0.0205, 0.11)], k["rubber"], sides=8, rot=(90, 0, 0), cap_start=False, cap_end=False)
-    m.lathe([(0.0375, 0.24), (0.0375, 0.262)], k["orange"], sides=8, rot=(90, 0, 0), cap_start=False, cap_end=False)
-    m.box((0.012, 0.03, 0.012), k["steel"], at=(0, 0.0, -0.015), bevel=0.003)
-    m.box((0.016, 0.03, 0.01), k["rubber"], at=(0, -0.15, 0.022), bevel=0.003)  # the switch
-    for i in range(6):
-        d.polygon([(-0.022, -0.002), (0.022, -0.002), (0.022, 0.002), (-0.022, 0.002)], dk["black"],
-                  frame((0, -0.03 - i * 0.014, 0.021), (0, 0, 1), up=(0, 1, 0), lift=0.0005))
-    d.polygon([(-0.003, -0.003), (0.003, -0.003), (0.003, 0.003), (-0.003, 0.003)], dk["green_lit"],
-              frame((0, -0.18, 0.0215), (0, 0, 1), up=(0, 1, 0)))
-    low = m.to_object()
-    lens = Mesh("lens")
-    lens.cylinder(0.031, 0.004, mats.plain("it_lens", (0.9, 0.9, 0.8)), sides=8, at=(0, -0.264, 0), rot=(90, 0, 0))
-    lens_obj = lens.to_object()
-    sockets = [_socket("light", (0, -0.27, 0)), _socket("grip", (0, -0.06, 0))]
-    return Model(low=low, decals=[d.to_object()], extras=[lens_obj] + sockets)
-
-
 @asset("it_crowbar", "items", texture=128, colors=24, ao=0.5)
 def crowbar():
     """A crowbar (GDD §13, Tier 0): pry hatches, smash things. 0.76 m of hex bar, red paint worn
