@@ -54,6 +54,18 @@ func take(pickup: Pickup, peer: int) -> void:
 	player.receive.rpc_id(peer, pickup.record)
 
 
+## On a crew member's machine: their swing hit `pickup` at `where`, knocking it with `impulse`.
+func whack(pickup: Pickup, impulse: Vector3, where: Vector3) -> void:
+	_whack.rpc_id(1, pickup.name, impulse, where - pickup.global_position)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _whack(item: String, impulse: Vector3, offset: Vector3) -> void:
+	var pickup := get_node(spawn_path).get_node_or_null(item) as Pickup
+	if multiplayer.is_server() and pickup != null:
+		pickup.apply_impulse(impulse, offset)
+
+
 func _make(data: Dictionary) -> Node:
 	var pickup: Pickup = PICKUP.instantiate()
 	pickup.name = "Item%d" % data.id

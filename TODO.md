@@ -23,6 +23,8 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
 - **Suit O2:** per-room zones with or without air (the sample derelict's breached rooms have
   none); O2 drains out of the air, faster sprinting, then health. It drives the cuff, the Vitals
   board, the spine lights and a visor O2 gauge; the suit room's O2 rack refills it.
+- **Use (`LMB`):** tools swing (everyone sees it, and it knocks loose things about), an O2
+  canister tops up the suit, a flare is struck and burns red for 60 s in the hand or thrown.
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
   star systems with sky, star and planets, the lighting pass (SSIL/SSR, Godot's default shadows).
@@ -45,8 +47,8 @@ death. The consoles and cuff show placeholder numbers.
 
 1. **Rest of M1, the crew:**
    - the Prize and a body as two-handed carries (with M4; the fuel cell's done)
-   - use (`LMB`) for tools and weapons (the arms already have a swing clip): the O2 canister
-     refills, sealant patches, a flare lights
+   - what a swing does to creatures and hatches (with M4), the shock prod's stun and charge,
+     sealant (with suit integrity), weapons in use (slice wrap-up)
    - the helmet lamp's battery (6 minutes a cell, flicker when low, lamp cells as loot: needs a
      lamp cell model), suit integrity and breaches
 2. **M3, navigation:**

@@ -42,6 +42,15 @@ const SPRINT_BREATH := 3.0
 const SUFFOCATION := 20.0
 ## Where the suit takes its breath, above the feet: in the chest, for which zone it's in.
 const CHEST_HEIGHT := 1.2
+## Using things (LMB): a swing takes SWING_TIME and lands SWING_HIT in, on whatever's within
+## SWING_REACH, knocking loose things with SWING_IMPULSE (N·s). A canister gives CANISTER_O2
+## seconds of O2; a struck flare burns FLARE_BURN seconds.
+const SWING_TIME := 0.6
+const SWING_HIT := 0.36
+const SWING_REACH := 1.5
+const SWING_IMPULSE := 5.0
+const CANISTER_O2 := 180.0
+const FLARE_BURN := 60.0
 
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
@@ -52,9 +61,13 @@ var look := Vector2.ZERO # yaw, pitch in radians
 var lamp_on := false
 var crouching := false
 var sprinting := false
-## The kind of item in hand (Items), and whether the wrist cuff is raised to read.
+## The kind of item in hand (Items), whether it's burning (a struck flare), and whether the wrist
+## cuff is raised to read.
 var held := &""
+var held_lit := false
 var cuff_up := false
+## Swings so far: each new one plays the swing for everyone.
+var swings := 0
 ## The suit (GDD §9.2): O2 left in seconds, health 0..1, and whether it's breathing for its wearer
 ## (out of the air).
 var o2 := O2_CAPACITY
@@ -95,6 +108,10 @@ var _legs_yaw := 0.0
 var _crouch := 0.0
 var _cuff := 0.0
 var _winding := -1.0 # seconds Q has been held, or -1
+var _swing_left := 0.0
+var _swings_seen := 0
+var _shown_lit := false
+var _flame: Flame
 var _spine_material: ShaderMaterial
 
 
@@ -169,6 +186,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		lamp_on = not lamp_on
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
 		aimed_at.request_use()
+	elif event.is_action_pressed("use") and not cuff_up:
+		use_held()
 	elif event.is_action_pressed("drop") and not in_hands().is_empty():
 		_winding = 0.0
 	elif event.is_action_released("drop") and _winding >= 0.0:
@@ -208,6 +227,38 @@ func heart_rate() -> float:
 ## Tops the suit's O2 up by `seconds`, or all the way.
 func refill(seconds := O2_CAPACITY) -> void:
 	o2 = minf(O2_CAPACITY, o2 + seconds)
+
+
+## LMB (GDD §9.5) with what's in hand: swing a tool, refill the suit from a canister (used up), or
+## strike a flare.
+func use_held() -> void:
+	var record := in_hands()
+	match Items.use_of(Items.kind_of(record)):
+		"swing":
+			if _swing_left > 0.0:
+				return
+			swings += 1
+			_swing_left = SWING_TIME
+			get_tree().create_timer(SWING_HIT).timeout.connect(_land_swing)
+		"refill":
+			refill(CANISTER_O2)
+			belt[slot] = {}
+			_update_held()
+		"strike":
+			if not record.has("burn"):
+				record.burn = FLARE_BURN
+				_update_held()
+
+
+## The swing lands on whatever's in front within reach: a loose thing gets knocked away (the host
+## applies it). Creatures, hatches and the rest come later.
+func _land_swing() -> void:
+	var view := _view()
+	var forward := -view.basis.z
+	var hit := get_world_3d().direct_space_state.intersect_ray(
+			PhysicsRayQueryParameters3D.create(view.origin, view.origin + forward * SWING_REACH, 1 | Pickup.LAYER, [get_rid()]))
+	if hit.get("collider") is Pickup:
+		LooseItems.of(self).whack(hit.collider, (forward + Vector3.UP * 0.3).normalized() * SWING_IMPULSE, hit.position)
 
 
 ## The host tells this crew member's machine they've refilled at an O2 rack.
@@ -321,7 +372,23 @@ func _view() -> Transform3D:
 ## `held` follows what's in the hands, and the visor hears of the change.
 func _update_held() -> void:
 	held = Items.kind_of(in_hands())
+	held_lit = Items.burning(in_hands())
 	belt_changed.emit()
+
+
+## Struck flares burn down wherever they're carried, and are gone once they're out.
+func _burn_flares(delta: float) -> void:
+	var out := false
+	for i in belt.size():
+		if belt[i].has("burn"):
+			belt[i].burn -= delta
+			if belt[i].burn <= 0.0:
+				belt[i] = {}
+				out = true
+	if out:
+		_update_held()
+	if _flame != null:
+		_flame.strength = in_hands().get("burn", 0.0) / FLARE_BURN
 
 
 func _process(delta: float) -> void:
@@ -331,6 +398,8 @@ func _process(delta: float) -> void:
 		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty()
 		if _winding >= 0.0:
 			_winding += delta
+		_swing_left = maxf(0.0, _swing_left - delta)
+		_burn_flares(delta)
 		if operating == null:
 			_update_aim()
 		else:
@@ -339,7 +408,7 @@ func _process(delta: float) -> void:
 		var follow := 1.0 - exp(-delta * 18.0)
 		rotation.y = lerp_angle(rotation.y, look.x, follow)
 		head.rotation.x = lerp_angle(head.rotation.x, look.y, follow)
-	if held != _shown:
+	if held != _shown or held_lit != _shown_lit:
 		_show_held()
 	_animate(delta)
 	_place_lamp()
@@ -473,7 +542,7 @@ func _apply_dev_flags() -> void:
 	var kind := StringName(Args.value("--hold", ""))
 	if Items.KINDS.has(kind):
 		_dev_hold(kind)
-	if Args.flag("--take") or Args.flag("--throw"):
+	if Args.flag("--take") or Args.flag("--use") or Args.flag("--throw"):
 		_dev_actions.call_deferred()
 	_dev_suit()
 	var target := Args.value("--operate", "")
@@ -505,12 +574,16 @@ func _dev_hold(kind: StringName) -> void:
 	_update_held()
 
 
-## `--take`: a second in, takes what's under the crosshair; `--throw=<seconds>`: a second after
-## that, lets go of what's in hand as if Q were held that long (0 sets it down).
+## `--take`: a second in, takes what's under the crosshair; `--use`: half a second later, uses
+## what's in hand; `--throw=<seconds>`: a second after that, lets go of it as if Q were held that
+## long (0 sets it down).
 func _dev_actions() -> void:
 	await get_tree().create_timer(1.0).timeout
 	if Args.flag("--take") and aimed_at != null and aimed_at.usable_by(self):
 		aimed_at.request_use()
+	await get_tree().create_timer(0.5).timeout
+	if Args.flag("--use"):
+		use_held()
 	await get_tree().create_timer(1.0).timeout
 	if Args.flag("--throw"):
 		let_go(float(Args.value("--throw", "0")))
@@ -606,6 +679,8 @@ func _show_held() -> void:
 	var own := is_multiplayer_authority()
 	var rig := view_model if own else body_visual
 	_held_item = Items.hold(held, rig, not own)
+	_shown_lit = held_lit
+	_flame = Flame.light(_held_item) if held_lit and _held_item != null else null
 
 
 ## The helmet lamp shines from its lens on the left of the helmet, aimed to cross the line of sight
@@ -672,6 +747,9 @@ func _animate(delta: float) -> void:
 	_animation.hold = Items.hold_style(held)
 	_animation.direction = -1.0 if backward else 1.0
 	_animation.step(delta, speed)
+	if swings != _swings_seen:
+		_swings_seen = swings
+		_animation.swing()
 	if _pose != null:
 		# The legs face the way they're going (backwards: the way they're backing), the body the
 		# way it looks.

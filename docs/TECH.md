@@ -29,7 +29,7 @@
 
 | Thing | Authority | Sync |
 |---|---|---|
-| Player body, look, helmet lamp, held item, cuff, suit, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `cuff_up`, `o2`, `health`, `in_vacuum`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
+| Player body, look, helmet lamp, held item, cuff, suit, animation state | **Owning client** | `StateSynchronizer` at the tick rate (`position`, `velocity`, `look`, `lamp_on`, `crouching`, `sprinting`, `held`, `held_lit`, `swings`, `cuff_up`, `o2`, `health`, `in_vacuum`); `TickInterpolator` on remote peers. Each peer animates remote suits from that state |
 | Player actions (hits, interactions, pickups, throws) | **Owning client reports**; host applies | Reliable RPC to the host → host applies it to the target's state → state is broadcast |
 | Run state (map, fuel, salvage, upgrades, crew status) | Host | Reliable RPCs on change. Saved by the host to `user://` between jumps |
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
@@ -151,6 +151,7 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
     - The wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view, the hand past it relaxed (the wrist only droops palm-ward). The cuff sits square to the forearm it's on.
     - The suit's tool hold: low at the side, 35° up. It's set by where the grip goes and which way the held thing points, with the elbow a hinge and the wrist in range.
     - The first-person tool hold: the fist low in the right of the view, a tool's handle running up across it (a hammer grip) and leaning in, diagonal across the view and clear of the crosshair.
+    - The swing (both rigs, `swing`, 0.6 s, played once over the right arm): from the tool hold, raised by 0.3 s, struck by 0.42, back in the hold. The suit chops overhead; the first-person arm draws the tool up to the right and brings it down across the view.
     - The carry (both rigs, `hold_carry`): a big thing by its side handles, 0.42 m apart, each gripped upright and palm-in. The suit holds it in front of the belly, clear of the chest unit and knees (the right arm solved, the left mirrored). In first person it sits low, so its top shows across the bottom of the view and the hands stay below it. The thing rides `SOCKET_carry` (the suit's chest, the arms' root), its own `SOCKET_grip` midway between its handles.
     - **Wrists never bend back** (toward the knuckles) holding something: they tilt toward the thumb or little finger, and bend palm-ward. A bent-back wrist was the giveaway in earlier holds.
   - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
@@ -289,3 +290,7 @@ deep-space/
 - **2026-10-14: Suit O2 and zones** (GDD §9.2).
   - Out of the air, the suit's O2 (360 s) runs down, three times as fast at a sprint; with none left, health runs out over 20 s (death itself comes with M4). The owner runs it; `o2`, `health` and `in_vacuum` are synced.
   - The cuff's O2 bar and heartbeat, the Vitals board (BPM, O2, VAC, where: a room aboard, DERELICT or OUTSIDE), the spine lights (green, amber, blinking red, dark) and a visor O2 gauge read them. The station's O2 rack refills a suit (REFILL).
+- **2026-10-14: Use (`LMB`)** (GDD §9.5). Each kind says what use does (`Items.use_of`):
+  - "swing" (crowbar, shock prod): the swing plays for everyone (`swings`, a synced count) and lands 0.36 s in on whatever's within 1.5 m; a loose thing gets knocked (a reliable RPC to the host, which applies the impulse). Creatures and hatches come later.
+  - "refill" (O2 canister): 180 s of O2, and the canister's gone.
+  - "strike" (flare): its record gets `burn` (60 s), and it burns down wherever it is. Lit, in a hand (`held_lit`) or loose, it carries a `Flame`: a flickering red omni light that throws shadows, and a glow. The host clears a loose flare away when it's out.

@@ -40,6 +40,7 @@ var _belt_age := 0.0
 var _icons := {}
 var _o2_shown := 0.0
 var _o2_age := 0.0 # seconds since O2 last mattered
+var _last_o2 := 0.0
 
 
 func _ready() -> void:
@@ -48,6 +49,7 @@ func _ready() -> void:
 	get_window().size_changed.connect(func(): container.stretch_shrink = Psx.block)
 	canvas.draw.connect(_draw_hud)
 	player.belt_changed.connect(func(): _belt_age = 0.0)
+	_last_o2 = player.o2
 
 
 func _process(delta: float) -> void:
@@ -55,7 +57,9 @@ func _process(delta: float) -> void:
 	_time += delta
 	_belt_age += delta
 	# O2 shows while it matters, and for a few seconds after.
-	var o2_matters := player.in_vacuum or player.o2 < Player.O2_CAPACITY * 0.25 or player.health < 0.3
+	# (A refill shows it too.)
+	var o2_matters := player.in_vacuum or player.o2 < Player.O2_CAPACITY * 0.25 or player.health < 0.3 or player.o2 > _last_o2 + 1.0
+	_last_o2 = player.o2
 	_o2_age = 0.0 if o2_matters else _o2_age + delta
 	_o2_shown = move_toward(_o2_shown, 1.0 if _o2_age < 3.0 else 0.0, delta / 0.4)
 	var target := player.aimed_at

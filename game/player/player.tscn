@@ -49,7 +49,7 @@ spot_angle_attenuation = 0.7
 [node name="StateSynchronizer" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("2")
 root = NodePath("..")
-properties = Array[String]([":position", ":velocity", ":look", ":lamp_on", ":crouching", ":sprinting", ":held", ":cuff_up", ":o2", ":health", ":in_vacuum"])
+properties = Array[String]([":position", ":velocity", ":look", ":lamp_on", ":crouching", ":sprinting", ":held", ":held_lit", ":swings", ":cuff_up", ":o2", ":health", ":in_vacuum"])
 
 [node name="TickInterpolator" type="Node" parent="." node_paths=PackedStringArray("root")]
 script = ExtResource("3")

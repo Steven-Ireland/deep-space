@@ -13,17 +13,19 @@ class_name Items
 ## ("carry") take both hands and never go on the belt: they sit upright between the hands, their
 ## `SOCKET_grip` (midway between their handles) on the rig's `SOCKET_carry`.
 ##
-## `mass` is in kilograms: heavy things don't fly far when thrown.
+## `mass` is in kilograms: heavy things don't fly far when thrown. `use` is what LMB does with it
+## in hand (GDD §9.5): "swing" a tool, "refill" the suit's O2 (used up), "strike" a flare (it
+## burns, its record's `burn` the seconds left).
 
 const KINDS := {
 	# Tier 0 kit and Tier 1 weapons.
-	&"crowbar": {"name": "CROWBAR", "model": "res://assets/models/items/it_crowbar.glb", "hold": "tool", "tilt": 70.0, "glove": 5.0, "mass": 2.5},
-	&"shock_prod": {"name": "SHOCK PROD", "model": "res://assets/models/weapons/wp_shock_prod.glb", "hold": "tool", "tilt": 70.0, "glove": -20.0, "mass": 1.5},
-	&"flare": {"name": "FLARE", "model": "res://assets/models/items/it_flare.glb", "hold": "tool", "tilt": 80.0, "glove": -10.0, "mass": 0.3},
+	&"crowbar": {"name": "CROWBAR", "model": "res://assets/models/items/it_crowbar.glb", "hold": "tool", "tilt": 70.0, "glove": 5.0, "use": "swing", "mass": 2.5},
+	&"shock_prod": {"name": "SHOCK PROD", "model": "res://assets/models/weapons/wp_shock_prod.glb", "hold": "tool", "tilt": 70.0, "glove": -20.0, "use": "swing", "mass": 1.5},
+	&"flare": {"name": "FLARE", "model": "res://assets/models/items/it_flare.glb", "hold": "tool", "tilt": 80.0, "glove": -10.0, "use": "strike", "mass": 0.3},
 	&"plasma_cutter": {"name": "PLASMA CUTTER", "model": "res://assets/models/weapons/wp_plasma_cutter.glb", "hold": "tool", "tilt": -60.0, "glove": 0.0, "mass": 3.0},
 	&"rivet_driver": {"name": "RIVET DRIVER", "model": "res://assets/models/weapons/wp_rivet_driver.glb", "hold": "tool", "tilt": -60.0, "glove": 0.0, "mass": 3.5},
 	# Supplies and loot.
-	&"o2_canister": {"name": "O2 CANISTER", "model": "res://assets/models/items/it_o2_canister.glb", "hold": "tool", "tilt": 165.0, "glove": 0.0, "mass": 3.0},
+	&"o2_canister": {"name": "O2 CANISTER", "model": "res://assets/models/items/it_o2_canister.glb", "hold": "tool", "tilt": 165.0, "glove": 0.0, "use": "refill", "mass": 3.0},
 	&"sealant": {"name": "SEALANT", "model": "res://assets/models/items/it_sealant.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 0.5},
 	&"power_cell": {"name": "POWER CELL", "model": "res://assets/models/items/it_power_cell.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 6.0},
 	&"data_core": {"name": "DATA CORE", "model": "res://assets/models/items/it_data_core.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 0.8},
@@ -60,6 +62,15 @@ static func hold_style(kind: StringName) -> String:
 ## Whether it takes both hands, and so never goes on the belt.
 static func two_handed(kind: StringName) -> bool:
 	return hold_style(kind) == "carry"
+
+
+static func use_of(kind: StringName) -> String:
+	return KINDS[kind].get("use", "") if KINDS.has(kind) else ""
+
+
+## Whether `record` is a struck flare still burning.
+static func burning(record: Dictionary) -> bool:
+	return record.get("burn", 0.0) > 0.0
 
 
 static func mass(kind: StringName) -> float:

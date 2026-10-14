@@ -2,8 +2,8 @@ class_name CrewAnimation
 extends AnimationTree
 ## Blends a crew rig's clips by what its crew member is doing: standing, walking and running in
 ## step, crouching, the right arm holding something or both arms carrying something big, the left
-## raising the wrist cuff. Used for the suit everyone else sees and the first-person arms. Set the
-## blend values each frame; they're eased here.
+## raising the wrist cuff, and the right swinging a tool once (swing()). Used for the suit everyone
+## else sees and the first-person arms. Set the blend values each frame; they're eased here.
 ##
 ## Walk, run and crouch-walk are one stride cycle a second each, left heel strike first (TECH §5),
 ## so they blend in step: `rate` is stride cycles a second, negative walking backwards.
@@ -70,6 +70,18 @@ func setup(player: AnimationPlayer) -> void:
 		tree.add_node("cuff", _clip("cuff"))
 		var reading := [upper + ".L", "forearm.L", "hand.L"] + ([] if first_person else ["head", "chest"])
 		top = _layer(tree, top, "cuff", "reading", skeleton, reading)
+	if _has("swing"):
+		var shot := AnimationNodeOneShot.new()
+		shot.filter_enabled = true
+		for bone: String in right_arm:
+			shot.set_filter_path(NodePath("%s:%s" % [skeleton, bone]), true)
+		shot.fadein_time = 0.04
+		shot.fadeout_time = 0.1
+		tree.add_node("swing_clip", _clip("swing"))
+		tree.add_node("swing", shot)
+		tree.connect_node("swing", 0, top)
+		tree.connect_node("swing", 1, "swing_clip")
+		top = "swing"
 	tree.connect_node("output", 0, top)
 	tree_root = tree
 	active = true
@@ -93,6 +105,12 @@ func step(delta: float, speed: float) -> void:
 		set("parameters/with_carry/blend_amount", _carry)
 	if _has("cuff"):
 		set("parameters/reading/blend_amount", cuff * cuff * (3.0 - 2.0 * cuff))
+
+
+## Plays the right arm's swing once, over whatever it's doing.
+func swing() -> void:
+	if _has("swing"):
+		set("parameters/swing/request", AnimationNodeOneShot.ONE_SHOT_REQUEST_FIRE)
 
 
 ## Stride cycles a second at `speed`: below walking pace the stride shortens (blended toward

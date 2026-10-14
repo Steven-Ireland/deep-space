@@ -21,6 +21,7 @@ var at := Vector3.ZERO
 var turn := Quaternion.IDENTITY
 
 var handle: Handle
+var _flame: Flame
 
 
 func _ready() -> void:
@@ -49,6 +50,8 @@ func _ready() -> void:
 	handle.add_child(reach)
 	add_child(handle)
 	handle.used.connect(func(peer: int): LooseItems.of(self).take(self, peer))
+	if Items.burning(record):
+		_flame = Flame.light(model)
 	if multiplayer.is_server():
 		linear_velocity = launch
 		at = position
@@ -68,6 +71,12 @@ func _physics_process(_delta: float) -> void:
 
 
 func _process(delta: float) -> void:
+	if _flame != null:
+		# A struck flare burns down where it lies; the host clears it away once it's out.
+		record.burn = maxf(0.0, record.burn - delta)
+		_flame.strength = record.burn / Player.FLARE_BURN
+		if record.burn <= 0.0 and multiplayer.is_server():
+			queue_free()
 	if multiplayer.is_server() or at == Vector3.ZERO:
 		return
 	var follow := 1.0 - exp(-delta * 20.0)

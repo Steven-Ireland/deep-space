@@ -438,6 +438,46 @@ def _cuff_pose(skeleton, cuff_centre, cuff_normal, cuff_up):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in pose.items()}
 
 
+# Using a tool (GDD §9.5, LMB): from the tool hold, raised (drawn back) by 0.3 s, struck by 0.42,
+# back in the hold by the end. The suit chops overhead; the first-person arm draws the tool back
+# and up, then brings it down across the view.
+SUIT_SWING = {
+    "raised": {"upper_arm.R": (-150, 0, 5), "forearm.R": (-95, 0, 0), "hand.R": (20, 0, 0)},
+    "struck": {"upper_arm.R": (-45, 0, 0), "forearm.R": (-15, 0, 0), "hand.R": (10, 0, -10)},
+}
+ARM_SWING = {
+    "raised": {"arm.R": (35, 0, 20), "forearm.R": (30, 0, 0)},
+    "struck": {"arm.R": (-40, 0, -25), "forearm.R": (-20, 0, 0)},
+}
+
+
+def _swing(hold, keys):
+    """A swing as a pose function: hold, raised, struck, hold. The suit's keys are whole poses; the
+    arms' are turns added to the hold."""
+    relative = "arm.R" in keys["raised"]
+
+    def at(name, key):
+        base = hold.get(name, (0, 0, 0))
+        turn = keys[key].get(name, (0, 0, 0))
+        return tuple(b + t for b, t in zip(base, turn)) if relative else turn
+
+    def pose(t):
+        if t < 0.3:
+            a, b, u = "hold", "raised", t / 0.3
+        elif t < 0.42:
+            a, b, u = "raised", "struck", (t - 0.3) / 0.12
+        else:
+            a, b, u = "struck", "hold", (t - 0.42) / 0.58
+        u = rig.smoothstep(min(1.0, u))
+        result = {}
+        for name in set(hold) | set(keys["raised"]):
+            start = hold.get(name, (0, 0, 0)) if a == "hold" else at(name, a)
+            end = hold.get(name, (0, 0, 0)) if b == "hold" else at(name, b)
+            result[name] = tuple(s + (e - s) * u for s, e in zip(start, end))
+        return result
+    return pose
+
+
 def _suit_clips(skeleton, cuff, holds):
     def idle(t):
         breath = rig.wave(t)
@@ -479,6 +519,7 @@ def _suit_clips(skeleton, cuff, holds):
     rig.clip(skeleton, "cuff", 2.0, held(cuff), smooth=True)
     rig.clip(skeleton, "hold_tool", 2.0, held(holds["tool"]), smooth=True)
     rig.clip(skeleton, "hold_carry", 2.0, held(holds["carry"]), smooth=True)
+    rig.clip(skeleton, "swing", 0.6, _swing(holds["tool"], SUIT_SWING), loop=False, smooth=True)
     rig.clip(skeleton, "death", 1.4, death, loop=False)
 
 
@@ -754,15 +795,10 @@ def _arm_clips(skeleton, reach, tool, carried):
         b = rig.wave(t)
         return {name: (rot[0] + b * 0.6, *rot[1:]) for name, rot in carried.items()}
 
-    def swing(t):
-        wind = max(0.0, 1 - t * 3)
-        hit = min(1.0, max(0.0, (t - 0.3) * 4)) * max(0.0, 1 - (t - 0.55) * 3)
-        return {"arm.R": (40 * wind - 55 * hit, 0, 25 * wind - 20 * hit), "forearm.R": (35 * wind - 20 * hit, 0, 0)}
-
     rig.clip(skeleton, "idle", 3.0, idle, smooth=True)
     rig.clip(skeleton, "walk", 1.0, walk, smooth=True)
     rig.clip(skeleton, "run", 1.0, run, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, cuff, smooth=True)
     rig.clip(skeleton, "hold_tool", 3.0, hold_tool, smooth=True)
     rig.clip(skeleton, "hold_carry", 3.0, hold_carry, smooth=True)
-    rig.clip(skeleton, "swing", 0.6, swing, loop=False, smooth=True)
+    rig.clip(skeleton, "swing", 0.6, _swing(tool, ARM_SWING), loop=False, smooth=True)

@@ -207,7 +207,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **O2:**
   - About 6 minutes in vacuum at base capacity.
   - Drains only in unpressurized zones, and faster when sprinting or when the suit is breached.
-  - Refilled at O2 racks on the station or on derelicts, or from canisters.
+  - Refilled at O2 racks on the station or on derelicts, or from canisters: using one (`LMB`) adds about 3 minutes and uses it up.
 - **Integrity:** damage can breach the suit, which leaks O2 (audible hiss, frost on the visor) until it is patched with sealant.
 
 ### 9.3 Light
@@ -215,7 +215,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   - It sits on the left of the helmet and points where you look, so both hands stay free: the crew can carry a fuel cell or the Prize and still see.
   - It's offset from the eye, so the shadows it casts are visible.
   - Its battery runs about 6 minutes of continuous use per cell. It flickers when low, and spare cells are loot.
-- **Flares:** thrown light that burns for about 60 s, hisses and draws attention.
+- **Flares:** struck with `LMB`, then held or thrown. One burns red for about 60 s, throws hard shadows, hisses and draws attention.
 
 ### 9.4 Inventory
 - **Belt:** 4 slots that hold anything small, gear and loot alike: tools, weapons, salvage, O2 canisters, data cores, cartridges. This works as in *Lethal Company*: every slot your kit fills is one you can't fill with loot on the way back.
