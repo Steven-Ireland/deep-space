@@ -2,7 +2,8 @@ extends SceneTree
 ## A scene smoke test (TECH §8): every scene in the game and every built model loads and
 ## instances without an error; then the world runs, and a jump is played through on its own (no
 ## crew, no network, time sped up): the scan charts the first row, the route is plotted, the lever
-## is pulled, a cell is burnt, and the LANTERN arrives at a derelict, docked with its loot put out.
+## is pulled, a cell is burnt, and the LANTERN arrives at a derelict, docked with its loot put out;
+## then, moved to a gas giant, it skims the cell back.
 ##   tools/godot.sh --headless -s tests/test_smoke.gd
 
 var failures := 0
@@ -53,6 +54,20 @@ func _run() -> void:
 	await _frames(5)
 	_check(world.get_node("Encounter").get_child_count() == 1, "no derelict docked at the first row")
 	_check(world.get_node("Items").get_child_count() >= 10, "the derelict's loot wasn't put out")
+	# At a gas giant (or a depot: every chart has one or the other), Engineering takes on a cell
+	# into the empty bay, once.
+	var stop: Vector2i = run.map.nodes().filter(func(node: Vector2i) -> bool:
+			return SectorMap.info(run.map.type_of(node)).get("refuel", false)).front()
+	run.at = stop
+	run._broadcast()
+	await _frames(5)
+	if run.map.type_of(stop) == &"gas_giant":
+		_check(world.get_node("System").planets[0].kind == "gas giant", "no gas giant ahead at a gas giant node")
+	_check(world.get_node("Encounter").get_child_count() == 0, "the derelict wasn't cast off")
+	_check(run.can_refuel(), "can't skim at a gas giant with a bay empty")
+	run.refuel()
+	await _until(func() -> bool: return run.refuelled, 5.0)
+	_check(run.fuel_left() == 3 and not run.can_refuel(), "the skim didn't fill the bay, or can be done again")
 	Engine.time_scale = 1.0
 	world.queue_free()
 	await _frames(5)
