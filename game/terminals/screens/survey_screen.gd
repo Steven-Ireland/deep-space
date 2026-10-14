@@ -23,8 +23,12 @@ func _gui_input(event: InputEvent) -> void:
 	var row := int((event.position.y - 3) / CELL.y) - LIST_ROW
 	if row >= 0 and row < system.planets.size():
 		selected = row
-	elif BUTTON.grow(4).has_point(event.position) and run != null and _can_survey(run, system):
-		run.survey(selected)
+	elif BUTTON.grow(4).has_point(event.position) and run != null:
+		if _can_survey(run, system):
+			run.survey(selected)
+			confirm()
+		elif run.jumping() and selected < system.planets.size() and run.survey_target < 0 and selected not in run.surveyed:
+			refuse() # shown while the drive spools, but there's no surveying in a jump
 
 
 func _draw_screen() -> void:

@@ -21,8 +21,12 @@ func _gui_input(event: InputEvent) -> void:
 	if run == null or not run.started:
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if BUTTON.grow(4).has_point(event.position) and not run.scanned and not run.scanning() and not run.jumping():
-			run.scan()
+		if BUTTON.grow(4).has_point(event.position) and not run.scanned and not run.scanning():
+			if run.jumping():
+				refuse()
+			else:
+				run.scan()
+				confirm()
 
 
 func _process(delta: float) -> void:

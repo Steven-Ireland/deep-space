@@ -13,6 +13,7 @@ func _gui_input(event: InputEvent) -> void:
 		return
 	if BUTTON.grow(4).has_point(event.position) and run.can_refuel() and not run.refuelling():
 		run.refuel()
+		confirm()
 
 
 func _draw_screen() -> void:

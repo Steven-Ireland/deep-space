@@ -100,8 +100,11 @@ func pointer(from: Vector3, direction: Vector3) -> Vector2:
 	return Vector2(u, v) * Vector2(resolution)
 
 
-## Passes an input event to the screen, at `at` screen pixels for mouse events.
+## Passes an input event to the screen, at `at` screen pixels for mouse events. A click on the
+## screen clicks under the operator's finger.
 func push(event: InputEvent, at: Vector2) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		Sound.console(self, &"click")
 	if event is InputEventMouse:
 		event = event.duplicate()
 		event.position = at

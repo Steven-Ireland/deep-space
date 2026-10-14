@@ -6,7 +6,8 @@
 #   tools/pair.sh <out.png> "<host flags>" "<client flags>" [frames]
 #   tools/pair.sh shot.png "--view=-3.1,1.6,-2.5,180,0" "--at=-3,0,0.5 --look=0,0 --lamp"
 #   tools/pair.sh shot.png "--at=4.4,0,18.3 --look=180,-10" "--at=4.2,0,20.4 --hold=crowbar"
-# Logs go to $TMPDIR/deep-space-pair-{host,client}.log; errors in them are printed at the end.
+# Logs go to $TMPDIR/deep-space-pair-{host,client}.log; errors in them are printed at the end (not
+# "resources still in use at exit": a sound still playing when the game quits).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 out="$1"; host_flags="$2"; client_flags="$3"; frames="${4:-120}"
@@ -25,4 +26,4 @@ client=$!
 for _ in $(seq 1 60); do sleep 1; kill -0 "$host" 2>/dev/null || break; done
 kill "$host" "$client" 2>/dev/null || true
 wait "$host" "$client" 2>/dev/null || true
-grep -hE "SCRIPT ERROR|ERROR:|Screenshot" "$logs/deep-space-pair-host.log" "$logs/deep-space-pair-client.log" | sort | uniq -c | head -20 || true
+grep -hE "SCRIPT ERROR|ERROR:|Screenshot" "$logs/deep-space-pair-host.log" "$logs/deep-space-pair-client.log" | grep -v "resources still in use" | sort | uniq -c | head -20 || true

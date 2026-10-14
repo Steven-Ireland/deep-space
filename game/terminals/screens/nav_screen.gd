@@ -22,7 +22,11 @@ func _gui_input(event: InputEvent) -> void:
 	_hover = _node_at(run, event.position)
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 		if _hover in run.jumps() and _hover != run.route:
-			run.plot(_hover)
+			if run.jumping():
+				refuse()
+			else:
+				run.plot(_hover)
+				confirm()
 
 
 func _draw_screen() -> void:

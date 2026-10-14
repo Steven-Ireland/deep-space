@@ -56,3 +56,13 @@ func header(title: String) -> void:
 
 func blink(period := 1.0) -> bool:
 	return fmod(time, period) < period * 0.6
+
+
+## The console chirps: what the operator asked for has gone to the host.
+func confirm() -> void:
+	Sound.console(terminal, &"confirm")
+
+
+## The console buzzes: what the operator pressed can't be done now.
+func refuse() -> void:
+	Sound.console(terminal, &"refuse")

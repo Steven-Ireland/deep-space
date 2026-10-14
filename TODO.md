@@ -68,6 +68,13 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   green hologram is the sector chart, for the whole crew.
 - **Fixed:** jump (space) missed most presses (read on the 30 Hz movement tick); the Jump Lever's
   hold no longer drops if the crosshair slips off the handle for a moment.
+- **Sound (GDD §15):** synthesized 22 kHz samples (`tools/build_audio.py`): the LANTERN's hum
+  aboard, a derelict's drone in one; footfalls in step with the stride on either deck, landings,
+  the helmet lamp's switch and the doors, for the whole crew. The jump spools up, booms into a
+  roaring tunnel and winds down out of it, the hum gone until it's over. Consoles click, chirp
+  and buzz; a fuel cell seats with a clank; taking a thing clips it on. Out of the air the world
+  is muffled and the hum drops away; the suit's own sounds stay clear. (The Jump Lever's sounds
+  wait until they're up to the bar.)
 
 Still to come: docking, creature behaviour, death.
 

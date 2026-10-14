@@ -168,6 +168,7 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
   - Sources are recorded in `CREDITS.md`.
+- **Sound** (GDD §15): synthesized by `tools/build_audio.py` into `assets/audio/`, 22,050 Hz mono, from seeded noise, tuned modes and biquad filters, so a rebuild writes the same files. A loop (the hum, the drone: 8 s; the tunnel: 7 s, two whole swells) is rendered past its length and the overrun crossfaded into its start; its `.import` loops forward over the whole file (`edit/loop_mode=2`: 1 is Disabled; `edit/loop_end` its length in samples).
 
 ## 6. Generation
 
@@ -195,7 +196,7 @@ deep-space/
   project.godot
   addons/                 netfox, netfox.extras, netfox.internals
   game/
-    core/                 net, run state, seeds, save, zones
+    core/                 net, run state, seeds, save, zones, sound
     player/               controller, suit, helmet lamp, cuff, interaction, carry
     station/              LANTERN scenes and its consoles
     space/                sky, star, planets, hyperspace
@@ -221,6 +222,7 @@ deep-space/
   - `test_sector_map.gd`: 400 seeds × 3 sectors, every route walked from departure to boss against the GDD's rules, independently of the generator's own checks; determinism of the chart.
   - `test_determinism.gd`: derived seeds, charts and star systems (planets and traits) hash the same when built again, and differently for other seeds.
   - `test_smoke.gd`: every scene and built model loads and instances; then the world runs a jump on its own (scan, plot, lever, a cell burnt, the tunnel, arrival at a derelict, docked and stocked), with no error logged.
+  - `test_audio.gd`: every sample is 22 kHz mono and every ambience loops whole; the suit's bus bypasses the vacuum low-pass; in vacuum `Sound` muffles the world and turns the ambience down, and brings both back; in the tunnel its roar replaces the hum.
   - A test script can't name classes that reach the game's autoloads (they aren't there when it's compiled): it loads them at run time.
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
@@ -322,3 +324,12 @@ deep-space/
   - Jump (space) was read with `is_action_just_pressed` on the movement tick, which runs 30 times a second, fewer than frames, so most presses fell between ticks (`--check-jump`: 0 of 10 before, 10 of 10 after). A press is now kept 0.2 s for the tick (`JUMP_BUFFER`); pressed just before landing, it jumps on touching down. Other one-off presses are read in `_unhandled_input`, not on the tick.
   - A hold (the Jump Lever) survives the crosshair slipping off for up to 0.3 s (`HOLD_SLACK`); the handle's box is small.
   - The dais is gone from the bridge (crew caught on its 16 cm step; the character body doesn't step up), and the chart table is lower (glass at 0.8 m) on the deck. `br_dais` and `br_chair` stay built, unused.
+- **2026-10-14: Sound** (GDD §15), from the `sound-design` branch, reworked.
+  - Synthesized samples (§5): the LANTERN's hum and a derelict's drone, the helmet lamp's switch, footfalls on the LANTERN's steel and on a derelict's deck (four of each), a landing, a door opening and shutting; the jump's spool, tunnel mouth, tunnel roar and exit; a console's click, confirm and refusal; a fuel cell seating; taking a thing. No breathing for now: in playtest it crowded the soundscape. The branch's lever sounds aren't in: not up to the bar yet.
+  - Buses (`default_bus_layout.tres`): `World`, everything heard through the air, carries the vacuum low-pass, with `Ambient` feeding into it; `Suit` (your own lamp's switch; breathing and the radio later) goes straight to `Master`, so it stays clear in vacuum.
+  - `Sound` (an autoload) listens from the crew member at this machine: the ambience of where they are, by the zone at their chest (the hum aboard, the drone in a derelict, nothing in space), crossfaded; out of the air the low-pass closes to 380 Hz and the ambience drops to −24 dB.
+  - A crew member's sounds play on every peer (`Player._make_sounds`): a footfall at each heel strike of the stride, by the deck they're on and their gait; a thump coming down faster than 1.8 m/s; the lamp's switch, but not when it goes out flat. Your own are in your ears, everyone else's from where they are. `grounded` is synced for this: only the owner's body moves, so only it knew.
+  - The jump, aboard (`Run`'s stages): the hum drops out at the lever and the drive spools up (3 s); the tunnel's mouth booms and its roar takes the hum's place; 2 s out, the drive winds down; the hum comes back once it's over. A crew member joining partway hears only the stages from then on.
+  - Consoles: a click on every press of a screen (`Terminal.push`), a chirp when a screen sends a request (`CrtScreen.confirm`), a buzz for a button shown but not usable now, mid-jump (`CrtScreen.refuse`). Only the operator hears them, as only their machine has the presses. A bay of the fuel rack filling (loaded or skimmed) sounds from the bay, for everyone; not the bays a run starts with. Taking a thing sounds in the taker's ears.
+  - A door sounds as it opens or shuts. A door set as it's built (before its first frame) starts that way at once, silently: the sample derelict is made with its doors open, which sounded every one of them at docking.
+  - Fixed from the branch: the ambient loops (and the tunnel's) never looped (`edit/loop_mode=1` is Disabled; a restart on `finished` covered for it) and their crossfade left a step at the seam; a teammate's footfalls and landings never played (they waited on `is_on_floor()` and the movement tick, both the owner's alone); where you were was `x >= 14`, now the zone. Dropped from it: a slower stride while carrying, which made the feet slide (below walking pace the stride shortens at walking cadence, §5).

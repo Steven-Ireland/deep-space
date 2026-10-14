@@ -21,6 +21,8 @@ const JUMP_BUFFER := 0.2
 ## Seconds the crosshair can slip off a thing being held (the Jump Lever) before the hold's lost.
 const HOLD_SLACK := 0.3
 const GRAVITY := 9.8
+## A fall at least this fast (m/s) comes down with a thump (Sound.landing): a jump, not a step down.
+const LAND_SPEED := 1.8
 const MOUSE_SENSITIVITY := 0.0022
 const PITCH_LIMIT := 1.45
 const EYE_HEIGHT := 1.62
@@ -88,6 +90,9 @@ var health := 1.0
 var in_vacuum := false
 ## The helmet lamp's charge, 0..1.
 var battery := 1.0
+## Whether they're on the ground (only the owner's body moves, so only it knows): footfalls and
+## landings are heard by everyone.
+var grounded := true
 
 ## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
 ## one drawn into the hand.
@@ -135,6 +140,10 @@ var _flame: Flame
 var _spine_material: ShaderMaterial
 var _lamp_energy := 0.0
 var _lamp_phase := 0.0
+var _footfalls := 0 # heel strikes so far: two a stride cycle
+var _fall := 0.0 # m/s, while in the air
+var _was_grounded := true
+var _lamp_heard := false
 
 
 func _init() -> void:
@@ -365,6 +374,7 @@ func receive(record: Dictionary) -> void:
 		slot = free_slot()
 		belt[slot] = record
 	_update_held()
+	Sound.taken(self)
 
 
 ## Takes what's in the hands out of them without letting go of it into the world (it's gone into
@@ -462,6 +472,7 @@ func _process(delta: float) -> void:
 	if held != _shown or held_lit != _shown_lit:
 		_show_held()
 	_animate(delta)
+	_make_sounds()
 	_place_lamp()
 	_light_spine()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
@@ -504,6 +515,7 @@ func _tick(delta: float, _tick_number: int) -> void:
 	velocity *= NetworkTime.physics_factor
 	move_and_slide()
 	velocity /= NetworkTime.physics_factor
+	grounded = is_on_floor()
 	_breathe(delta)
 	if lamp_on:
 		battery = maxf(0.0, battery - delta / LAMP_LIFE)
@@ -863,3 +875,22 @@ func _animate(delta: float) -> void:
 		_legs_yaw = lerp_angle(_legs_yaw, wanted, ease)
 		_pose.legs_yaw = _legs_yaw
 		_pose.pitch = head.rotation.x
+
+
+## What a crew member sounds like (GDD §15), on every peer: a footfall at each heel strike of the
+## stride while on the ground, a thump coming down from a jump or a fall, and the helmet lamp's
+## switch (not when it goes out flat).
+func _make_sounds() -> void:
+	var footfalls := floori(_stride * 2.0)
+	if footfalls != _footfalls:
+		_footfalls = footfalls
+		if grounded:
+			Sound.footstep(self)
+	if grounded and not _was_grounded and _fall >= LAND_SPEED:
+		Sound.landing(self)
+	_was_grounded = grounded
+	_fall = 0.0 if grounded else -velocity.y
+	if lamp_on != _lamp_heard:
+		_lamp_heard = lamp_on
+		if lamp_on or battery > 0.0:
+			Sound.lamp_switch(self, lamp_on)

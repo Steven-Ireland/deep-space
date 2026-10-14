@@ -2,7 +2,8 @@ class_name Door
 extends Node3D
 ## A sliding bulkhead door (lk_door) in a door wall. Crew open and close it from either side; the
 ## host applies it and the state replicates (MultiplayerSynchronizer, so late joiners see it too).
-## The wall's status lamp shows green when open, amber when shut, red when sealed.
+## The wall's status lamp shows green when open, amber when shut, red when sealed. Everyone hears it
+## open and shut (Sound.door).
 
 const OPEN_GAP := 0.9 # how far each leaf slides, metres
 const SPEED := 1.8 # metres per second: heavy, not instant
@@ -13,6 +14,8 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 
 @export var open := false:
 	set(value):
+		if value != open and _live:
+			Sound.door(self, value)
 		open = value
 		_update_state()
 @export var sealed := false:
@@ -22,6 +25,9 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 
 ## The wall's status_lamp mesh (set by the Deck).
 var lamp: MeshInstance3D
+## Whether it's had a frame yet: until then it's being built, and starts as it's set, at once and
+## silently (the sample derelict's doors are made open).
+var _live := false
 
 @onready var left: Node3D = $Leaves.find_child("leaf_left", true, false)
 @onready var right: Node3D = $Leaves.find_child("leaf_right", true, false)
@@ -37,8 +43,10 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	var target := OPEN_GAP if open else 0.0
-	left.position.x = move_toward(left.position.x, -target, SPEED * delta)
-	right.position.x = move_toward(right.position.x, target, SPEED * delta)
+	var slide := SPEED * delta if _live else OPEN_GAP
+	_live = true
+	left.position.x = move_toward(left.position.x, -target, slide)
+	right.position.x = move_toward(right.position.x, target, slide)
 	# Solid until it's nearly open, so nobody slips through a closing door.
 	blocker.disabled = left.position.x < -OPEN_GAP * 0.8
 

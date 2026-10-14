@@ -34,6 +34,7 @@ NetworkSimulator="*res://addons/netfox.extras/network-simulator.gd"
 Psx="*res://game/rendering/psx.gd"
 Net="*res://game/core/net.gd"
 Dev="*res://game/core/dev.gd"
+Sound="*res://game/core/sound.gd"
 
 [display]
 

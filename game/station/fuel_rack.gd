@@ -2,7 +2,7 @@ class_name FuelRack
 extends Node3D
 ## The drive room's fuel rack (GDD §5, §6), added to its model: three bays, each showing the cell
 ## loaded in it (the Run's fuel). Crew carrying a fuel cell load it into an empty bay; the drive
-## burns the last one loaded at each jump.
+## burns the last one loaded at each jump. A cell seating in a bay, loaded or skimmed, is heard.
 
 const CELL := preload("res://assets/models/items/fuel_cell.glb")
 ## The box crew aim at over each bay's cradle, and where it sits above the bay's socket.
@@ -10,6 +10,7 @@ const BAY_SIZE := Vector3(0.5, 0.9, 0.5)
 const BAY_RISE := 0.3
 
 var _cells: Array[Node3D] = []
+var _shown: Array[bool] = [] # the Run's fuel as last shown
 
 
 func _ready() -> void:
@@ -49,6 +50,10 @@ func _show() -> void:
 	var run := Run.of(self)
 	for i in _cells.size():
 		_cells[i].visible = i < run.fuel.size() and run.fuel[i]
+		# Not the bays filled as a run starts or a crew member joins: the fuel's first word.
+		if _cells[i].visible and i < _shown.size() and not _shown[i]:
+			Sound.cell_seated(_cells[i])
+	_shown = run.fuel.duplicate()
 
 
 ## An empty bay takes the cell a crew member carries: LOAD; otherwise it says what it holds.
