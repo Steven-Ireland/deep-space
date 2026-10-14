@@ -89,8 +89,10 @@ const SHAKE_TURN := 0.012
 ## visor shows it).
 signal belt_changed
 
-## A jet's puff of gas: a pale cone along -Z, short-lived and see-through.
+## A jet's puff of gas: a pale cone along -Z, short-lived and see-through; the EVA harness, worn
+## over the suit.
 const JET_PUFF := preload("res://game/player/jet_puff.tres")
+const HARNESS_MODEL := preload("res://assets/models/characters/ch_harness.glb")
 
 ## Synced from the owner (StateSynchronizer).
 var look := Vector2.ZERO # yaw, pitch in radians
@@ -181,7 +183,7 @@ var _lamp_heard := false
 var _spectator: Spectator
 var _bumps_heard := 0
 var _harness_heard := false
-var _harness_mesh: Node3D # the suit's harness, everyone else's view
+var _harness_mesh: Node3D # the harness on the suit, everyone else's view
 var _jets: Array[Node3D] = [] # a puff at each of its thruster blocks, on a pivot that turns it
 var _jet_sound: Node # the jets' hiss: in the owner's helmet, or from the suit for everyone else
 var _riding: Derelict # the derelict they're aboard, and where it was at their last tick
@@ -1071,7 +1073,7 @@ func _show_harness() -> void:
 	if is_multiplayer_authority():
 		return
 	if _harness_mesh == null:
-		_harness_mesh = body_visual.find_child("harness", true, false) as Node3D
+		_harness_mesh = _fit_harness()
 		if _harness_mesh == null:
 			return
 		for i in 4:
@@ -1096,6 +1098,29 @@ func _show_harness() -> void:
 			var away := -thrust.normalized()
 			puff.look_at(puff.global_position + away, Vector3.UP if absf(away.y) < 0.95 else Vector3.RIGHT)
 			puff.scale = Vector3.ONE * (0.6 + 0.4 * push) * randf_range(0.85, 1.15)
+
+
+## Puts the EVA harness on the suit: its mesh, rigged to the suit's own bones (art/blender/
+## characters.py: ch_harness), bound to the suit's skeleton, and the bone attachment carrying its
+## jets' sockets with it. Returns the mesh, or null if the suit has no skeleton.
+func _fit_harness() -> Node3D:
+	var skeleton := body_visual.find_child("Skeleton3D", true, false) as Skeleton3D
+	if skeleton == null:
+		return null
+	var model: Node = HARNESS_MODEL.instantiate()
+	var rig := model.find_child("Skeleton3D", true, false)
+	var mesh: Node3D = null
+	for part in rig.get_children():
+		if part is MeshInstance3D or part is BoneAttachment3D:
+			rig.remove_child(part)
+			for owned in [part] + part.find_children("*", "", true, false):
+				owned.owner = null
+			part.name = "Harness_%s" % part.name
+			skeleton.add_child(part)
+			if part is MeshInstance3D:
+				mesh = part
+	model.free()
+	return mesh
 
 
 ## The spine lights down a suit's back (GDD §10) tell the crew how its wearer is: green, amber,

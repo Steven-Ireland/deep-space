@@ -183,11 +183,15 @@ HARNESS_JETS = ((-0.27, 0.41, 1.57), (0.27, 0.41, 1.57), (-0.27, 0.41, 1.03), (0
 
 def harness_pack(m, k):
     """The EVA harness's pack, in the suit's space (it rides the life support pack's back): a dark
-    frame, two orange propellant bottles and their manifold, and four thruster blocks at its
-    corners, each with three little nozzles (out to the side, back, and up or down)."""
-    m.box((0.5, 0.04, 0.58), k["frame"], at=(0, 0.375, 1.3))
+    open frame, two orange propellant bottles and their manifold, and four thruster blocks at its
+    corners, each with three little nozzles (out to the side, back, and up or down). Its middle is
+    open, so the suit's spine lights still show between the bottles."""
+    for z in (1.03, 1.57):
+        m.box((0.5, 0.05, 0.05), k["frame"], at=(0, 0.38, z))
     for x in (-0.23, 0.23):
         m.box((0.04, 0.06, 0.6), k["frame"], at=(x, 0.39, 1.3))
+    for x in (-0.13, 0.13):
+        m.box((0.03, 0.03, 0.5), k["frame"], at=(x, 0.37, 1.3))
     for x in (-0.13, 0.13):
         m.lathe([(0.0, -0.2), (0.05, -0.17), (0.055, 0.15), (0.03, 0.2)], k["bottle"], sides=6, at=(x, 0.45, 1.3))
     m.pipe([(-0.13, 0.45, 1.53), (-0.13, 0.45, 1.56), (0.13, 0.45, 1.56), (0.13, 0.45, 1.53)], 0.012, k["steel"], sides=4, caps=False)

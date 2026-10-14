@@ -130,6 +130,36 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
 
 Still to come: creature behaviour.
 
+**EVA and relays (M5, first part, 2026-10-14):**
+
+- **The generator grows in three dimensions** (`RoomLayout`): cells on levels 4 m apart, modules
+  that span levels, sockets up and down through hatchways. Derelicts grow exactly as before on top
+  of it; satellites stand on three to five levels.
+- **Relay satellites:** at a Relay node (or `--satellite`, at the departure) a working relay is
+  set out 20–28 m off the port side, its hatch facing the EVA airlock. Grown from the node's seed
+  out of twelve modules (entry, nodes, a two-level shaft, passages, equipment bay, power bay,
+  telemetry, stowage, propellant, feed room, shelter, the relay core as its Prize): 12–17 rooms,
+  lit cold white, airless and weightless, things hanging where they were left. A live telemetry
+  console, flickering racks, a working O2 rack in stowage, a fuel cell half the time. Outside: a
+  white-and-gold hull, solar wings with blinking nav lamps, a dish, a strobe mast, thruster
+  clusters, floodlights and a beacon over its hatch, which opens by hand.
+- **The EVA airlock** off the suit room cycles like the collar's (the suit room's door into it is
+  a pressure hatch now). **The harness rack** in the suit room holds four thruster harnesses: hold
+  E to DON (fuelled) or STOW. Worn: 1.5 m/s on foot, no sprint.
+- **Weightless crew** (the 0 g controller): haul along anything within reach and stop when you let
+  go; drift out of reach; with the harness, jets push where you look (Space up, Ctrl down, Shift
+  brakes) from 45 s of propellant, up to 3.5 m/s. A shorter body in the float pose fits hatches;
+  things thrown push you back; loose things and bodies float. Teammates see the harness, the jets'
+  puffs and the float pose, and hear the jets; the visor shows RCS under O2, the cuff a bar, the
+  Vitals board SATELLITE or OUTSIDE.
+- **Fixed on the way:** hull plating had no colliders (crew outside would sink into it); the hatch
+  rings on walls and hull (LANTERN and derelicts too) and the dishes had faces turned inside out,
+  and a wall hatch's ring bore swung off with its door: see-through round every hatch. Previews
+  now cull back faces, as the game does, so that kind of fault shows at review.
+- **Tests:** `test_satellite_layout` checks 900 satellites from what the Decks build; the smoke
+  test cycles the EVA airlock, sets a satellite out and flies a crew member round it on the jets;
+  `--check-eva` plays a whole EVA through with the keys, `--tour` shoots every room.
+
 ## Next: the gameplay loop (proposed order)
 
 1. **Rest of M1, the crew:**
@@ -155,8 +185,14 @@ Still to come: creature behaviour.
    - the Workshop's recycler and Fabricator
    - Tier 1 weapons in use, with energy cartridges
    - placeholder Signal and Anomaly nodes
-   - the EVA airlock and hull exterior
+   - the EVA airlock and hull exterior (done: EVA to relays, above)
    - an audio pass
+5. **Rest of M5, EVA:**
+   - the tether (proposed below, under decisions)
+   - Colony nodes: a moonlet at 0.16 g, an outpost to walk to (the zone weight is ready for it)
+   - relays with something wrong aboard (a Signal's twist, a creature adapted to vacuum), and
+     relay power you can cut
+   - mag-boots, if weightless derelicts come
 
 ## Decisions needed
 
@@ -187,6 +223,16 @@ Still to come: creature behaviour.
     derelict this size one is easy to miss until the AI hunts by sound.
   - More room modules: the rarer rooms repeat at this size (two infirmaries, machine shops and suit
     storages in most derelicts).
+  - EVA (2026-10-14): the harness's numbers (45 s of propellant, 1 m/s², 3.5 m/s top, braking),
+    hauling (1.3 m/s, 35 cm reach), 1.5 m/s on foot with it on; the relay's distance (20–28 m) and
+    size (12–17 rooms on 3–5 levels); a fuel cell in half of them; its working O2 rack (it makes a
+    relay a refuelling stop for air); the cold white light; whether stepping out of the airlock
+    without a harness should leave you drifting (it does: nothing's in reach in the hatchway).
+  - **The tether (proposed, GDD §17):** a reel on the harness, clipped at the airlock's hatch or a
+    relay's anchor ring, paying out to about 50 m, stopping you softly at its end, and reeling you
+    home free of propellant. Cheapest first step: a straight line you unclip to go deep into a
+    relay. The full version wraps round corners inside (a thread back through the dark). Say
+    whether to build it, and which.
 - **Upgrades and costs (later):** with the economy, whether the Med Bay needs its upgrade, and what
   a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
@@ -202,7 +248,14 @@ Still to come: creature behaviour.
 - **The dock panel's small stencils** don't survive the texel density; only COLLAR and EXT remain.
 
 - **Room lights leak through walls:** the ceiling OmniLights are unshadowed, so the sealed med bay
-  isn't dark. Fixes: shadows on a few key fixtures, or tighter ranges.
+  isn't dark. Fixes: shadows on a few key fixtures, or tighter ranges. In a satellite they reach
+  through floors to the level above too (lit rooms everywhere, so it shows less).
+- **EVA, first take:**
+  - A relay's open hatch swings into its entry and covers part of the opening for a moment, as the
+    LANTERN's do; the inside of the hull's collar ring reads black from up close (unlit).
+  - The EVA harness is 532 triangles and its rack 1,850, over the props' 20–300.
+  - You don't see your own harness in first person; teammates' jet puffs are plain pale cones.
+  - A relay's loot knocked out of its hatch drifts off for good (cleared when the LANTERN leaves).
 - **Derelict rust reads grey.**
 - **Triangle budgets:**
   - The suit is about 1,548 triangles, over the characters' 600–1,200 (GDD §14).
@@ -257,7 +310,8 @@ Still to come: creature behaviour.
   | `tools/sheet.py` | Contact sheets and crisp crops. |
   | `--check-aim` | Checks every terminal can be used. |
   | `--check-jump`, `--check-lever` | Presses jump ten times and counts take-offs; holds interact on the aimed thing (the Jump Lever: `--route --at=-1.85,0,-3.2 --look=0,-22`) and says whether the jump began. |
-  | `tools/test.sh [name]` | The headless tests: sector map rules, derelict layouts, determinism, audio, the smoke test. |
+  | `tools/test.sh [name]` | The headless tests: sector map rules, derelict and satellite layouts, determinism, audio, the smoke test. |
+  | `--check-eva[=dir]`, `--tour=dir` | With `--satellite`: an EVA played through with the keys, saying how each step went; every room of the satellite shot four ways. |
   | `--run-seed=n`, `--scanned`, `--route`, `--jump`, `--derelict` | The run: its seed; scanned, a route plotted, jumping a second in; the departure's own derelict docked at the start. `--operate=screen_nav` steps up to a terminal. |
 - **Getting around:**
   - **Grid and directions:** a 4 m grid, with the bridge's centre at the origin. Fore is -Z,
@@ -278,6 +332,13 @@ Still to come: creature behaviour.
     | Collar's airlock (the collar room) | (12, 0, 0); its cycle panel by the outer hatch |
     | Dock panel | (9.7, 0, 1.6), in the docking port; stand at (8.6, 0, 1.25), `--look=-111,-36` for the lever |
     | The derelict's entry | (20, 0, 0) |
+  - **EVA:** the harness rack is on the suit room's aft wall, (-8.75, 0, 1.7) (stand at (-8.6, 0,
+    0.6), `--look=180,-8`); the EVA airlock's cycle lever at (-13.6, 1.06, 1.6) (stand at
+    (-12.6, 0, 1), `--look=120,-25`); out of its hatch is space, x < -14.6. A relay is alongside
+    at a Relay node, or with `--satellite` at the departure; the host's log prints its plan and
+    each room's middle in the world. (Run 7's: its hatch about (-40.9, -0.2, -8.8); the relay
+    core at about (-51, 6.7, -10).) `--harness` starts wearing a harness; outside, `--at` floats
+    you where it puts you. `--check-eva=<dir>` and `--tour=<dir>` (with `--satellite`) as above.
 
     `--interact=<s>` holds interact on what's aimed at, so a shot can dock (`--interact=2.4` at the
     lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`);

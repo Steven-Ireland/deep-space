@@ -82,7 +82,7 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 
 | Room | Where | Function | Interfaces |
 |---|---|---|---|
-| **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, charge lamps, go outside | Suit lockers, O2 refill rack, lamp charger, airlock cycle panel (pressure gauge, warning lights) |
+| **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, charge lamps, put on the EVA harness, go outside | Suit lockers, O2 refill rack, lamp charger, the **EVA harness rack** (four thruster harnesses: hold to DON one, fuelled full; hold to STOW it). Beyond a round pressure hatch, the **EVA airlock**: a pressure chamber like the collar's, its cycle panel inside by the outer hatch, which opens straight onto space |
 | **Docking Port** | Off the bridge (starboard) | Docks with derelicts | The dock panel (the COLLAR lever, the EXT PRESS gauge, CONTACT and SEAL lamps); the collar beyond it, which is the docking airlock (a pressure chamber with round hatches at both ends, its cycle panel inside); the kit rack (the crew's one crowbar and one flare), passed on the way out |
 | **Drive Room** | Off the bridge | Fuel and jump drive | **Fuel cell slots** (physical cells are carried in and inserted); drive status gauges |
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
@@ -112,7 +112,7 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 |---|---|---|
 | **Derelict** | 30% | Dock with an abandoned station or ship and explore its interior |
 | **Colony** | 15% | Moonwalk: a low-gravity EVA across a moonlet's surface to a mining outpost, then inside |
-| **Relay** | 15% | Short zero-g EVA to a satellite or relay. Quick loot, high exposure |
+| **Relay** | 15% | Short zero-g EVA to a relay satellite still in working order (§8.4). Quick loot, high exposure |
 | **Signal** | 15% | Unknown until arrival. Could be any encounter with a twist, a survivor, or a trap |
 | **Anomaly** | 10% | FTL-style event resolved at a bridge terminal. Choices can trigger hazards or rewards |
 | **Gas Giant** | 10% | Skim fuel (the "campfire" node). A risky storm event is possible |
@@ -148,12 +148,16 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   - **Suits seal the moment the airlock starts cycling out**: from then until it's all the way back in, crew breathe their suit's O2 and hear the world muffled (§9.2, §15).
   - A sealed hatch needs a crowbar, a cutter or power to open.
 - **EVA.**
-  - The station holds position near the target.
-  - Players cycle the EVA airlock and cross on foot (moonlets, at about 0.16 g) or by tether line and mag-boots (zero-g wrecks and relays).
-  - Suit O2 is the clock.
+  - The station holds position near the target: a relay sits 20 to 28 m off the port side, its hatch turned to the EVA airlock. A moonlet's outpost will be reached on foot (about 0.16 g).
+  - Crew put on an **EVA harness** at the rack in the suit room: a small cold-gas thruster pack strapped over the suit's life support pack, with limited propellant. On foot it's a weight on their back (they walk slowly, about 1.5 m/s, and can't sprint); weightless, its jets fly them (§9.1).
+  - They cycle the EVA airlock out (suits seal the moment it starts) and step out of the outer hatch into space: weightless, airless, silent but for their own breathing and jets.
+  - Without a harness, a crew member can still go out, haul themselves along the hull, and push off it toward the target; whatever speed they leave with, they keep. A bad push misses.
+  - Suit O2 is the clock; the harness's propellant is the other one.
+  - *Proposed, not built:* a **tether** (see §17).
 
 ### 8.2 Layouts
-- Interiors are **procedurally assembled from hand-built rooms**, so every derelict is new but every room is authored.
+- Interiors are **procedurally assembled from hand-built rooms**, so every derelict and relay is new but every room is authored.
+- A structure can stand on **several levels**, joined by round hatchways through floors and ceilings with a short trunk between them: a relay's rooms stack three to five levels high. Derelicts stand on one level for now.
 - Each layout is built as follows:
   1. Grows a room graph out from the entry airlock.
   2. Adds a few loops.
@@ -191,6 +195,16 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   - **Anyone still aboard goes with it**, breathing suit O2. They're lost when it runs out, unless the crew docks again in time.
   - The Jump Lever doesn't wait for anyone. Jumping with crew still out there leaves them behind for good, and the Med Bay clones them back (§11).
 
+### 8.4 Relays
+
+The relays the earlier waves left behind (§3) are still at work: a relay satellite is **pristine, not derelict**. Lit cold white, humming, its racks flickering with traffic, its telemetry console live (what it's relaying, how long it's been up, when it last heard from anyone it knew, and a signal it can't place). Nobody aboard, and nothing alive, for now.
+
+- **Outside:** a compact bus of white insulation blankets and gold foil with yellow handrails, two solar wings (red and green lamps blinking at their tips), a dish, a mast with a strobe, thruster clusters at its corners. Floodlights and an amber beacon over its EVA hatch light the way across.
+- **The way in** is a round hatch, opened by hand from either side. There's no airlock: the relay holds no air, and no weight.
+- **Inside, weightless:** an entry, nodes and shafts with ways out of every face, passages, and rooms: equipment bays of electronics, power bays of batteries, the telemetry room under its windows, stowage (with an **O2 rack that still works**), propellant tanks, the antenna's feed, a maintenance crew's shelter, and at the far end the **relay core** (its Prize: data, tools, cartridges). Things left loose hang where they were left, and drift when knocked.
+- **Loot:** quick and light: salvage (circuit boards above all), supplies, data cores, power cells; a fuel cell aboard half the time (in the propellant bay, or the core's vault). Carrying a fuel cell back across the void is slow on the jets.
+- Smaller than a derelict (12 to 17 rooms, the core about 5 rooms in), so a crew can get round it on one tank of O2, if they don't waste it.
+
 ## 9. The Player
 
 ### 9.1 Movement (deliberate, weighty)
@@ -201,13 +215,22 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 | Sprint | ~4.0 m/s | Triples O2 use, loud, short stamina |
 | Crouch | ~1.2 m/s | Near-silent; fits under vents and low pipes |
 | Carry (heavy) | ~1.6 m/s | Two-handed, so no sprinting and nothing from the belt |
+| EVA harness, on foot | ~1.5 m/s | Its weight on their back; no sprinting |
+| Weightless, hauling | ~1.3 m/s | Hand over hand along anything within reach (about 35 cm) |
+| Weightless, jets | up to ~3.5 m/s | The harness's push, about 1 m/s², from 45 s of propellant |
 
 - **Jumps and mantling:** jumps are short. Mantling handles crates and ledges.
 - **Gravity and inertia:**
-  - Gravity changes by zone: 1 g on the station, 0 g in a dead derelict, about 0.16 g on moonlets.
-  - Mag-boots attach to surfaces in zero-g.
+  - Gravity changes by zone: 1 g on the station (and in derelicts, for now), none in a relay or out in space, about 0.16 g on moonlets (later). Back in the weight, the crew settle onto the deck.
   - The body has inertia (acceleration ramps, slight head bob and sway).
   - **Mouse look is never smoothed or capped**, for comfort.
+- **Weightless** (relays, space): crew move where they look.
+  - Within reach of anything solid (a wall, a rail, a hatch's frame, the hull) they haul themselves along it or push off it, and let go of the keys to catch hold and stop.
+  - Out of reach of everything they **drift**, keeping whatever speed they had: no hands, no brakes.
+  - With the **EVA harness**, its jets push them where they look (`Space` up, `Ctrl` down), never past a top speed, and `Shift` holds the jets against their drift until they're still. All of it burns propellant; restock at the rack.
+  - Something big in their arms (a fuel cell, a body) makes all of it slower. Throwing something pushes them back.
+  - The body draws its knees up and holds its arms out, ready to catch hold (the neutral float pose), so it fits through hatches more easily.
+  - *Mag-boots* stay on the list for weightless derelicts later.
 
 ### 9.2 Suit
 - **Health:** shown as the wrist ECG and heartbeat audio. It does not regenerate, and heals only at the Med Bay or with stims.
@@ -252,6 +275,7 @@ Most information lives in the world. A small **visor HUD** fills the gaps, and i
 |---|---|---|
 | Health | **Wrist cuff** ECG (left forearm; `Tab` raises it to read), heartbeat audio | A warning when vitals are critical |
 | O2 and suit integrity | Wrist cuff; hiss and visor frost on a breach | Small gauges in vacuum, when low, or after damage |
+| EVA harness propellant | Wrist cuff (a thin bar while it's worn); the jets' hiss | RCS, under O2, while it's worn weightless, or when low; its label bright while the jets fire |
 | Held item and belt | The item in your hands; the cuff lists the belt | The belt in the lower right: four slots with icons, the one in hand raised and named. Bright when it changes, then dim |
 | Interaction | — | A small centre dot, and the one-word verb ("OPEN", "TAKE") in a bordered box that floats beside the thing, tied to it by a jointed leader line that fades toward it |
 | Damage | **Visor:** cracks, frost and condensation when O2 is low, a blood spatter | Readouts flicker and distort |
@@ -418,7 +442,8 @@ Death is frequent and specific.
 ## 15. Audio Direction
 
 - Low-fi sound: 22 kHz samples, short reverb tails, sparse droning music.
-- **Vacuum rule:** in unpressurized zones, outside sound is heavily low-passed (you "hear" through contact). Your own breathing and the radio stay clear.
+- **Vacuum rule:** in unpressurized zones, outside sound is heavily low-passed (you "hear" through contact). Your own breathing, your harness's jets and the radio stay clear.
+- A working relay has its own sound through the hull: a thin electrical whine, fans, a relay ticking over, a telemetry chirp now and then.
 - The station hum is a comfort, and its absence is a warning.
 - Creatures are mostly heard before they are seen: directional clicks, wet movement, distant impacts.
 - The PA voice of the station computer, KEEPER, is dry and clipped.
@@ -467,6 +492,15 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 12. **The Med Bay works from the start** (was: offline until upgraded). What reviving and cloning cost, and whether an upgrade gates them, waits for the economy.
 13. **Derelicts hold no air**, for now (§8.1): their rooms are open to one another, so there's no pressure to differ between them. Pressurized sections need seals and airlocks of their own, later. Alien life is adapted to vacuum.
 14. **The collar's airlock is a pressure chamber with round hatches at both ends**, and suits seal (O2 running, the world muffled) the moment it starts cycling out.
+
+15. **EVA is by thruster harness** (§8.1, §9.1): a small cold-gas pack with limited propellant, put on at a rack in the suit room, slow on foot. Weightless crew haul along surfaces for free, drift out of reach, and fly on the jets. Mag-boots wait for weightless derelicts.
+16. **Relays are working satellites** (§8.4): pristine, lit and humming, airless and weightless, on several levels joined by hatchways; nothing alive aboard for now.
+
+**Open (proposed 2026-10-14): the tether.** A safety line for EVA, to decide after playing the harness:
+- The harness carries a reel. At the EVA airlock's outer hatch (and the anchor rings by a relay's hatch), crew CLIP their line on before going out. It pays out behind them up to its length (about 50 m: the crossing and a little more), drawn as a line from the anchor to their harness.
+- At full length it stops them: a soft bounce, not a wall. Holding a key **reels them back** to the anchor slowly, free of propellant: the way home for someone who's run dry, or drifted off without a harness.
+- Inside a relay the line would wrap round corners where it's pulled (a breadcrumb path the reel follows back), so it's also a thread back through the dark. That's the expensive part; a straight line that must be unclipped to go deep is the cheap first step, and itself a choice: safety or reach.
+- A teammate could take hold of someone's line and haul them in (the tether gun, §13, does it at range).
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.

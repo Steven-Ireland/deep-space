@@ -7,7 +7,11 @@ extends SceneTree
 ## counts down while the airlock comes in, and the derelict drifts off vented, its loot aboard; it
 ## docks again. A crew member dies with a crowbar in hand: their body and the crowbar lie where they
 ## fell; the body goes in the med bay's pod and they're revived beside it; lost to a jump, they're
-## cloned. Then, moved to a gas giant, the LANTERN skims the cell back.
+## cloned. Then, moved to a gas giant, the LANTERN skims the cell back. Last, an EVA: the EVA
+## airlock cycles out to space and back; a relay satellite is set out off it, weightless and
+## airless, its hatch opening by hand, its loot hanging where it was put; a crew member takes a
+## harness from the rack, floats outside, hauls along the hull, flies on the jets and brakes, and
+## stows the harness again.
 ##   tools/godot.sh --headless -s tests/test_smoke.gd
 
 var failures := 0
@@ -74,6 +78,7 @@ func _run() -> void:
 	run.refuel()
 	await _until(func() -> bool: return run.refuelled, 5.0)
 	_check(run.fuel_left() == 3 and not run.can_refuel(), "the skim didn't fill the bay, or can be done again")
+	await _eva(world)
 	Engine.time_scale = 1.0
 	world.queue_free()
 	await _frames(5)
@@ -179,6 +184,102 @@ func _death(world: Node) -> void:
 	_check(bay.job == &"clone", "the pod wouldn't clone them")
 	await _until(func() -> bool: return not player.dead, 7.0)
 	_check(not player.dead, "the pod didn't clone them")
+	player.queue_free()
+	await _frames(3)
+
+
+## The EVA airlock, a satellite and a crew member weightless on the harness's jets (time sped up).
+func _eva(world: Node) -> void:
+	var lantern: Node = world.get_node("Lantern")
+	var lock: Node = lantern.eva
+	_check(lock != null and lock.prompt(&"") == "CYCLE", "the EVA airlock won't cycle out")
+	lock.use(&"")
+	await _frames(2)
+	_check(not lock.chamber.pressurized, "crew in the EVA airlock aren't on their suits as it cycles")
+	await _until(func() -> bool: return lock.state == &"out", 3.0)
+	await _frames(30)
+	_check(lock.state == &"out" and lock.outer.passable() and not lock.inner.open, "the EVA airlock didn't cycle out")
+	# A satellite, set out at the departure.
+	var run: Node = world.get_node("Run")
+	run.dev_satellite = true
+	run.at = SectorMap.start()
+	run._broadcast()
+	await _frames(10)
+	var satellite = world.get_tree().get_first_node_in_group(&"satellite")
+	_check(satellite != null, "no satellite set out")
+	if satellite == null:
+		return
+	var hatch: Vector3 = satellite.entry.centre()
+	_check(hatch.distance_to(lock.outer.centre()) > 18.0 and hatch.distance_to(lock.outer.centre()) < 40.0,
+			"the satellite's hatch is %.1f m from the airlock's" % hatch.distance_to(lock.outer.centre()))
+	var inside: Vector3 = satellite.global_transform * Vector3(0, 1.4, 0)
+	_check(satellite.at(satellite.get_world_3d(), inside) == satellite, "the satellite's entry isn't part of it")
+	var zone = load("res://game/core/zone.gd")
+	_check(zone.weight_at(satellite.get_world_3d(), inside) == 0.0 and not zone.has_air(satellite.get_world_3d(), inside),
+			"the satellite has weight or air")
+	_check(zone.weight_at(satellite.get_world_3d(), Vector3(-30, 1, 0)) == 0.0, "space has weight")
+	_check(zone.weight_at(satellite.get_world_3d(), Vector3(-8, 1, 0)) == 1.0, "the suit room is weightless")
+	satellite._toggle_hatch()
+	await _frames(40)
+	_check(satellite.entry.passable(), "the satellite's hatch didn't open")
+	var loot: Array = world.get_node("Items").get_children().filter(func(item: Node) -> bool:
+			return item is RigidBody3D and satellite.at(item.get_world_3d(), item.global_position) == satellite)
+	_check(loot.size() >= 6, "the satellite's loot wasn't put out (%d)" % loot.size())
+	await _frames(10)
+	_check(loot.all(func(item: RigidBody3D) -> bool: return item.gravity_scale == 0.0), "the satellite's loot isn't weightless")
+	# A crew member: the harness, then outside.
+	var player: Node = load("res://game/player/player.tscn").instantiate()
+	player.name = "1"
+	world.get_node("Players").add_child(player)
+	await _frames(3)
+	var rack: Node = world.find_child("HarnessRack", true, false)
+	_check(rack != null and rack.prompt(player) == "DON", "no harness rack, or it won't give a harness")
+	rack._on_used(1)
+	await _frames(2)
+	_check(player.harness and rack.left() == 3 and rack.prompt(player) == "STOW", "the rack didn't give them a harness")
+	# Out beside the hull, clear of the hatch's opening: an arm's length from the plating.
+	var out: Vector3 = lock.outer.centre() - lock.chamber.global_position
+	out = Vector3(out.x, 0, out.z).normalized()
+	player.teleport(lock.outer.centre() + out * 0.95 + Vector3.DOWN * 1.0 + Vector3.UP.cross(out) * 2.2)
+	for i in 3:
+		player._tick(1.0 / 30.0, i)
+	_check(player.floating and player.in_vacuum, "outside the airlock they aren't weightless and on their suit")
+	_check(player._gripping(), "beside the hull, they can't reach it")
+	# Facing fore along the plating, they haul themselves aft along it, away from the opening.
+	player.look = Vector2(0.0, 0.0)
+	Input.action_press("move_back")
+	for i in 20:
+		player._tick(1.0 / 30.0, i)
+	Input.action_release("move_back")
+	_check(player.velocity.length() > 0.5 and player.rcs == player.RCS_FUEL, "hauling along the hull didn't move them, or burnt the jets")
+	player.teleport(Vector3(-24, 1, 6))
+	player.look = Vector2(PI / 2, 0.0)
+	for i in 3:
+		player._tick(1.0 / 30.0, i)
+	_check(not player._gripping(), "out in space, they can still reach something")
+	Input.action_press("move_forward")
+	for i in 60:
+		player._tick(1.0 / 30.0, i)
+	Input.action_release("move_forward")
+	var flying: Vector3 = player.velocity
+	_check(flying.length() > 1.5 and flying.length() <= player.THRUST_TOP + 0.01 and flying.x < -1.0,
+			"the jets didn't push them where they look (%s)" % flying)
+	_check(player.rcs < player.RCS_FUEL - 1.5, "the jets burnt no propellant")
+	for i in 30:
+		player._tick(1.0 / 30.0, i)
+	_check(player.velocity.distance_to(flying) < 0.05, "they didn't drift on as they were going")
+	Input.action_press("sprint")
+	for i in 120:
+		player._tick(1.0 / 30.0, i)
+	Input.action_release("sprint")
+	_check(player.velocity.length() < 0.05, "the jets didn't brake them (%.2f m/s)" % player.velocity.length())
+	player.teleport(Vector3(-8.6, 0, 0.6))
+	for i in 3:
+		player._tick(1.0 / 30.0, i)
+	_check(not player.floating, "back aboard, they're still weightless")
+	rack._on_used(1)
+	await _frames(2)
+	_check(not player.harness and rack.left() == 4, "the harness wasn't stowed")
 	player.queue_free()
 	await _frames(3)
 
