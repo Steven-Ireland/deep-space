@@ -139,9 +139,12 @@ def suit():
     rig.bind(low, skeleton)
     rig.bind(lights_obj, skeleton)
     rig.bind(cuff_obj, skeleton)
-    # Whatever's held sits in the right glove (`SOCKET_grip`), along the body's forward axis.
-    grip = _bone_socket(skeleton, "SOCKET_grip", "hand.R", (-0.29, -0.035, 0.83))
-    _suit_clips(skeleton, _cuff_pose(skeleton, cuff_centre, Vector((0, -1, 0)), Vector((0, 0, -1))))
+    # Whatever's held sits in the right glove (`SOCKET_grip`), across the fist: with the arm at
+    # rest it points ahead along the body's forward axis, the way a hanging fist holds a hammer.
+    grip = _bone_socket(skeleton, "SOCKET_grip", "hand.R", GLOVE_GRIP)
+    holds = {style: _hold_pose(skeleton, **spec) for style, spec in HOLDS.items()}
+    print(f"ch_suit holds: {holds}")
+    _suit_clips(skeleton, _cuff_pose(skeleton, cuff_centre, Vector((0, -1, 0)), Vector((0, 0, -1))), holds)
     return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, grip])
 
 
@@ -267,10 +270,54 @@ def _stand(hip_z, feet, hips=(0.0, 0.0, 0.0)):
     return _legs(feet, hip_z, hips) | {"hips": hips, "root_location": (0, 0, hip_z - HIP_Z)}
 
 
-# Holding things in the right hand (seen by the rest of the crew): the torch raised and pointed
-# ahead at chest height, a tool carried low and ready.
-HOLD_TORCH = {"upper_arm.R": (-62, 0, -6), "forearm.R": (-28, 0, 0), "hand.R": (0, 0, 0)}
-HOLD_TOOL = {"upper_arm.R": (-14, 0, 6), "forearm.R": (-38, 0, 0), "hand.R": (8, 0, 0)}
+# Holding things in the right glove (seen by the rest of the crew), by what each hold achieves:
+# where the grip is (model space, the suit facing -Y) and which way the held thing points, sitting
+# in the fist pitched up `tilt` degrees (game/items/items.gd keeps these: the flashlight's glove
+# tilt; a tool's is 0 here and its own, a few degrees either way, in the game).
+#   torch: out in front of the belly, elbow bent, pointed level ahead (the game then aims it with
+#          the gaze); a torch sits in a fist slanted toward the knuckles, so the wrist cocks less.
+#   tool:  carried low at the side and ready, the handle 35° above level.
+GLOVE_GRIP = (-0.29, -0.035, 0.83)
+HOLDS = {
+    "torch": dict(at=(-0.21, -0.36, 1.1), aim=(0, -1, 0), tilt=-40),
+    "tool": dict(at=(-0.27, -0.2, 0.98), aim=(0, -math.cos(math.radians(35)), math.sin(math.radians(35))), tilt=0),
+}
+
+
+def _hold_pose(skeleton, at, aim, tilt):
+    """The right arm holding something: the glove's grip at `at`, the held thing along `aim`. The
+    elbow only bends (forward), the wrist stays within its reach, the elbow stays out of the
+    body, and nothing turns more than it needs to. Solved for what it achieves."""
+    grip = Vector(GLOVE_GRIP)
+    along = Matrix.Rotation(math.radians(-tilt), 3, "X") @ Vector((0, -1, 0))
+    aim = Vector(aim).normalized()
+    elbow_rest = Vector(next(b[1] for b in SUIT_BONES if b[0] == "forearm.R"))
+
+    def angles(x):
+        # Shoulder free; elbow a hinge with a little forearm twist; wrist tilt (x, toward the little
+        # finger +) and bend (z).
+        return {"upper_arm.R": tuple(x[0:3]), "forearm.R": (x[3], x[4], 0.0), "hand.R": (x[5], 0.0, x[6])}
+
+    def cost(x):
+        m = rig.pose_matrices(skeleton, angles(x))
+        g = rig.deform(skeleton, m, "hand.R", grip)
+        d = rig.deform(skeleton, m, "hand.R", along, direction=True)
+        elbow = rig.deform(skeleton, m, "forearm.R", elbow_rest)
+        place = (g - Vector(at)).length_squared / 0.01 ** 2
+        pointing = (1 - d.dot(aim)) * 400
+        hinge = max(0.0, x[3]) ** 2 + x[4] ** 2 / 4
+        wrist = (max(0.0, x[5] - 35) ** 2 + max(0.0, -x[5] - 20) ** 2 + max(0.0, abs(x[6]) - 15) ** 2) / 4
+        body = max(0.0, elbow.x + 0.25) ** 2 / 0.01 ** 2
+        ease = sum(a * a for a in x) / 20000
+        return place + pointing + hinge + wrist + body + ease
+
+    best = None
+    for start in ([-30, 0, 0, -40, 0, 10, 0], [-10, 10, 10, -70, 0, 20, 0], [-50, -10, -10, -20, 0, 0, 0]):
+        x, score = rig.solve(cost, start, step=20.0, iterations=4000)
+        if best is None or score < best[1]:
+            best = (x, score)
+    print(f"ch_suit hold at {at}: score {best[1]:.4f}")
+    return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
 def _cuff_pose(skeleton, cuff_centre, cuff_normal, cuff_up):
@@ -308,7 +355,7 @@ def _cuff_pose(skeleton, cuff_centre, cuff_normal, cuff_up):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in pose.items()}
 
 
-def _suit_clips(skeleton, cuff):
+def _suit_clips(skeleton, cuff, holds):
     def idle(t):
         breath = rig.wave(t)
         pose = _stand(0.94, {"L": (0.0, ANKLE_Z, 0.0), "R": (0.03, ANKLE_Z, 0.0)}, (0, 2 * rig.wave(t, 0.5), 1.0))
@@ -354,8 +401,8 @@ def _suit_clips(skeleton, cuff):
              smooth=True)
     rig.clip(skeleton, "carry", 1.0, carry, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, held(cuff), smooth=True)
-    rig.clip(skeleton, "hold_torch", 2.0, held(HOLD_TORCH), smooth=True)
-    rig.clip(skeleton, "hold_tool", 2.0, held(HOLD_TOOL), smooth=True)
+    rig.clip(skeleton, "hold_torch", 2.0, held(holds["torch"]), smooth=True)
+    rig.clip(skeleton, "hold_tool", 2.0, held(holds["tool"]), smooth=True)
     rig.clip(skeleton, "death", 1.4, death, loop=False)
 
 
@@ -384,15 +431,19 @@ def arms():
         m.bone(f"arm.{side}")
         m.pipe([(sx * 0.245, 0.12, -0.365), (sx * 0.22, -0.15, -0.34)], 0.06, k["fabric"], sides=6)
         m.bone(f"forearm.{side}")
-        m.pipe([(sx * 0.222, -0.13, -0.338), (sx * 0.172, -0.37, -0.262)], 0.05, k["fabric"], sides=6)
+        m.pipe([(sx * x, y, z) for x, y, z in FOREARM], 0.05, k["fabric"], sides=6)
         m.pipe([(sx * 0.21, -0.19, -0.32), (sx * 0.203, -0.22, -0.31)], 0.052, k["orange"], sides=6, caps=False)
         m.pipe([(sx * 0.178, -0.34, -0.27), (sx * 0.172, -0.37, -0.262)], 0.054, k["dark"], sides=6)
-    # The left hand, open and relaxed.
+    # The left hand, relaxed: the back of the hand up (the cuff's side), the fingers loosely curled
+    # under it, more so toward the little finger, the thumb along the inside edge toward the body.
     m.bone("hand.L")
-    m.box((0.075, 0.1, 0.06), k["dark"], at=(0.165, -0.42, -0.255), rot=(-8, 0, 8), bevel=0.015)
-    for i in range(4):
-        m.box((0.017, 0.05, 0.02), k["dark"], at=(0.14 + i * 0.017, -0.48, -0.27), rot=(40, 0, 0), bevel=0.004)
-    m.box((0.022, 0.05, 0.022), k["dark"], at=(0.2, -0.43, -0.245), rot=(0, 0, 35), bevel=0.005)
+    hand = geo.place((0.165, -0.42, -0.255), (-8, 0, 6))
+    _part(m, (0.075, 0.095, 0.05), k["dark"], hand, bevel=0.014)
+    for dx, length, curl in ((-0.027, 0.07, 45), (-0.009, 0.076, 55), (0.009, 0.071, 65), (0.027, 0.057, 75)):
+        _digit(m, k["dark"], hand @ Matrix.Translation((dx, -0.044, -0.006)), (length * 0.55, length * 0.45), curl,
+               width=0.0165)
+    _digit(m, k["dark"], hand @ Matrix.Translation((-0.032, -0.016, -0.018)) @ Matrix.Rotation(math.radians(-20), 4, "Z"),
+           (0.03, 0.026), 60, width=0.019)
     # The right hand, a fist round a handle running straight ahead through GRIP: knuckles along
     # its top outside edge, the thumb laid along the top.
     m.bone("hand.R")
@@ -402,23 +453,25 @@ def arms():
         m.box((0.019, 0.019, 0.017), k["dark"], at=g + Vector((-0.031, -0.03 + i * 0.021, 0.03)), rot=(0, -35, 0), bevel=0.004)
     m.box((0.024, 0.062, 0.022), k["dark"], at=g + Vector((0.021, -0.034, 0.036)), rot=(-6, 0, 18), bevel=0.006)
     m.box((0.06, 0.012, 0.05), k["dark"], at=g + Vector((-0.006, -0.042, -0.012)), bevel=0.006)  # the curled fingers' front
-    # The wrist cuff on the left forearm: a chunky box standing clear of the sleeve (whose edges
-    # would cut through its screen), a hinged visor lip over its little screen.
+    # The wrist cuff on top of the left forearm, square to the sleeve: a chunky box standing clear
+    # of it (the sleeve's edges would cut through its screen), a hinged visor lip over its little
+    # screen at the elbow end, status lamps down its outer side.
     m.bone("forearm.L")
-    cuff_rot = geo.place((0, 0, 0), (-17, 0, 10)).to_3x3()
-    cuff_centre = Vector((0.2, -0.27, -0.272)) + cuff_rot @ Vector((0, 0, 0.0075))
-    m.box((0.09, 0.13, 0.06), k["hard"], at=cuff_centre, rot=(-17, 0, 10), bevel=0.01)
-    m.box((0.1, 0.02, 0.03), k["dark"], at=Vector((0.2, -0.2, -0.26)) + cuff_rot @ Vector((0, 0, 0.015)), rot=(-17, 0, 10), bevel=0.006)
+    cuff = _cuff_frame()
+    axes = cuff.to_3x3()
+    _part(m, (0.09, 0.13, 0.06), k["hard"], cuff, bevel=0.01)
+    _part(m, (0.1, 0.02, 0.03), k["dark"], cuff @ Matrix.Translation((0, 0.063, 0.039)), bevel=0.006)
     low = m.to_object()
     # The screen lies on the cuff's top face, its top toward the wrist: lifted to the eye, the
     # forearm points away, so that reads upright.
-    cuff_top = cuff_centre + cuff_rot @ Vector((0, 0, 0.032))
-    cuff_frame = frame(cuff_top, cuff_rot @ Vector((0, 0, 1)), up=cuff_rot @ Vector((0, -1, 0)), lift=0.0)
+    cuff_top = cuff @ Vector((0, 0, 0.032))
+    cuff_frame = frame(cuff_top, axes @ Vector((0, 0, 1)), up=axes @ Vector((0, -1, 0)), lift=0.0)
     screen = geo.screen("screen_cuff", 0.07, 0.085, cuff_frame, bulge=0.003, grid=(2, 2))
     screen.vertex_groups.new(name="forearm.L").add(list(range(len(screen.data.vertices))), 1.0, "REPLACE")
     for i, lamp in enumerate(("green_lit", "amber_lit", "red_lit")):
         d.polygon([(-0.005, -0.004), (0.005, -0.004), (0.005, 0.004), (-0.005, 0.004)], dk[lamp],
-                  frame((0.245, -0.25 - i * 0.02, -0.27), (1, 0, 0.3), up=(0, -1, 0), lift=0.001))
+                  frame(cuff @ Vector((0.045, 0.02 - i * 0.02, 0.0)), axes @ Vector((1, 0, 0)), up=axes @ Vector((0, -1, 0)),
+                        lift=0.001))
     skeleton = rig.armature("arms_rig", ARM_BONES)
     rig.bind(low, skeleton)
     rig.bind(screen, skeleton)
@@ -432,6 +485,35 @@ def arms():
 
 # The middle of the right fist, where a held item's grip goes.
 GRIP = (-0.165, -0.43, -0.25)
+# The left sleeve's forearm, elbow to wrist (radius 0.05; the right mirrors it).
+FOREARM = ((0.222, -0.13, -0.338), (0.172, -0.37, -0.262))
+
+
+def _cuff_frame():
+    """The wrist cuff's centre and axes: on top of the left forearm, 0.15 m from the elbow, its
+    length along the sleeve (-Y toward the wrist), its face (+Z) square to the top of the arm, its
+    outer side +X. Raised so its top face clears the sleeve's corners."""
+    elbow, wrist = (Vector(v) for v in FOREARM)
+    along = (wrist - elbow).normalized()
+    up = (Vector((0, 0, 1)) - along * along.z).normalized()
+    side = (-along).cross(up)
+    centre = elbow + along * 0.15 + up * 0.034
+    return Matrix.Translation(centre) @ Matrix((side, -along, up)).transposed().to_4x4()
+
+
+def _part(m, size, material, matrix, bevel=0.0):
+    """A box `size` placed by `matrix` (centre and turn)."""
+    m.box(size, material, at=matrix.translation, rot=tuple(math.degrees(a) for a in matrix.to_euler("XYZ")), bevel=bevel)
+
+
+def _digit(m, material, knuckle, lengths, curl, width):
+    """A finger from `knuckle` (its base, pointing -Y in that frame) of segments `lengths`, curled
+    `curl` degrees in all toward the palm (-Z), the last joint bending most."""
+    at = knuckle
+    for i, length in enumerate(lengths):
+        at = at @ Matrix.Rotation(math.radians(curl * (0.4 if i == 0 else 0.6)), 4, "X")
+        _part(m, (width, length + 0.004, width * 1.05), material, at @ Matrix.Translation((0, -length / 2, 0)), bevel=0.004)
+        at = at @ Matrix.Translation((0, -length, 0))
 
 
 def _arm_cuff_pose(skeleton, centre, normal, up):
@@ -443,8 +525,11 @@ def _arm_cuff_pose(skeleton, centre, normal, up):
     target = eye + Vector((0.07, -0.26, -0.1))
 
     def angles(x):
-        # The shoulder may lift and come forward (centimetres, in the bone's own axes).
-        return {"arm.L": tuple(x[0:3]) + tuple(v / 100 for v in x[9:12]), "forearm.L": tuple(x[3:6]), "hand.L": tuple(x[6:9])}
+        # The shoulder may lift and come forward (centimetres, in the bone's own axes). The wrist
+        # only droops palm-ward (x, -) and tilts a little (z), as a relaxed hand does: never bent
+        # back or twisted.
+        return {"arm.L": tuple(x[0:3]) + tuple(v / 100 for v in x[6:9]), "forearm.L": tuple(x[3:6]),
+                "hand.L": (x[9], 0.0, x[10])}
 
     def cost(x):
         m = rig.pose_matrices(skeleton, angles(x))
@@ -454,16 +539,19 @@ def _arm_cuff_pose(skeleton, centre, normal, up):
         facing = 1 - n.dot((eye - c).normalized())
         upright = 1 - Vector((u.x, u.z)).normalized().y
         place = (c - target).length_squared / 0.01 ** 2
-        # Keep the hand out of the middle of the view.
+        # Keep the hand from reaching into the middle of the view, and the wrist easy: drooping
+        # about 25°, as a relaxed hand does past a raised forearm.
         tail = m["hand.L"] @ Vector((0, skeleton.data.bones["hand.L"].length, 0)) - eye
-        central = max(0.0, 0.2 - math.hypot(tail.x, tail.z) / max(0.05, -tail.y)) * 10
-        limits = (sum(max(0.0, abs(a) - 110) ** 2 for a in x[:6]) + sum(max(0.0, abs(a) - 50) ** 2 for a in x[6:9])
-                  + sum(max(0.0, abs(a) - 12) ** 2 for a in x[9:12]) * 10) / 100
-        return 8 * facing + 3 * upright + place + central + limits
+        central = max(0.0, 0.06 - math.hypot(tail.x, tail.z) / max(0.05, -tail.y)) * 10
+        relaxed = (x[9] + 25) ** 2 / 400
+        limits = (sum(max(0.0, abs(a) - 110) ** 2 for a in x[:6]) + sum(max(0.0, abs(a) - 12) ** 2 for a in x[6:9]) * 10
+                  + (max(0.0, x[9] + 10) ** 2 + max(0.0, -50 - x[9]) ** 2 + max(0.0, abs(x[10]) - 12) ** 2) * 10) / 100
+        return 8 * facing + 3 * upright + place + central + relaxed + limits
 
     best = None
-    for start in ([-13, 0, -17, -4, -12, -6, 0, 0, 0, 0, 0, 0], [-40, 10, -30, -40, -40, 0, 20, 0, 0, 0, 5, 0],
-                  [-60, -20, -10, -50, 20, 10, -20, 0, 0, 0, 0, 5], [20, 30, -40, 40, 0, 30, 0, 0, 0, 5, 0, 0]):
+    for start in ([-13, 0, -17, -4, -12, -6, 0, 0, 0, -25, 0], [-40, 10, -30, -40, -40, 0, 0, 5, 0, -25, 0],
+                  [-60, -20, -10, -50, 20, 10, 0, 0, 5, -25, 0], [20, 30, -40, 40, 0, 30, 5, 0, 0, -25, 0],
+                  [1, 43, 1, 7, -10, -45, 2, 12, -9, -25, 0]):
         x, score = rig.solve(cost, start, step=20.0, iterations=5000)
         if best is None or score < best[1]:
             best = (x, score)

@@ -225,7 +225,7 @@ def crowbar():
 @asset("it_flare", "items", texture=64, colors=24, ao=0.5)
 def flare():
     """A signal flare (GDD §9.3): a red paper tube with a white striker cap and a printed band.
-    Lit, it burns ~60 s, hisses, and draws attention. Points along -Y."""
+    Lit, it burns ~60 s, hisses, and draws attention. Points along -Y; held a third of the way up."""
     k = _k()
     dk = _dk()
     m = Mesh("it_flare")
@@ -234,7 +234,7 @@ def flare():
     m.lathe([(0.0195, 0.2), (0.0195, 0.262), (0.0, 0.262)], k["cream"], sides=8, rot=(90, 0, 0), cap_start=False)
     m.lathe([(0.0185, 0.07), (0.0185, 0.12)], k["cream"], sides=8, rot=(90, 0, 0), cap_start=False, cap_end=False)
     low = m.to_object()
-    return Model(low=low, decals=[d.to_object()], extras=[_socket("flame", (0, -0.265, 0))])
+    return Model(low=low, decals=[d.to_object()], extras=[_socket("flame", (0, -0.265, 0)), _socket("grip", (0, -0.085, 0))])
 
 
 @asset("it_o2_canister", "items", texture=128, colors=24, ao=0.5)

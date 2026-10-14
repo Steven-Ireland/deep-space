@@ -1,11 +1,13 @@
 """Renders a rigged model's clips at chosen moments on one sheet, for checking animation by eye.
 
     Blender -b art/source/ch_suit.blend -P tools/pose_sheet.py -- <out.png> <view> <clip:t,t,...>...
+        [--hold=<model>[:tilt]] [--size=<px>]
 
 <view> is azimuth,elevation[,distance[,height]] in degrees and metres (0 looks at the model's
 front, 90 at its left side), or "camera" for a first-person rig seen from the origin looking -Y.
 Each clip's moments are 0..1 through it, e.g. walk:0,0.125,0.25,0.375. Rows are clips, columns
-moments.
+moments. `--hold` puts art/source/<model>.blend in the rig's hand as the game does (Items.hold):
+its SOCKET_grip on the rig's, pitched up `tilt` degrees. `--size` sets each tile's height (240).
 """
 
 import math
@@ -14,7 +16,7 @@ from pathlib import Path
 
 import bpy
 import numpy as np
-from mathutils import Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "art" / "blender"))
 
@@ -25,8 +27,16 @@ TILE = (240, 240)
 
 def main():
     args = sys.argv[sys.argv.index("--") + 1:]
+    options = [a for a in args if a.startswith("--")]
+    args = [a for a in args if not a.startswith("--")]
     out, view, clips = args[0], args[1], args[2:]
     scene = bpy.context.scene
+    global TILE
+    for option in options:
+        if option.startswith("--hold="):
+            _hold(scene, option.removeprefix("--hold="))
+        elif option.startswith("--size="):
+            TILE = (int(option.removeprefix("--size=")),) * 2
     rig = next(o for o in scene.objects if o.type == "ARMATURE")
     meshes = [o for o in scene.objects if o.type == "MESH" and not o.name.endswith("-colonly")]
     for o in meshes:
@@ -83,6 +93,26 @@ def main():
     image.file_format = "PNG"
     image.save()
     print(f"Pose sheet: {out}")
+
+
+def _hold(scene, spec):
+    name, _, tilt = spec.partition(":")
+    hand = scene.objects["SOCKET_grip"]
+    path = Path(__file__).resolve().parents[1] / "art" / "source" / f"{name}.blend"
+    with bpy.data.libraries.load(str(path)) as (source, loaded):
+        loaded.objects = list(source.objects)
+    socket = next((o for o in loaded.objects if o.name.startswith("SOCKET_grip")), None)
+    offset = socket.matrix_world.translation.copy() if socket is not None else Vector()
+    held = bpy.data.objects.new("held", None)
+    scene.collection.objects.link(held)
+    held.parent = hand
+    turn = Matrix.Rotation(math.radians(-float(tilt or 0)), 4, "X")
+    held.matrix_basis = turn @ Matrix.Translation(-offset)
+    for o in loaded.objects:
+        scene.collection.objects.link(o)
+        if o.parent is None:
+            o.parent = held
+        o.hide_render = o.type != "MESH"
 
 
 main()

@@ -94,6 +94,7 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
 - **Lighting:**
   - Real-time per-pixel lights only, with no baked GI (layouts are procedural).
   - **Flashlights** are `SpotLight3D`s at the held torch's lens (`SOCKET_light`): the owner's from the torch in their first-person fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks. The light is pulled back if the lens is pushed into a wall. Held items and the first-person arms cast no shadows, so a torch can't shade its own beam. (A projector texture for the lens pattern is still to come.)
+  - **A teammate's flashlight from outside** (`TorchBeam`, riding their light): a faint additive cone of lit air from the lens to where a ray says the light lands (at most 7 m), soft at its rim, its far end and where it meets the room (the depth buffer). Their lens glows whenever it faces you, and pointed into your eyes it flares: a halo, a level streak, a six-point star and a faint veil, drawn over everything at a fixed screen size once a ray from your eye finds the lens in sight. You never see your own light from outside.
   - **PSX+ bounce (GDD §14):** the environment runs Godot's SSIL and SSR at their default settings, so a flashlight's spot lights what's around it on screen. `--no-gi` turns them off for comparison. (A custom bounce light at the spot was tried and dropped: its shadows threw odd shapes.)
   - **Shadows are Godot's defaults**: filter quality, bias, and the sun's splits and distance are all left at stock values.
   - **Shadow budget:** the local player's flashlight always casts shadows. Teammates' lights cast shadows only within about 12 m, with at most 4 shadowed spots at once. Room practicals are unshadowed apart from hand-picked key lights.
@@ -145,11 +146,13 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - Armatures and keyframed clips are written in the generator scripts (`lib/rig.py`). Bones run along the body, so a positive X turn pitches any bone forward over its head; `root_location` is in the model's axes.
   - Creature clips play stepped at 12 fps. **Crew clips are keyed every frame and interpolated:** with stepped keys a planted foot rides along with the body between keys and snaps back, which reads as sliding.
   - **Crew locomotion** (`characters.py`): walk, run and crouch-walk are each one stride cycle in one second, left heel strike first, generated from a gait. Each foot is planted for its stance and rides back under the body at exactly the gait's speed, with a heel-to-toe roll. The legs reach their ankle targets by two-bone IK (`rig.leg_ik`), and the hips drop as far as the planted feet need.
-  - **Poses solved for what they achieve** (`rig.solve`, Nelder–Mead over FK): e.g. the wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view.
+  - **Poses solved for what they achieve** (`rig.solve`, Nelder–Mead over FK), within each joint's natural reach:
+    - The wrist cuff, lifted so its screen squarely faces the eye, upright, in the lower left of view, the hand past it relaxed (the wrist only droops palm-ward). The cuff sits square to the forearm it's on.
+    - The suit's holds: the torch out in front of the belly, level, elbow bent; a tool low at the side, 35° up. Each is set by where the grip goes and which way the held thing points, with the elbow a hinge and the wrist in range.
   - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
-  - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and a raised torch with the gaze. The camera's bob follows the same stride.
-  - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye.
-- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("torch" or "tool") and tilt. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
+  - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and a torch held out with the gaze (the torch arm about the chest's axis, so it tips as far as the gaze; the torch then turns the last bit about its grip to point exactly where they look). The camera's bob follows the same stride.
+  - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye; `--hold=<model>:<tilt>` puts an item in the rig's hand as the game does.
+- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("torch" or "tool") and its tilt in each hand: `tilt` in the first-person fist, `glove` in the suit's. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove, across which a held thing lies the way a hanging fist holds a hammer. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
 - **Textures:**
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
@@ -254,3 +257,7 @@ deep-space/
   - Snapped materials write true depth: the wall and door wedges were snapping, not affine.
   - Shadows back to Godot defaults; the flashlight bounce light removed (SSIL/SSR at defaults remain).
   - The cuff stands clear of the sleeve, whose edges cut its screen.
+- **2026-10-13: Third review.**
+  - Teammates' flashlights show a beam in the air and glare when pointed at you.
+  - The suit's hold poses are solved (torch at the belly, tools low and ready), and each item has its own tilt in the glove; the flare is held a third of the way up.
+  - The first-person left hand is relaxed when reading the cuff, and the cuff is square to its forearm.

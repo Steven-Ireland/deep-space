@@ -54,6 +54,7 @@ var _camera_tween: Tween
 var _animation: CrewAnimation # the arms (owner) or the suit (everyone else)
 var _pose: CrewPose
 var _held_item: Node3D
+var _grip_offset := Vector3.ZERO # where the held item's grip is, in its own space
 var _shown := &"-"
 var _lens: Node3D
 var _lens_material: ShaderMaterial
@@ -92,6 +93,9 @@ func _ready() -> void:
 		_pose = CrewPose.new()
 		body_visual.find_child("Skeleton3D", true, false).add_child(_pose)
 		_cuff_screen = body_visual.find_child("cuff_screen", true, false) as MeshInstance3D
+		var beam := TorchBeam.new()
+		beam.holder = self
+		flashlight.add_child(beam)
 	NetworkTime.on_tick.connect(_tick)
 
 
@@ -378,11 +382,13 @@ func _show_held() -> void:
 	_shown = held
 	if Args.flag("--debug-crew"):
 		print("Crew %s (%s): holds %s" % [name, "own" if is_multiplayer_authority() else "remote", held])
-	var rig := view_model if is_multiplayer_authority() else body_visual
-	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D)
+	var own := is_multiplayer_authority()
+	var rig := view_model if own else body_visual
+	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D, not own)
 	_lens = null
 	_lens_material = null
 	if _held_item != null:
+		_grip_offset = Items.grip_offset(_held_item)
 		_lens = _held_item.find_child("SOCKET_light", true, false) as Node3D
 		var glass := _held_item.find_child("lens", true, false) as MeshInstance3D
 		if glass != null and glass.get_active_material(0) is ShaderMaterial:
@@ -391,15 +397,19 @@ func _show_held() -> void:
 
 
 ## The flashlight shines from the torch's lens, where the torch points; the owner's from the torch
-## in their fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks.
-## Never through a wall the lens has been pushed into.
+## in their fist, everyone else's from the torch in the suit's glove, aimed where its wearer looks
+## (the hold pose already has it near enough: it turns the last bit about the grip). Never through
+## a wall the lens has been pushed into. Everyone else also sees its beam in the air and its glare
+## (TorchBeam, riding the light).
 func _place_flashlight() -> void:
 	var on := flashlight_on and held == &"flashlight" and _lens != null
 	flashlight.visible = on
 	if _lens_material != null:
 		_lens_material.set_shader_parameter("energy", 2.0 if on else 0.15)
 	if _held_item != null and not is_multiplayer_authority() and held == &"flashlight":
-		_held_item.global_basis = head.global_basis * Basis(Vector3.UP, PI)
+		var aim := head.global_basis * Basis(Vector3.UP, PI)
+		var grip := (_held_item.get_parent() as Node3D).global_position
+		_held_item.global_transform = Transform3D(aim, grip - aim * _grip_offset)
 	if not on:
 		return
 	var forward := _held_item.global_basis.z.normalized()
@@ -448,4 +458,4 @@ func _animate(delta: float) -> void:
 		_legs_yaw = lerp_angle(_legs_yaw, wanted, ease)
 		_pose.legs_yaw = _legs_yaw
 		_pose.pitch = head.rotation.x
-		_pose.torch = 1.0 if Items.hold_style(held) == "torch" else 0.0
+		_pose.torch = lerpf(_pose.torch, 1.0 if Items.hold_style(held) == "torch" else 0.0, 1.0 - exp(-delta * 10.0))
