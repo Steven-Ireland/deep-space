@@ -38,6 +38,8 @@ func _initialize() -> void:
 	var creatures := [0, 0, 0]
 	var loops := 0
 	var retries := 0
+	var finds := [0, 0]
+	var prize_depth := 0
 	var seen := {}
 	for seed in range(1, SEEDS + 1):
 		for sector in range(1, 4):
@@ -55,6 +57,9 @@ func _initialize() -> void:
 			creatures[clampi(layout.creatures.size(), 0, 2)] += 1
 			loops += layout.joins.size() - (layout.rooms.size() - 1)
 			retries += layout.attempt
+			finds[0] += layout.loot(1).size()
+			finds[1] += layout.loot(4).size()
+			prize_depth += layout._depths()[layout.prize]
 	_check(seen.size() == SEEDS * 3, "%d of %d layouts are repeats" % [SEEDS * 3 - seen.size(), SEEDS * 3])
 	var total: int = sizes.reduce(func(a: int, b: int) -> int: return a + b)
 	var shares := []
@@ -64,6 +69,9 @@ func _initialize() -> void:
 	print("Creatures: none %d%%, one %d%%, two %d%%; loops %.2f a derelict; regrown %d times" % [
 			100 * creatures[0] / (SEEDS * 3), 100 * creatures[1] / (SEEDS * 3), 100 * creatures[2] / (SEEDS * 3),
 			float(loops) / (SEEDS * 3), retries])
+	print("Finds: %.1f for one crew, %.1f for four (%.2f a room for one); the Prize %.1f rooms in" % [
+			float(finds[0]) / (SEEDS * 3), float(finds[1]) / (SEEDS * 3), float(finds[0]) / total,
+			float(prize_depth) / (SEEDS * 3)])
 	print("test_derelict_layout: %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(1 if failures > 0 else 0)
 

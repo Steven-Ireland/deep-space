@@ -34,7 +34,7 @@ const MODULES := {
 		"finds": {&"supplies": 1.5},
 	},
 	&"corridor": {
-		"name": "CORRIDOR", "kind": "corridor", "cells": ["##"], "weight": 6, "most": 5,
+		"name": "CORRIDOR", "kind": "corridor", "cells": ["##"], "weight": 6, "most": 12,
 		"doors": ["0,0,W", "1,0,E", "0,0,N", "0,0,S", "1,0,N", "1,0,S"],
 		"strobes": [[Vector3(2.0, 2.3, -1.81), 0.0]],
 		"scatter": [["cables", Vector3(1.4, 3.0, 0.5), 80.0], ["cables", Vector3(4.6, 3.0, -0.6), -20.0],
@@ -43,7 +43,7 @@ const MODULES := {
 		"open": [Vector3(4.0, 0, 0), Vector3(0, 0, 0)],
 	},
 	&"junction": {
-		"name": "CORRIDOR", "kind": "corridor", "cells": ["#"], "weight": 3, "most": 3,
+		"name": "CORRIDOR", "kind": "corridor", "cells": ["#"], "weight": 3, "most": 8,
 		"doors": ["0,0,N", "0,0,E", "0,0,S", "0,0,W"],
 		"strobes": [[Vector3(1.55, 2.3, -1.81), 0.0]],
 		"scatter": [["cables", Vector3(-0.5, 3.0, 0.4), 50.0]],
@@ -51,7 +51,7 @@ const MODULES := {
 		"open": [Vector3(0, 0, 0)],
 	},
 	&"bend": {
-		"name": "CORRIDOR", "kind": "corridor", "cells": ["##", ".#"], "weight": 3, "most": 3,
+		"name": "CORRIDOR", "kind": "corridor", "cells": ["##", ".#"], "weight": 3, "most": 8,
 		"doors": ["0,0,W", "0,0,N", "0,0,S", "1,0,N", "1,0,E", "1,1,E", "1,1,W", "1,1,S"],
 		"strobes": [[Vector3(2.0, 2.3, -1.81), 0.0]],
 		"scatter": [["cables", Vector3(4.3, 3.0, 2.0), 10.0]],
@@ -60,7 +60,7 @@ const MODULES := {
 	},
 	# Bunks along the north wall, lockers and a desk with its dead log terminal along the south.
 	&"quarters": {
-		"name": "CREW QUARTERS", "kind": "room", "cells": ["##"], "weight": 3, "most": 2,
+		"name": "CREW QUARTERS", "kind": "room", "cells": ["##"], "weight": 3, "most": 5,
 		"doors": ["0,0,W", "1,0,E", "0,0,S"],
 		"props": [["rooms/rm_bunk", Vector3(0, 0, -1.37), 0.0], ["rooms/rm_bunk", Vector3(4, 0, -1.37), 0.0],
 				["rooms/rm_cabin_desk", Vector3(4.3, 0, 1.52), 180.0],
@@ -74,7 +74,7 @@ const MODULES := {
 	},
 	# Shelving on two walls, crates stacked against the others and in the middle.
 	&"cargo": {
-		"name": "CARGO HOLD", "kind": "room", "cells": ["##", "##"], "weight": 3, "most": 2,
+		"name": "CARGO HOLD", "kind": "room", "cells": ["##", "##"], "weight": 3, "most": 5,
 		"doors": ["0,0,W", "1,0,N", "1,1,E", "0,1,S"],
 		"props": [["rooms/rm_shelf", Vector3(0, 0, -1.61), 0.0], ["rooms/rm_shelf", Vector3(-1.61, 0, 4.0), 90.0],
 				["rooms/rm_crate", Vector3(3.0, 0, 5.4), 0.0], ["rooms/rm_crate", Vector3(3.85, 0, 5.42), 4.0],
@@ -91,7 +91,7 @@ const MODULES := {
 	},
 	# The med pod against the north wall, a shelf of supplies, an O2 rack.
 	&"infirmary": {
-		"name": "INFIRMARY", "kind": "room", "cells": ["##"], "weight": 2, "most": 1,
+		"name": "INFIRMARY", "kind": "room", "cells": ["##"], "weight": 2, "most": 2,
 		"doors": ["0,0,W", "0,0,N", "1,0,S"],
 		"props": [["rooms/rm_med_pod", Vector3(4.2, 0, -0.95), 0.0], ["rooms/rm_shelf", Vector3(0, 0, 1.61), 180.0],
 				["rooms/rm_o2_rack", Vector3(5.7, 0, 0.9), -90.0]],
@@ -104,7 +104,7 @@ const MODULES := {
 	},
 	# A workbench, the recycler and fabricator, and the kit board, a flare maybe still on it.
 	&"workshop": {
-		"name": "MACHINE SHOP", "kind": "room", "cells": ["##"], "weight": 2, "most": 1,
+		"name": "MACHINE SHOP", "kind": "room", "cells": ["##"], "weight": 2, "most": 2,
 		"doors": ["0,0,W", "1,0,E", "1,0,N"],
 		"props": [["rooms/rm_workbench", Vector3(0, 0, -1.47), 0.0], ["rooms/rm_recycler", Vector3(0.2, 0, 1.21), 180.0],
 				["rooms/rm_fabricator", Vector3(4.3, 0, 1.35), 180.0],
@@ -147,7 +147,7 @@ const MODULES := {
 	},
 	# Suit lockers down one wall, an O2 rack and a lamp charger opposite, a bench.
 	&"suits": {
-		"name": "SUIT STORAGE", "kind": "room", "cells": ["#", "#"], "weight": 2, "most": 1,
+		"name": "SUIT STORAGE", "kind": "room", "cells": ["#", "#"], "weight": 2, "most": 2,
 		"doors": ["0,0,N", "0,1,S", "0,1,E"],
 		"props": [["rooms/rm_suit_locker", Vector3(-1.55, 0, -1.45), 90.0], ["rooms/rm_suit_locker", Vector3(-1.55, 0, -0.7), 90.0],
 				["rooms/rm_suit_locker", Vector3(-1.55, 0, 0.05), 90.0], ["rooms/rm_suit_locker", Vector3(-1.55, 0, 0.8), 90.0],

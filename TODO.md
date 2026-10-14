@@ -110,19 +110,22 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   hold, infirmary, machine shop, drive room, control with windows, suit storage) and the Prize room.
   Each module has its footprint, its door sockets and its dressing; they join door to door, turned
   to fit.
-- **The plan:** 11–16 rooms grown out from the entry (never back toward the LANTERN), the Prize room
-  a dead end at the far end, at least three rooms in, and a loop or two that never shortens the way
-  to it. A quarter of the doors start shut; a room's outer wall is sometimes torn open (a breach),
+- **The plan:** 29–39 rooms grown out from the entry (never back toward the LANTERN), big enough
+  that one tank of O2 won't see it all and the crew have to find their way; the Prize room a dead
+  end at the far end (about ten rooms in), and two to five loops that never shorten the way to it. A quarter of the doors start shut; a room's outer wall is sometimes torn open (a breach),
   and control has its windows.
 - **Dressing:** each room's furniture, strobes lit or dark or failing, cables, debris and the
   earlier wave's dead. Often one creature, sometimes none, rarely two, never near the entry or with
   the Prize: a Crawler waiting, or a Hanger over its growth (posed, until the AI).
 - **Loot:** a fuel cell (drive room, else cargo, else the Prize room), and salvage, supplies, data
-  cores, a power cell, cartridges and tools from a budget that grows with the crew, each where it
-  suits (supplies in the infirmary, data in control, tools in the machine shop).
+  cores, power cells, cartridges and tools from a budget that grows with the crew and the
+  derelict's size, each where it suits (supplies in the infirmary, data in control, tools in the
+  machine shop). Thin on the ground: about 0.8 finds a room for one crew.
 - **The sample derelict is gone:** `--derelict` docks the departure's own. The host's log prints the
   plan and where each room lies docked.
-- **Fixed:** strobes lit the hull from inside; a breach's wound faced space half the time.
+- **Fixed:** strobes lit the hull from inside; a breach's wound faced space half the time; the
+  pressure hatches (the airlock's two, a derelict's entry) had see-through gaps in the corners round
+  their rings.
 - **Tests:** `test_derelict_layout` checks 900 layouts from the walls the Deck builds.
 
 Still to come: creature behaviour.
@@ -177,10 +180,13 @@ Still to come: creature behaviour.
   - Bodies: how a ragdoll falls and lies (joint limits are loose; limbs can hang straight), how a
     carried body shows in first person (its chest across the bottom of the view, the head off to
     the right) and in a teammate's arms; revive 10 s, clone 30 s.
-  - Derelicts: their size (11–16 rooms), how often doors start shut (a quarter), breaches (one
-    outer room wall in ten), the creature odds (none 20%, one 70%, two 10%), lit strobes (70%), and
-    the loot (about 14 finds for one crew, 20 for four). Whether a derelict feels too big for six
-    minutes of O2.
+  - Derelicts (2026-10-14: 2.5 times bigger after the first walk-through, which took two
+    leisurely minutes): their size (29–39 rooms), how often doors start shut (a quarter), breaches
+    (one outer room wall in ten), lit strobes (70%), and the loot (about 27 finds for one crew, 42
+    for four; 0.8 a room). The creature odds stay the GDD's (none 20%, one 70%, two 10%), so in a
+    derelict this size one is easy to miss until the AI hunts by sound.
+  - More room modules: the rarer rooms repeat at this size (two infirmaries, machine shops and suit
+    storages in most derelicts).
 - **Upgrades and costs (later):** with the economy, whether the Med Bay needs its upgrade, and what
   a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
@@ -263,9 +269,9 @@ Still to come: creature behaviour.
     for the collar; or with `--derelict` (docked) or `--derelict=away` (waiting) at the departure.
     Each is grown from its node's seed (`--run-seed` picks the departure's). Docked, it lies one
     cell out from the collar, past the tube (x 14–18): its entry at (20, 0, 0), everything else east
-    of x 18. The host's log prints the plan and each room's centre, docked; a room's middle is
-    usually clear floor to shoot from. (Run 7's has a Hanger at (36, 3, -8), the Prize room at
-    (28, 0, -30); run 1's control room, with windows, at (22, 0, 18).)
+    of x 18. The host's log prints the plan and each room's centre, docked, with what lives there;
+    a room's middle is usually clear floor to shoot from. (Run 14256631's has both creatures: a
+    Hanger in the corridor at (34, 0, 4), a Crawler in the one at (24, 0, 14).)
 
     | Area | Position (docked) |
     |---|---|

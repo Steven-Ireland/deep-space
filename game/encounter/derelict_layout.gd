@@ -12,7 +12,7 @@ extends RefCounted
 ##      walls torn open (breaches).
 ##   5. Dressing: each room's furniture, the scatter of decay, which strobes still flash, and what
 ##      lives here (often one thing, sometimes none, rarely two). Loot is spent from a budget that
-##      grows with the crew (`loot`).
+##      grows with the crew and the derelict's size (`loot`).
 ## Every derelict is vacuum throughout for now (GDD §17, 13); power zones come later.
 ##
 ## Rooms sit on the grid with the entry's cell at (0, 0): grid cell (x, z) has its centre at
@@ -20,18 +20,22 @@ extends RefCounted
 
 const SIDES := Deck.SIDES
 const OPPOSITE := Deck.OPPOSITE
-## Modules grown from the entry (besides the entry and the Prize): this many, plus the sector.
-const SIZE := Vector2i(8, 11)
+## Modules grown from the entry (besides the entry and the Prize): this many, plus the sector. Big
+## enough that one tank of O2 won't see all of it, and the crew have to find their way back.
+const SIZE := Vector2i(26, 34)
 ## How many loops, at most, and how far round (rooms) the long way must be for one.
-const LOOPS := Vector2i(1, 2)
+const LOOPS := Vector2i(2, 5)
 const LOOP_REACH := 3
 ## The Prize must be at least this many rooms in.
-const PRIZE_DEPTH := 3
+const PRIZE_DEPTH := 6
 ## Chances: a door starts shut; an outer wall is torn open.
 const SHUT_CHANCE := 0.25
 const BREACH_CHANCE := 0.1
 ## How many creatures (GDD §8.3: often one, sometimes none, rarely two): weights for 0, 1 and 2.
 const CREATURES := [2, 7, 1]
+## The loot budget's counts are for a derelict of this many rooms; a bigger one has more in
+## proportion, so finds are as thin on the ground in any of them.
+const BUDGET_ROOMS := 14.0
 ## Room characters for the Deck, one per room.
 const MARKS := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -421,13 +425,15 @@ func loot(crew: int) -> Array[Dictionary]:
 	return out
 
 
-## What's to be found, kind by kind (GDD §8.2: it grows with the crew).
+## What's to be found, kind by kind (GDD §8.2: it grows with the crew), scaled to the derelict's
+## size (a part of one rolled).
 func _budget(rng: RandomNumberGenerator, crew: int) -> Array[StringName]:
-	var counts := {&"salvage": 4 + crew, &"supplies": 2 + crew, &"lore": rng.randi_range(1, 2), &"power": 1,
-			&"ammo": rng.randi_range(0, 2), &"tools": rng.randi_range(1, 2)}
+	var counts := {&"salvage": 3.0 + crew, &"supplies": 1.0 + crew, &"lore": 1.5, &"power": 1.0, &"ammo": 0.5, &"tools": 1.5}
+	var share := rooms.size() / BUDGET_ROOMS
 	var out: Array[StringName] = []
 	for find: StringName in counts:
-		for i in counts[find]:
+		var many: float = counts[find] * share
+		for i in floori(many) + (1 if rng.randf() < many - floorf(many) else 0):
 			out.append(find)
 	return out
 
