@@ -164,6 +164,18 @@ func _scene(kind: String) -> PackedScene:
 	return null
 
 
+## Stocks the deck with a loose `kind` (Items) at `at`, turned `yaw` degrees: a marker the host
+## puts the real thing out at when a crew starts (LooseItems).
+func stock(kind: StringName, at: Vector3, yaw := 0.0) -> void:
+	var spot := Marker3D.new()
+	spot.name = "Stock_%s" % kind
+	spot.position = at
+	spot.rotation.y = deg_to_rad(yaw)
+	spot.set_meta(&"kind", kind)
+	spot.add_to_group(&"loot")
+	add_child(spot)
+
+
 static func _mark_interior(node: Node) -> void:
 	for mesh: VisualInstance3D in node.find_children("*", "VisualInstance3D", true, false):
 		mesh.layers = INTERIOR_LAYER

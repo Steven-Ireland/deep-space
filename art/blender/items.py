@@ -267,7 +267,7 @@ def data_core():
              (0.04, 0.19), (0.035, 0.2), (0.0, 0.2)], k["steel"], sides=8)
     m.lathe([(0.0355, 0.075), (0.0355, 0.125)], band, sides=8, cap_start=False, cap_end=False)
     low = m.to_object()
-    return Model(low=low, decals=[], extras=[])
+    return Model(low=low, decals=[], extras=[_socket("grip", (0, 0, 0.1))])
 
 
 @asset("it_sealant", "items", texture=64, colors=24, ao=0.5)
@@ -281,7 +281,7 @@ def sealant():
     m.lathe([(0.0325, 0.05), (0.0325, 0.1)], k["cream"], sides=8, cap_start=False, cap_end=False)
     m.box((0.02, 0.04, 0.03), k["rubber"], at=(0, -0.01, 0.185), bevel=0.004)
     low = m.to_object()
-    return Model(low=low, decals=[], extras=[])
+    return Model(low=low, decals=[], extras=[_socket("grip", (0, 0, 0.075))])
 
 
 @asset("it_cartridge", "items", texture=64, colors=24, ao=0.5)
@@ -296,15 +296,15 @@ def cartridge():
     m.lathe([(0.0225, 0.03), (0.0225, 0.09)], charge, sides=8, cap_start=False, cap_end=False)
     m.cylinder(0.01, 0.012, brass, sides=6, at=(0, 0, 0.126))
     low = m.to_object()
-    return Model(low=low, decals=[], extras=[])
+    return Model(low=low, decals=[], extras=[_socket("grip", (0, 0, 0.05))])
 
 
-def _salvage(name, build):
+def _salvage(name, build, grip):
     k = _k()
     m = Mesh(name)
     build(m, k)
     low = m.to_object()
-    return Model(low=low, decals=[], extras=[])
+    return Model(low=low, decals=[], extras=[_socket("grip", grip)])
 
 
 @asset("it_salvage_pipes", "items", texture=64, colors=24, ao=0.5)
@@ -315,7 +315,7 @@ def salvage_pipes():
             m.pipe([(x, -0.22, z), (x, 0.22, z)], 0.024, k["steel"] if i % 2 else k["dark"], sides=6)
         for y in (-0.12, 0.12):
             m.box((0.16, 0.02, 0.12), k["orange"], at=(0, y, 0.06), bevel=0.004)
-    return _salvage("it_salvage_pipes", build)
+    return _salvage("it_salvage_pipes", build, (0, 0.12, 0.06))  # round the bundle, at a strap
 
 
 @asset("it_salvage_board", "items", texture=64, colors=32, ao=0.5)
@@ -328,7 +328,7 @@ def salvage_board():
             m.box((0.05, 0.03, 0.015), k["dark"], at=(-0.1 + i * 0.05, -0.04 + (i % 2) * 0.07, 0.027))
         m.box((0.06, 0.06, 0.04), k["steel"], at=(0.09, 0.05, 0.04), bevel=0.004)
         m.pipe([(0.15, 0.0, 0.02), (0.22, 0.02, 0.01), (0.27, -0.03, 0.0)], 0.006, k["orange"], sides=4)
-    return _salvage("it_salvage_board", build)
+    return _salvage("it_salvage_board", build, (-0.13, 0, 0.01))  # by the board's end
 
 
 @asset("it_salvage_plates", "items", texture=64, colors=24, ao=0.5)
@@ -338,7 +338,7 @@ def salvage_plates():
         for i in range(4):
             m.box((0.34 - i * 0.02, 0.26 - i * 0.015, 0.02), k["steel"] if i % 2 else k["dark"],
                   at=(i * 0.01, -i * 0.008, 0.01 + i * 0.022), rot=(0, 0, i * 6), bevel=0.003)
-    return _salvage("it_salvage_plates", build)
+    return _salvage("it_salvage_plates", build, (-0.16, 0, 0.04))  # by the stack's edge
 
 
 # Weapons (GDD §13): tier 0 improvised, tier 1 industrial. All point along -Y; `grip` sockets sit

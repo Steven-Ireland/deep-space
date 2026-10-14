@@ -3,8 +3,8 @@ extends CanvasLayer
 ## shown big, unsmoothed), in one phosphor colour, and only loud when it has something to say.
 ##   - Looking at something usable: a small centre dot, and the verb in a box that floats beside the
 ##     thing, tied to it by a jointed leader line that fades toward it.
-##   - The belt (GDD §9.4): four slots in the lower right, the one in hand raised and named. Bright
-##     when it changes, then dim.
+##   - The belt (GDD §9.4): four slots in the lower right, the one in hand raised and named (or,
+##     carrying something big, its name over the belt). Bright when it changes, then dim.
 
 const COLOUR := Color(0.72, 0.95, 0.78)
 const FONT := preload("res://assets/fonts/VT323-Regular.ttf")
@@ -27,6 +27,7 @@ var player: Player
 # The prompt: what it points at, where its box floats, how far it's faded in and drawn out.
 var _target: Interactable
 var _verb := ""
+var _usable := true
 var _anchor := Vector2.ZERO
 var _box := Vector2.ZERO
 var _box_velocity := Vector2.ZERO
@@ -53,13 +54,14 @@ func _process(delta: float) -> void:
 	if target != null and target != _target:
 		# A new thing: the box starts beside it and the line draws out again.
 		_target = target
-		_verb = target.verb
+		_verb = target.prompt(player)
 		_drawn = 0.0
 		_anchor = _project(target)
 		_box = _anchor + _offset(_anchor)
 		_box_velocity = Vector2.ZERO
 	if target != null:
-		_verb = target.verb
+		_verb = target.prompt(player)
+		_usable = target.usable_by(player)
 		_anchor = _project(target)
 	_shown = move_toward(_shown, 1.0 if target != null else 0.0, delta / (0.12 if target != null else 0.2))
 	_drawn = move_toward(_drawn, 1.0, delta / 0.14)
@@ -95,7 +97,7 @@ func _offset(anchor: Vector2) -> Vector2:
 
 
 func _box_width() -> float:
-	return FONT.get_string_size(_verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + 23
+	return FONT.get_string_size(_verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE).x + (23 if _usable else 12)
 
 
 func _draw_hud() -> void:
@@ -140,14 +142,17 @@ func _draw_prompt(alpha: float) -> void:
 	canvas.draw_rect(Rect2(anchor - Vector2(1, 1), Vector2(3, 3)), Color(COLOUR, 0.35 * alpha), false, 1.0)
 	if _drawn < 1.0:
 		return
-	# The box: a dark pane with a thin border, a key cap, the verb.
+	# The box: a dark pane with a thin border, a key cap, the verb. What can't be done now is dim,
+	# with no key.
 	var rect := Rect2(box, Vector2(width, height))
+	var text := alpha * (1.0 if _usable else 0.5)
 	canvas.draw_rect(rect, Color(0.02, 0.05, 0.03, 0.55 * alpha))
-	canvas.draw_rect(rect.grow(-0.5), Color(COLOUR, 0.75 * alpha), false, 1.0)
-	var key := Rect2(rect.position + Vector2(4, 3), Vector2(9, 9))
-	canvas.draw_rect(key, Color(COLOUR, 0.85 * alpha))
-	_draw_digit("E", key.position + Vector2(3, 2), Color(0.02, 0.05, 0.03, alpha))
-	canvas.draw_string(FONT, rect.position + Vector2(17, 12), _verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, alpha))
+	canvas.draw_rect(rect.grow(-0.5), Color(COLOUR, 0.75 * text), false, 1.0)
+	if _usable:
+		var key := Rect2(rect.position + Vector2(4, 3), Vector2(9, 9))
+		canvas.draw_rect(key, Color(COLOUR, 0.85 * alpha))
+		_draw_digit("E", key.position + Vector2(3, 2), Color(0.02, 0.05, 0.03, alpha))
+	canvas.draw_string(FONT, rect.position + Vector2(17 if _usable else 6, 12), _verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, text))
 
 
 func _draw_belt() -> void:
@@ -155,9 +160,11 @@ func _draw_belt() -> void:
 	var alpha := lerpf(BELT_REST, 1.0, bright)
 	var count := player.belt.size()
 	var origin := Vector2(canvas.size.x - MARGIN - count * SLOT - (count - 1) * SLOT_GAP, canvas.size.y - MARGIN - SLOT).floor()
+	# Carrying something big, no slot is drawn: the belt waits, dimmed, under its name.
+	var carrying := not player.carrying.is_empty()
 	for i in count:
-		var kind: StringName = player.belt[i]
-		var selected := i == player.slot
+		var kind := Items.kind_of(player.belt[i])
+		var selected := i == player.slot and not carrying
 		var rect := Rect2(origin + Vector2(i * (SLOT + SLOT_GAP), -3 if selected else 0), Vector2(SLOT, SLOT))
 		canvas.draw_rect(rect, Color(0.02, 0.05, 0.03, (0.5 if selected else 0.3) * alpha))
 		canvas.draw_rect(rect.grow(-0.5), Color(COLOUR, (0.9 if selected else 0.4) * alpha), false, 1.0)

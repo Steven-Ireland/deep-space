@@ -486,42 +486,48 @@ def crate():
 
 @asset("rm_shelf", "rooms", texture=256, colors=32, ao=0.5)
 def shelf():
-    """Stores shelving (GDD §5): a steel rack of four shelves stocked with spares: O2 canisters,
-    lamp cells in trays, sealant tubes, folded blankets, a labelled bin on each shelf."""
+    """Stores shelving (GDD §5): a steel rack of four shelves stocked with spares: lamp cells in
+    trays, folded blankets, a labelled bin on each shelf. The bottom shelf's left side and the third
+    shelf's right side are left clear for loose O2 canisters and sealant the crew can take (placed
+    by the game). Its collider follows the shelves and stock, so loose things rest on them."""
     k = br._materials()
     dk = br._decals()
-    green = mats.paint("rm_o2_green", (0.18, 0.42, 0.26), wear=0.35, grime=0.35)
     bin_mat = mats.plain("rm_bin", (0.62, 0.48, 0.2), grime=0.35)
     blanket = mats.plain("rm_blanket", (0.32, 0.36, 0.3), grime=0.35, detail_strength=0.4)
     m = Mesh("rm_shelf")
     d = Mesh("rm_shelf_decals")
+    # Every solid part goes in the collider too: (size, centre, turn).
+    solid = []
+
+    def part(size, material, at, rot=(0, 0, 0), bevel=0.0):
+        m.box(size, material, at=at, rot=rot, bevel=bevel)
+        solid.append((size, at, rot))
+
     for x in (-0.95, 0.95):
         for y in (-0.22, 0.22):
-            m.box((0.04, 0.04, 2.0), k["dark_steel"], at=(x, y, 1.0))
+            part((0.04, 0.04, 2.0), k["dark_steel"], (x, y, 1.0))
     for i, z in enumerate((0.15, 0.65, 1.15, 1.65)):
-        m.box((1.94, 0.48, 0.03), k["steel"], at=(0, 0, z), bevel=0.004)
+        part((1.94, 0.48, 0.03), k["steel"], (0, 0, z), bevel=0.004)
         # Stock: a different load on each shelf.
         if i == 0:
-            for j in range(4):
-                m.cylinder(0.08, 0.42, green, sides=8, at=(-0.7 + j * 0.2, 0.0, 0.17 + 0.08), rot=(90, 0, 0))
-            m.box((0.5, 0.4, 0.28), bin_mat, at=(0.55, 0.0, 0.31), bevel=0.01)
+            part((0.5, 0.4, 0.28), bin_mat, (0.55, 0.0, 0.31), bevel=0.01)
         elif i == 1:
             for j in range(3):
-                m.box((0.3, 0.36, 0.1), k["casing_dark"], at=(-0.6 + j * 0.34, 0.0, 0.715), bevel=0.008)
-            m.box((0.5, 0.4, 0.28), bin_mat, at=(0.55, 0.0, 0.81), bevel=0.01)
+                part((0.3, 0.36, 0.1), k["casing_dark"], (-0.6 + j * 0.34, 0.0, 0.715), bevel=0.008)
+            part((0.5, 0.4, 0.28), bin_mat, (0.55, 0.0, 0.81), bevel=0.01)
         elif i == 2:
             for j in range(3):
-                m.box((0.42, 0.38, 0.1 - j * 0.0), blanket, at=(-0.5, 0.0, 1.21 + j * 0.1), rot=(0, 0, j * 3), bevel=0.02)
-            for j in range(6):
-                m.cylinder(0.03, 0.18, k["orange"], sides=6, at=(0.15 + j * 0.08, -0.05, 1.255))
+                part((0.42, 0.38, 0.1), blanket, (-0.5, 0.0, 1.21 + j * 0.1), rot=(0, 0, j * 3), bevel=0.02)
         else:
             for j in range(3):
-                m.box((0.5, 0.4, 0.3), bin_mat, at=(-0.6 + j * 0.6, 0.0, 1.815), bevel=0.01)
+                part((0.5, 0.4, 0.3), bin_mat, (-0.6 + j * 0.6, 0.0, 1.815), bevel=0.01)
     for i, z in enumerate((0.31, 0.81, 1.81)):
         _plate(d, dk["cream"], Vector((0.55, -0.201, z)), FRONT, 0.2, 0.06)
     low = m.to_object()
-    collider = br._console_collider("rm_shelf", (2.0, 0.5, 2.0), (0, 0, 1.0))
-    return Model(low=low, decals=[d.to_object()], extras=[collider])
+    collider = Mesh("rm_shelf_col-colonly")
+    for size, at, rot in solid:
+        collider.box(size, mats.plain("collider", (1, 0, 1)), at=at, rot=rot)
+    return Model(low=low, decals=[d.to_object()], extras=[collider.to_object()])
 
 
 @asset("rm_med_pod", "rooms", texture=256, colors=32, ao=0.5)

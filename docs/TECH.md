@@ -35,7 +35,7 @@
 | Generation (sector map, systems, derelict layouts) | Host sends **seeds** | Every peer generates locally from the seed. A checksum after generation confirms the peers match. Entity IDs come from generation order, so RPCs can name generated things |
 | Doors, power, terminals, hazards | Host owns the state | Changed by client-reported interactions (above); the host rejects only conflicting requests |
 | Creatures | Host | Host runs the AI and its attacks on players; clients get `StateSynchronizer` and `TickInterpolator`. Player hits on creatures are client-reported, as above. If creature attacks feel unfair at higher latency, the victim's client can confirm the hit instead |
-| Loose items | Host; **the carrier becomes authority while holding**, and authority returns to the host on drop | `StateSynchronizer` |
+| Loose items | Host. **Taking one moves it into the taker's own state** (their belt or hands) until they let go; letting go hands it back to the host as a loose item | `LooseItems` (a `MultiplayerSpawner`) makes each `Pickup` on every peer, late joiners included; its `MultiplayerSynchronizer` sends where it is only while it moves. A take is a reliable RPC to the host (first request wins), which removes the pickup and sends the record to the taker; a drop or throw is a reliable RPC with the record, where it left the hand and its velocity |
 | Terminal screens | Host owns the UI state; the operator's cursor belongs to the operator | Teammates see the same screen |
 
 **Connecting:**
@@ -154,7 +154,11 @@ This follows the approach on **ultraskeletal's `psx-look` branch** (`game/script
   - **Sockets on bones** go in through `matrix_world`: a bone child's location counts from the bone's tail.
   - **In Godot:** `CrewAnimation` (an `AnimationTree`) blends idle/walk/run in step, crouching, and arm layers for what's held and for the cuff, playing the stride at the movement's cadence (backwards when backing up). `CrewPose` (a `SkeletonModifier3D`) then turns a suit's legs toward its direction of travel while the body faces its look, and tips the head and chest with the gaze. The camera's bob follows the same stride.
   - `tools/pose_sheet.py` renders any clip at chosen moments from a built `.blend`, for checking by eye; `--hold=<model>:<tilt>` puts an item in the rig's hand as the game does.
-- **Held items** (`game/items/items.gd`): each kind's model, hand pose ("tool") and its tilt in each hand: `tilt` in the first-person fist, `glove` in the suit's. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove, across which a held thing lies the way a hanging fist holds a hammer. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
+- **Items** (`game/items/items.gd`): each kind's model, name, mass, hand pose ("tool", or "carry" for two hands) and its tilt in each hand: `tilt` in the first-person fist, `glove` in the suit's. An item's `SOCKET_grip` goes on the hand's `SOCKET_grip`: the first-person fist, or the suit's right glove, across which a held thing lies the way a hanging fist holds a hammer. Things carried get a 16 px belt icon (`lib/icon.py`, `assets/icons/`) with each build.
+  - **A thing carried is a record**: a Dictionary with its `kind` and any state of its own (charge, fill, value, to come). The belt is four records (`{}` empty) and `carrying` the two-handed one, all on the owner's machine; only `held`, the kind in hand, is synced.
+  - **Loose, it's a `Pickup`** (`game/items/pickup.tscn`): a rigid body on the "items" layer, boxed to its model, that rests on the world and on other items and bounces off crew without blocking them; its handle (an `Interactable`, at least 22 cm a side so small things are easy to aim at) prompts TAKE, CARRY, BELT FULL or HANDS FULL for whoever's aiming at it. The host simulates it; everyone else eases toward the host's position.
+  - **Stock:** a deck marks where loose things start (`Deck.stock`, markers in the "loot" group), and the host puts them out when the crew starts.
+  - **Letting go** (`Q`): a tap sets it down just ahead of the eye; held past 0.2 s it's thrown, at 3 to 9 m/s over the next 0.6 s, scaled by `sqrt(3 kg / mass)` (at least a quarter), plus the thrower's own speed.
 - **Textures:**
   - Tiling surfaces (panels, grating, rust, concrete) come from CC0 photo scans (ambientCG) run through `asset-gen`, and also feed each model's detailed material before baking.
   - Signage, labels, decals and screens are drawn procedurally. Blender's bundled Python has numpy; the system Python 3.14 has no PIL.
@@ -208,7 +212,7 @@ deep-space/
   - a scene smoke test that loads every scene
 - **Networking:** the multi-instance launch script with netfox's network simulator (latency and packet loss) turned on.
 - **Assets:** turntable previews are reviewed for every generated model; pose sheets (`tools/pose_sheet.py`) for every clip.
-- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
+- **Dev flags** for unattended checks (`game/core/dev.gd`): `--check-aim` stands the crew member in front of every terminal and checks the crosshair finds it; `--at`, `--look`, `--belt`, `--hold`, `--move` (with `--sprint`, `--crouch`), `--cuff` and `--lamp` set up a shot; `--take` and `--throw` act a second or two in; `--view` looks from a fixed camera instead; `--screenshot` with `--frames`, `--shots`/`--shot-gap` takes one or a burst; `--wait-crew` holds the shot until that many crew are aboard.
 - **QA tools** (`tools/`), for checking changes by eye in the real game and in Blender:
   - `shot.sh <out> <x,y,z,yaw,pitch>`: one frame from a fixed camera. For the player's own view, run the game with `-- --host --at=… --look=… [--hold/--cuff/--lamp] --screenshot=<out> --frames=150`.
   - `pair.sh <out> "<host flags>" "<client flags>"`: a host and a client on one machine; the host shoots once the client is aboard. With `--view` in the host flags it's the way to see a teammate's suit, held item, beam or glare.
@@ -274,3 +278,7 @@ deep-space/
 - **2026-10-14: The helmet lamp** (GDD §17, decided 5).
   - The light is the suit's helmet lamp, on the left of the helmet, for everyone from the start; `F` toggles it (`lamp_on`, the `lamp` action, `--lamp`).
   - The handheld flashlight is gone: its model, the torch hold poses and `CrewPose`'s torch arm. `TorchBeam` is now `LampBeam`.
+- **2026-10-14: Loose items and the belt** (GDD §9.4, decided 6).
+  - The belt holds item records, loot as well as gear. Loose items are host-owned `Pickup`s; taking one moves its record into the taker's belt or hands, so a carried thing needs no authority handover (this replaces "the carrier becomes authority while holding").
+  - `E` takes, `Q` drops (hold to throw). The visor dims a prompt that can't be acted on (BELT FULL, HANDS FULL) and drops its key.
+  - The stores' fore shelf holds real O2 canisters and sealant, the docking port a power cell, and the sample derelict salvage, supplies and a plasma cutter. The shelf's collider follows its shelves.

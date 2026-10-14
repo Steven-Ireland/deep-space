@@ -1,8 +1,9 @@
 class_name Interactable
 extends Area3D
 ## Something a crew member can use: a door panel, a lever, a terminal, an item to pick up. The
-## player aiming at it sees `verb` on the visor; pressing interact reports the use to the host,
-## which applies it (TECH §2: clients report their actions, the host applies them).
+## player aiming at it sees its prompt (`verb`, unless it says otherwise) on the visor; pressing
+## interact reports the use to the host, which applies it (TECH §2: clients report their actions,
+## the host applies them).
 ##
 ## Lives on the "interact" physics layer. Owners connect to `used`, which fires on the host only.
 
@@ -25,6 +26,16 @@ func _init() -> void:
 	collision_layer = LAYER # interact
 	collision_mask = 0
 	monitoring = false
+
+
+## What the visor shows `player` aiming at this.
+func prompt(_player: Player) -> String:
+	return verb
+
+
+## Whether `player` can use it now; when not, the visor shows its prompt dimmed, without its key.
+func usable_by(_player: Player) -> bool:
+	return enabled
 
 
 ## Called on the using player's machine.

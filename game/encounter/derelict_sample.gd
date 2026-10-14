@@ -2,7 +2,8 @@ extends Deck
 ## A sample derelict docked at the LANTERN's starboard collar (GDD §8): a hand-placed stand-in for
 ## the generator (M4), to judge the look and feel of a dead station. Built in the derelict kit,
 ## unlit except for red emergency strobes; furnished with debris, cable spills, a breach, a breaker
-## box, a dead crew member, alien growth with a Hanger above it, a Crawler, and the Prize.
+## box, a dead crew member, alien growth with a Hanger above it, a Crawler, and the Prize; stocked
+## with salvage and supplies to take back.
 ##
 ##   E entry  C corridor  R room  X side room  P prize room
 
@@ -59,6 +60,17 @@ func _dress() -> void:
 	_prop("derelict/dk_prize_core", Vector3(22.0, 0, 8.5), 75.0)
 	_strobe(Vector3(23.6, 2.3, 10.0 - 0.2), 180.0, true)
 	_prop("rooms/rm_crate", Vector3(19.0, 0, 9.4), -15.0)
+	# Loot: what the dead crew member had on them, salvage strewn about, a power cell by the
+	# breaker, a data core left on the crates, a cartridge on the crate by the Prize.
+	stock(&"o2_canister", Vector3(20.5, 0.02, -3.9), 30.0)
+	stock(&"plasma_cutter", Vector3(21.9, 0.02, -3.7), 40.0)
+	stock(&"power_cell", Vector3(22.8, 0.02, -5.3), 10.0)
+	stock(&"data_core", Vector3(25.2, 1.62, -5.1), 0.0)
+	stock(&"salvage_pipes", Vector3(19.3, 0.02, 2.6), 80.0)
+	stock(&"salvage_board", Vector3(16.8, 0.02, -1.2), 25.0)
+	stock(&"salvage_plates", Vector3(28.4, 0.02, 3.0), -30.0)
+	stock(&"cartridge", Vector3(19.0, 0.82, 9.4), 60.0)
+	stock(&"sealant", Vector3(23.8, 0.02, 9.4), 0.0)
 
 
 func _prop(model: String, at: Vector3, yaw: float) -> Node3D:

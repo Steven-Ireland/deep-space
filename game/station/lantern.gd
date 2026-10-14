@@ -132,6 +132,7 @@ func _furnish_rooms() -> void:
 	_prop("rm_crate", Vector3(6.9, 0, -1.2), 10.0, [])
 	_prop("rm_crate", Vector3(7.75, 0, -1.25), -6.0, [])
 	_prop("rm_crate", Vector3(7.3, 0.8, -1.2), 25.0, [])
+	stock(&"power_cell", Vector3(8.6, 0.0, -1.35), -20.0)
 	_beacon(Vector3(12, 2.6, 0))
 	# Drive room (8..12, 4): the jump drive and the fuel rack that feeds it.
 	_prop("rm_drive_core", Vector3(11.6, 0, 4.0), 0.0, [])
@@ -156,10 +157,14 @@ func _furnish_rooms() -> void:
 		_prop("rm_bunk", Vector3(x - 0.4 * signf(x), 0, z - 1.37), 0.0, [])
 		_prop("rm_cabin_desk", Vector3(x - 0.3 * signf(x), 0, z + 1.52), 180.0, [["screen_log", "status_screen", Vector2i(160, 120), GREEN,
 				{"title": "CREW %d" % cabin[2], "lines": [["PERSONAL LOG", "DIM"], ["DAY 0001", "GREEN"], ["NO ENTRIES", "DIM"]], "prompt": "_"}]])
-	# Stores (-4, 20): two racks of spares, crates.
+	# Stores (-4, 20): two racks of spares, crates. O2 canisters stand on the fore rack's bottom
+	# shelf, sealant on its third, for the taking.
 	_prop("rm_shelf", Vector3(-4.4, 0, 18.4), 0.0, [])
 	_prop("rm_shelf", Vector3(-4.4, 0, 21.6), 180.0, [])
 	_prop("rm_crate", Vector3(-2.9, 0, 20.0), 30.0, [])
+	for i in 3:
+		stock(&"o2_canister", Vector3(-5.1 + i * 0.25, 0.17, 18.42), 10.0 * i)
+		stock(&"sealant", Vector3(-4.25 + i * 0.16, 1.17, 18.45), -15.0 * i)
 	# Med bay (4, 20): the pod, offline and dark until it's upgraded.
 	_prop("rm_med_pod", Vector3(4.2, 0, 20.0), 0.0, [["screen_med", "status_screen", Vector2i(160, 120), Color(1, 0.3, 0.2),
 			{"title": "MED POD", "lines": [["OFFLINE", "RED"], ["UPGRADE REQUIRED", "DIM"]]}]])

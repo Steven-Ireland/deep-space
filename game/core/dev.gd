@@ -13,7 +13,13 @@ extends Node
 ##   --system-seed=<n>     build this star system instead of the default (StarSystem)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)
-##   --hold=<kind>         and holds this from their belt, e.g. crowbar (Player)
+##   --belt=<kind>,...     what's on their belt, slot by slot (blank for empty), e.g.
+##                         crowbar,,o2_canister (Player)
+##   --hold=<kind>         and holds this: from the belt, or put there, or carried if it's big,
+##                         e.g. crowbar (Player)
+##   --take                a second in, they take whatever's under the crosshair (Player)
+##   --throw=<s>           a second later, they let go of what's in hand as if Q were held that
+##                         long: 0 sets it down (Player)
 ##   --no-gi               no screen-space bounced light or reflections, for comparing
 ##   --check-aim           stand in front of every terminal, check the crosshair finds it, quit
 ##   --move=<x>,<y>        the local crew member walks as if holding that move input, y-

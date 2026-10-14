@@ -14,6 +14,9 @@ The **first build pass** ("environment first", TECH §9) is done, with three rou
   (owner-authoritative), gaits blended in step with legs that turn toward travel, the belt (four
   slots, `1–4`/wheel), the helmet lamp (`F`), held items mirrored to everyone, the wrist cuff
   (`Tab`), the visor HUD (a floating prompt, the belt), terminals you step up to.
+- **Loose items (M1, 2026-10-14):** `E` takes a thing into the belt, `Q` sets it down, held `Q`
+  throws it; the host owns what's loose, and everyone sees it land. The stores, the docking port and
+  the sample derelict are stocked.
 - **LANTERN and space (M2):** the station kit and every room furnished, the exterior hull, bridge
   stations with live terminal screens (nav, scan, survey, vitals, cams, power, status), seeded
   star systems with sky, star and planets, the lighting pass (SSIL/SSR, Godot's default shadows).
@@ -35,9 +38,8 @@ death. The consoles and cuff show placeholder numbers.
 ## Next: the gameplay loop (proposed order)
 
 1. **Rest of M1, the crew:**
-   - pick up (`E`), drop and throw (`Q`), with the carrier taking authority while holding
-     (TECH §2)
-   - two-handed carries (fuel cell, the Prize, a body) that slow you and take your hand light
+   - two-handed carries (fuel cell, the Prize, a body) that slow you and empty your hands (the
+     carry slot, speed cap and belt lock are in; the poses and the fuel cell aren't)
    - use (`LMB`) for tools and weapons (the arms already have a swing clip)
    - suit O2 and pressure zones, driving the cuff, the Vitals board and the spine lights
 2. **M3, navigation:**
@@ -99,6 +101,10 @@ death. The consoles and cuff show placeholder numbers.
   one runs. (Shot runs could ignore input later, if it becomes a nuisance.)
 - **The first-person right arm doesn't sway while walking with a tool:** the hold layer overrides
   it. The view still bobs.
+- **Loot uses the tool hold:** fine for most things, but the O2 canister is gripped at its handle and
+  sticks up across the view, and the guns point up rather than ahead until weapons get an aimed
+  hold.
+- **A throw has no wind-up:** the arm doesn't draw back while `Q` is held.
 
 ## Working rules
 

@@ -9,6 +9,7 @@ extends CharacterBody3D
 const WALK_SPEED := 2.2
 const SPRINT_SPEED := 4.0
 const CROUCH_SPEED := 1.2
+const CARRY_SPEED := 1.6 # with something heavy in both hands; no sprinting
 const ACCELERATION := 9.0 # m/s² toward the target speed, on the ground
 const BRAKING := 14.0
 const AIR_CONTROL := 0.12
@@ -27,8 +28,16 @@ const LAMP_OFFSET := Vector3(-0.2, 0.1, -0.127)
 ## Metres ahead the lamp is aimed to cross the line of sight: nearer than that, its spot sits a
 ## little left of where you look; beyond it, a little right.
 const LAMP_CONVERGE := 6.0
+## Letting go (Q): a tap sets the thing down; held longer than THROW_AFTER, it's thrown, harder
+## the longer it's held, up to THROW_MAX after THROW_WIND more seconds. Heavy things go less far.
+const THROW_AFTER := 0.2
+const THROW_WIND := 0.6
+const THROW_MIN := 3.0
+const THROW_MAX := 9.0
+const DROP_SPEED := 0.6
 
-## Emitted on the owner's machine when the belt or the held slot changes (the visor shows it).
+## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
+## visor shows it).
 signal belt_changed
 
 ## Synced from the owner (StateSynchronizer).
@@ -36,13 +45,17 @@ var look := Vector2.ZERO # yaw, pitch in radians
 var lamp_on := false
 var crouching := false
 var sprinting := false
-## The item kind in the right hand (Items), and whether the wrist cuff is raised to read.
+## The kind of item in hand (Items), and whether the wrist cuff is raised to read.
 var held := &""
 var cuff_up := false
 
-## The belt (GDD §9.4) on the owner's machine: four slots of item kinds, `slot` the one in hand.
-var belt: Array[StringName] = Items.STARTING_BELT.duplicate()
+## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
+## one drawn into the hand.
+var belt: Array[Dictionary] = []
 var slot := 0
+## A big thing held in both hands ({} when there's none), on the owner's machine. While carrying,
+## nothing comes off the belt.
+var carrying := {}
 
 ## The Interactable under the crosshair, on the owner's machine.
 var aimed_at: Interactable
@@ -69,6 +82,12 @@ var _bob := 0.0
 var _legs_yaw := 0.0
 var _crouch := 0.0
 var _cuff := 0.0
+var _winding := -1.0 # seconds Q has been held, or -1
+
+
+func _init() -> void:
+	for kind in Items.STARTING_BELT:
+		belt.append(Items.make(kind))
 
 
 func _enter_tree() -> void:
@@ -87,7 +106,7 @@ func _ready() -> void:
 		add_to_group(&"local_player")
 		_equip_view_model()
 		_animation = _animate_rig(view_model)
-		held = belt[slot]
+		_update_held()
 		_apply_dev_flags()
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		var hud := preload("res://game/player/visor_hud.tscn").instantiate()
@@ -131,8 +150,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event.is_action_pressed("lamp"):
 		lamp_on = not lamp_on
-	elif event.is_action_pressed("interact") and aimed_at != null:
+	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
 		aimed_at.request_use()
+	elif event.is_action_pressed("drop") and not in_hands().is_empty():
+		_winding = 0.0
+	elif event.is_action_released("drop") and _winding >= 0.0:
+		let_go(_winding)
+		_winding = -1.0
 	elif event.is_action_pressed("slot_next"):
 		select_slot(posmod(slot + 1, belt.size()))
 	elif event.is_action_pressed("slot_prev"):
@@ -154,10 +178,99 @@ func teleport(at: Vector3) -> void:
 	interpolator.teleport()
 
 
-## Takes the item in belt slot `index` in hand (GDD §9.4).
+## Draws the item in belt slot `index` into the hand (GDD §9.4): not while carrying.
 func select_slot(index: int) -> void:
+	if not carrying.is_empty():
+		return
 	slot = index
-	held = belt[slot]
+	_update_held()
+
+
+## What's in the hands: the thing carried, or the item drawn from the belt ({} for nothing).
+func in_hands() -> Dictionary:
+	return carrying if not carrying.is_empty() else belt[slot]
+
+
+## The belt slot a small thing taken now would go in: the one drawn if it's empty, otherwise the
+## first empty one; -1 when the belt is full.
+func free_slot() -> int:
+	if belt[slot].is_empty():
+		return slot
+	for i in belt.size():
+		if belt[i].is_empty():
+			return i
+	return -1
+
+
+## Whether there's room to take a `kind` now: not with something carried; a big thing needs the
+## hands, a small thing a free slot.
+func room_for(kind: StringName) -> bool:
+	if not carrying.is_empty():
+		return false
+	return Items.two_handed(kind) or free_slot() >= 0
+
+
+## The host hands this crew member something they took (LooseItems.take): a big thing into both
+## hands, a small one into its slot, drawn. If there's no room by now (two takes in flight), it's
+## let go again at once.
+@rpc("any_peer", "call_local", "reliable")
+func receive(record: Dictionary) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority():
+		return
+	var kind := Items.kind_of(record)
+	if not room_for(kind):
+		LooseItems.of(self).let_go(record, _release_point(), Vector3.ZERO)
+		return
+	if Items.two_handed(kind):
+		carrying = record
+	else:
+		slot = free_slot()
+		belt[slot] = record
+	_update_held()
+
+
+## Q: sets down what's in the hands, or throws it if Q was held longer than a tap: the longer, the
+## harder, though heavy things don't go far. It leaves from just ahead of the eye, never through a
+## wall, carrying the crew member's own speed.
+func let_go(held_for: float) -> void:
+	var record := in_hands()
+	if record.is_empty():
+		return
+	if not carrying.is_empty():
+		carrying = {}
+	else:
+		belt[slot] = {}
+	_update_held()
+	var heft := clampf(sqrt(3.0 / Items.mass(Items.kind_of(record))), 0.25, 1.0)
+	var push := DROP_SPEED
+	if held_for >= THROW_AFTER:
+		push = lerpf(THROW_MIN, THROW_MAX, clampf((held_for - THROW_AFTER) / THROW_WIND, 0.0, 1.0)) * heft
+	var forward := -_view().basis.z
+	var launch := Vector3(velocity.x, 0.0, velocity.z) + forward * push + Vector3.UP * push * 0.15
+	LooseItems.of(self).let_go(record, _release_point(), launch)
+
+
+## Where a thing let go leaves the hand: ahead of the eye and a little below it, facing the way the
+## crew member faces, short of anything solid in between.
+func _release_point() -> Transform3D:
+	var view := _view()
+	var forward := -view.basis.z
+	var out := view.origin + forward * 0.5 - view.basis.y * 0.3
+	var hit := get_world_3d().direct_space_state.intersect_ray(
+			PhysicsRayQueryParameters3D.create(view.origin, out + forward * 0.2, 1, [get_rid()]))
+	if not hit.is_empty():
+		out = view.origin.lerp(hit.position, 0.5)
+	return Transform3D(Basis(Vector3.UP, look.x), out)
+
+
+## The eye: the camera's, or the head's while the camera's away at a terminal.
+func _view() -> Transform3D:
+	return head.global_transform if camera.top_level else camera.global_transform
+
+
+## `held` follows what's in the hands, and the visor hears of the change.
+func _update_held() -> void:
+	held = Items.kind_of(in_hands())
 	belt_changed.emit()
 
 
@@ -165,7 +278,9 @@ func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		rotation.y = look.x
 		head.rotation.x = look.y
-		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null
+		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty()
+		if _winding >= 0.0:
+			_winding += delta
 		if operating == null:
 			_update_aim()
 		else:
@@ -196,8 +311,11 @@ func _tick(delta: float, _tick_number: int) -> void:
 		input = Vector2(v[0], v[1])
 	if operating != null:
 		input = Vector2.ZERO
-	sprinting = (Input.is_action_pressed("sprint") or Args.flag("--sprint")) and not crouching and input.y < -0.1
+	var heavy := not carrying.is_empty()
+	sprinting = (Input.is_action_pressed("sprint") or Args.flag("--sprint")) and not crouching and not heavy and input.y < -0.1
 	var speed := CROUCH_SPEED if crouching else (SPRINT_SPEED if sprinting else WALK_SPEED)
+	if heavy:
+		speed = minf(speed, CARRY_SPEED)
 	var wish := (Basis(Vector3.UP, look.x) * Vector3(input.x, 0, input.y)).limit_length(1.0) * speed
 
 	var horizontal := Vector3(velocity.x, 0, velocity.z)
@@ -273,8 +391,9 @@ func _can_stand() -> bool:
 
 
 ## Dev flags (Dev): `--lamp` starts with the helmet lamp on; `--look=<yaw>,<pitch>` (degrees)
-## sets the starting view; `--at=<x>,<y>,<z>` the starting spot; `--hold=<kind>` puts an item
-## in hand. For checking builds unattended.
+## sets the starting view; `--at=<x>,<y>,<z>` the starting spot; `--belt=<kind>,...` what's on the
+## belt; `--hold=<kind>` puts an item in hand; `--take` and `--throw` act a little later. For
+## checking builds unattended.
 func _apply_dev_flags() -> void:
 	if Args.flag("--lamp"):
 		lamp_on = true
@@ -282,9 +401,17 @@ func _apply_dev_flags() -> void:
 	if at != "":
 		var v := at.split_floats(",")
 		teleport(Vector3(v[0], v[1], v[2]))
+	var kit := Args.value("--belt", "")
+	if kit != "":
+		var kinds := kit.split(",")
+		for i in belt.size():
+			belt[i] = Items.make(StringName(kinds[i])) if i < kinds.size() else {}
+		_update_held()
 	var kind := StringName(Args.value("--hold", ""))
-	if kind != &"" and belt.has(kind):
-		select_slot(belt.find(kind))
+	if Items.KINDS.has(kind):
+		_dev_hold(kind)
+	if Args.flag("--take") or Args.flag("--throw"):
+		_dev_actions.call_deferred()
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)
@@ -292,6 +419,31 @@ func _apply_dev_flags() -> void:
 	if view != "":
 		var angles := view.split_floats(",")
 		look = Vector2(deg_to_rad(angles[0]), deg_to_rad(angles[1] if angles.size() > 1 else 0.0))
+
+
+## `--hold`: a `kind` in hand: drawn from the belt if it's there, carried if it's big, otherwise put
+## in a free slot (or the last) and drawn.
+func _dev_hold(kind: StringName) -> void:
+	if Items.two_handed(kind):
+		carrying = Items.make(kind)
+	else:
+		var index := belt.find_custom(func(record: Dictionary) -> bool: return Items.kind_of(record) == kind)
+		if index < 0:
+			index = free_slot() if free_slot() >= 0 else belt.size() - 1
+			belt[index] = Items.make(kind)
+		slot = index
+	_update_held()
+
+
+## `--take`: a second in, takes what's under the crosshair; `--throw=<seconds>`: a second after
+## that, lets go of what's in hand as if Q were held that long (0 sets it down).
+func _dev_actions() -> void:
+	await get_tree().create_timer(1.0).timeout
+	if Args.flag("--take") and aimed_at != null and aimed_at.usable_by(self):
+		aimed_at.request_use()
+	await get_tree().create_timer(1.0).timeout
+	if Args.flag("--throw"):
+		let_go(float(Args.value("--throw", "0")))
 
 
 ## Steps up to `terminal`: the camera eases in until its screen fills the view, and the mouse
