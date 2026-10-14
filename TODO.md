@@ -82,9 +82,10 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   panel's COLLAR lever (in the docking port, held 2 s) docks it: a pale tractor beam draws it in,
   the collar's tube runs out to its hatch, the hulls meet with a jolt, the clamps bite, the collar
   opens its hatch. The panel's EXT PRESS gauge then reads what the derelict holds.
-- **The collar room is an airlock:** cycle out with the lever inside (the door shuts, the chamber
-  vents or fills to the derelict's side, the hatch swings open), cycle back in the same way; a
-  locked door's controls call it round. It won't cycle out with nothing sealed to it.
+- **The collar room is an airlock**, a pressure chamber with round hatches at both ends: cycle out
+  with the lever inside (the inner hatch shuts, the chamber vents, the outer hatch swings open),
+  cycle back in the same way; a locked hatch's handles call it round. Suits seal (O2 running, the
+  world muffled) the moment it starts cycling out. Derelicts hold no air, for now.
 - **Undocking:** the lever again sounds the siren for 10 s (again to abort) and brings the airlock
   in; then the tube lets go and the beam pushes the derelict off with its hatch open, venting. Anyone
   still aboard rides it out on suit O2; docking again picks them up. A jump casts off at once.

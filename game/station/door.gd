@@ -25,11 +25,6 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 
 ## The wall's status_lamp mesh (set by the Deck).
 var lamp: MeshInstance3D
-## Whether something else runs it (an airlock's inner door): its own panels stand down.
-var managed := false:
-	set(value):
-		managed = value
-		_update_state()
 ## Whether it's had a frame yet: until then it's being built, and starts as it's set, at once and
 ## silently (the sample derelict's doors are made open).
 var _live := false
@@ -57,7 +52,7 @@ func _process(delta: float) -> void:
 
 
 func _on_used(_peer: int) -> void:
-	if not sealed and not managed:
+	if not sealed:
 		open = not open
 
 
@@ -66,6 +61,6 @@ func _update_state() -> void:
 		return
 	for panel in panels:
 		panel.verb = "SEALED" if sealed else ("CLOSE" if open else "OPEN")
-		panel.enabled = not sealed and not managed
+		panel.enabled = not sealed
 	if lamp != null:
 		lamp.material_override = LAMP_SEALED if sealed else (LAMP_OPEN if open else LAMP_SHUT)

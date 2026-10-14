@@ -5,8 +5,9 @@ extends Deck
 ## say: out where it waits, drifting in, docked, drifting off again (`pose_to`). Anything loose
 ## aboard goes with it (the host moves it); crew aboard ride with it on their own machines (Player).
 ##
-## Its air is its own: the rooms built without `vacuum` hold some, stale, until it's cast off with
-## its hatch open and it all vents (`vent`).
+## It holds no air: its rooms are open to one another, so with no sealed sections or airlocks of
+## its own, every one is vacuum (and whatever lives here doesn't need air). `vent` stays for the
+## day one has sealed sections.
 
 ## The edge (Deck.build's "col,row,side" of a layout cell) where its entry hatch stands; set it
 ## before build().
@@ -25,6 +26,8 @@ static func at(world: World3D, point: Vector3) -> Derelict:
 
 func build(rows: PackedStringArray, origin: Vector2i, openings: Dictionary, dark: String = "") -> void:
 	super.build(rows, origin, openings, dark)
+	for zone: Zone in zones.values():
+		zone.pressurized = false
 	var parts := entry_opening.split(",")
 	var cell := Vector2i(int(parts[0]), int(parts[1])) - origin
 	var side: Vector2i = SIDES[parts[2]]

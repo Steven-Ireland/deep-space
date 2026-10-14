@@ -83,7 +83,7 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 | Room | Where | Function | Interfaces |
 |---|---|---|---|
 | **Suit Room / EVA Airlock** | Off the bridge (port) | Suit up, refill O2, charge lamps, go outside | Suit lockers, O2 refill rack, lamp charger, airlock cycle panel (pressure gauge, warning lights) |
-| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | The dock panel (the COLLAR lever, the EXT PRESS gauge, CONTACT and SEAL lamps); the collar beyond it, which is the docking airlock (its cycle panel inside, the outer hatch); the kit rack (the crew's one crowbar and one flare), passed on the way out |
+| **Docking Port** | Off the bridge (starboard) | Docks with derelicts | The dock panel (the COLLAR lever, the EXT PRESS gauge, CONTACT and SEAL lamps); the collar beyond it, which is the docking airlock (a pressure chamber with round hatches at both ends, its cycle panel inside); the kit rack (the crew's one crowbar and one flare), passed on the way out |
 | **Drive Room** | Off the bridge | Fuel and jump drive | **Fuel cell slots** (physical cells are carried in and inserted); drive status gauges |
 | **Workshop** | Off the bridge | Upgrades and crafting | **Recycler hopper** (drop salvage in, counter ticks up); **Fabricator** terminal |
 | **Crew cabins** | Rear corridor | Spawn, lore, save point. One small cabin per crew member | Bunk, personal locker, log terminal |
@@ -143,8 +143,9 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **Docking.** Station-type oddities with compatible ports are reached by docking:
   - The derelict waits off the starboard bow, seen from the bridge's side port.
   - Any player holds the dock panel's COLLAR lever (two seconds) in the Docking Port. The collar's pale tractor beam draws the derelict in and lines it up, the collar's tube runs out to its hatch, the hulls meet with a jolt and the clamps bite.
-  - The collar opens the derelict's hatch, and the dock panel's EXT PRESS gauge reads what it holds: stale air, or vacuum.
-  - **The collar is an airlock.** Crew step into it from the Docking Port and pull its CYCLE lever: the inner door shuts and the chamber vents (or fills) to match the far side, then the outer hatch swings open onto the tube and the derelict beyond. Coming back, they cycle in. The two doors are never open together. A locked door's controls call the airlock round, so a teammate on either side can get through, and it won't cycle out with nothing sealed to it.
+  - The collar opens the derelict's hatch; the dock panel's EXT PRESS gauge reads what lies beyond. Derelicts hold no air: their rooms are open to one another, and whatever lives in them doesn't breathe.
+  - **The collar is an airlock**, a pressure chamber with a round hatch at each end. Crew step in from the Docking Port and pull its CYCLE lever: the inner hatch shuts and the chamber vents to match the far side, then the outer hatch swings open onto the tube and the derelict beyond. Coming back, they cycle in. The two hatches are never open together. With the airlock in, the inner hatch opens and shuts by hand; otherwise a locked hatch's handles call the airlock round, so a teammate on either side can get through. It won't cycle out with nothing sealed to it.
+  - **Suits seal the moment the airlock starts cycling out**: from then until it's all the way back in, crew breathe their suit's O2 and hear the world muffled (§9.2, §15).
   - A sealed hatch needs a crowbar, a cutter or power to open.
 - **EVA.**
   - The station holds position near the target.
@@ -157,7 +158,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   1. Grows a room graph out from the entry airlock.
   2. Adds a few loops.
   3. Places the **Prize** room far from the entry.
-  4. Assigns **pressure zones** (vacuum or pressurized) and **power zones** (dead or live).
+  4. Assigns **pressure zones** and **power zones** (dead or live). For now every derelict is vacuum throughout: a pressurized section needs seals and airlocks of its own.
   5. Fills the layout from a budget: loot, hazards, lore, and a **very small** number of creatures (§8.3).
 - Loot and hazard budgets scale with sector, node type and crew size. Creature counts stay low regardless.
 
@@ -212,7 +213,7 @@ Every system has planets to scan from the Science station's **Survey Console**. 
 - **Health:** shown as the wrist ECG and heartbeat audio. It does not regenerate, and heals only at the Med Bay or with stims.
 - **O2:**
   - About 6 minutes in vacuum at base capacity.
-  - Drains only in unpressurized zones, and faster when sprinting or when the suit is breached.
+  - Drains only in unpressurized zones (any derelict, and the collar's airlock from the moment it starts cycling out), and faster when sprinting or when the suit is breached.
   - Refilled at O2 racks on the station or on derelicts, or from canisters: using one (`LMB`) adds about 3 minutes and uses it up.
 - **Integrity:** damage can breach the suit, which leaks O2 (audible hiss, frost on the visor) until it is patched with sealant.
 
@@ -464,6 +465,8 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 10. **Left behind** (§8.3): undocking carries anyone still aboard off with the derelict, on suit O2, until the crew docks again for them. The jump doesn't wait for anyone: jumping without them leaves them behind, and the Med Bay clones them back.
 11. **Bodies are ragdolls** (§11): a dead crew member's body falls limp, can be carried like any heavy item, and is inserted in the Med Bay's pod to revive them. The pod can also clone, with no body, more slowly; reviving will be cheaper once salvage is spent.
 12. **The Med Bay works from the start** (was: offline until upgraded). What reviving and cloning cost, and whether an upgrade gates them, waits for the economy.
+13. **Derelicts hold no air**, for now (§8.1): their rooms are open to one another, so there's no pressure to differ between them. Pressurized sections need seals and airlocks of their own, later. Alien life is adapted to vacuum.
+14. **The collar's airlock is a pressure chamber with round hatches at both ends**, and suits seal (O2 running, the world muffled) the moment it starts cycling out.
 
 **Working assumptions** (correct me if any are wrong):
 - **A1.** LANTERN *is* the jump vessel. The station travels with you; there is no separate ship.

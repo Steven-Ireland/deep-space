@@ -29,8 +29,6 @@ const MODELS := "res://assets/models/%s.glb"
 func _ready() -> void:
 	kit = "dk"
 	lit = false
-	# The breached rooms are open to space; the rest still hold a little stale air.
-	vacuum = "RX"
 	entry_opening = "0,1,W"
 	build(PackedStringArray(ROWS), ORIGIN, OPENINGS)
 	for door: Door in doors.values():

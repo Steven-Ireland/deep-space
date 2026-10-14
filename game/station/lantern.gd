@@ -40,7 +40,9 @@ const OPENINGS := {
 	"2,0,N": "viewport", "3,0,N": "viewport", "4,0,N": "viewport",
 	"2,0,W": "window", "4,0,E": "window",
 	# Rooms off the bridge.
-	"2,1,W": "door", "1,1,W": "door", "2,2,W": "door", "4,1,E": "door", "5,1,E": "door", "4,2,E": "door",
+	"2,1,W": "door", "1,1,W": "door", "2,2,W": "door", "4,1,E": "door", "4,2,E": "door",
+	# The collar room is the docking airlock: a round pressure hatch in from the docking port.
+	"5,1,E": "hatch",
 	"3,2,S": "door",
 	# The rear corridor's rooms.
 	"3,4,W": "door", "3,4,E": "door", "3,5,W": "door", "3,5,E": "door", "3,6,W": "door", "3,6,E": "door",
@@ -65,8 +67,8 @@ func _ready() -> void:
 	_furnish_rooms()
 	_place_cameras()
 	_hull_features()
-	# The docking collar, its airlock the collar room, behind the door from the docking port.
-	Collar.make(self, hatches["4,0,v"].get_parent(), _dock_panel, doors["3,0,v"], zones[Vector2i(3, 0)], _cycle_panel)
+	# The docking collar, its airlock the collar room, behind the hatch from the docking port.
+	Collar.make(self, hatches["4,0,v"].get_parent(), _dock_panel, hatches["3,0,v"], zones[Vector2i(3, 0)], _cycle_panel)
 	_find_fixtures()
 
 
@@ -163,7 +165,7 @@ func _furnish_rooms() -> void:
 	_prop("rm_cycle_panel", Vector3(-9.73, 0, -1.6), 90.0, [["screen_airlock", "status_screen", Vector2i(160, 120), GREEN,
 			{"title": "AIRLOCK", "lines": [["CHAMBER", "DIM"], ["PRESSURIZED", "GREEN"], ["OUTER SEALED", "GREEN"]], "prompt": "READY"}]])
 	_beacon(Vector3(-12, 2.6, 0))
-	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar's airlock door, cargo
+	# Docking port (8, 0) and collar (12, 0): the dock panel by the collar's airlock hatch, cargo
 	# waiting; inside the collar room (the airlock's chamber), its cycle panel by the outer hatch.
 	_dock_panel = _prop("rm_dock_panel", Vector3(9.71, 0, 1.6), -90.0, [["screen_dock", "dock_screen", Vector2i(192, 144), GREEN]])
 	_cycle_panel = _prop("rm_cycle_panel", Vector3(13.73, 0, 1.6), -90.0, [["screen_airlock", "airlock_screen", Vector2i(160, 120), GREEN]])

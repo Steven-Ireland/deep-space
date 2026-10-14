@@ -90,8 +90,8 @@ static func of(node: Node) -> Collar:
 
 
 ## Fits the collar to `lantern` at its collar `hatch_piece` (whose +Z faces out), run from
-## `dock_panel` (an rm_dock_panel), its airlock round `chamber` behind `inner`.
-static func make(lantern: Deck, hatch_piece: Node3D, dock_panel: Node3D, inner: Door, chamber: Zone, cycle_panel: Node3D) -> Collar:
+## `dock_panel` (an rm_dock_panel), its airlock round `chamber` behind the `inner` hatch.
+static func make(lantern: Deck, hatch_piece: Node3D, dock_panel: Node3D, inner: Hatch, chamber: Zone, cycle_panel: Node3D) -> Collar:
 	var collar := Collar.new()
 	collar.name = "DockingCollar"
 	lantern.add_child(collar)
@@ -169,7 +169,7 @@ func derelict_hatch_open() -> bool:
 
 
 ## The pressure in the tube, beyond the airlock's outer hatch: whatever the derelict's entry holds
-## once its hatch is open, vacuum otherwise.
+## once its hatch is open (derelicts are vacuum, for now), vacuum otherwise.
 func outside_pressure() -> float:
 	if derelict == null or not sealed() or not derelict_hatch_open():
 		return 0.0

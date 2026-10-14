@@ -14,7 +14,7 @@ func _draw_screen() -> void:
 	text(1, 1.6, "CHAMBER", DIM)
 	text(1, 2.6, "%.2f ATM" % pressure if pressure > 0.05 else "VACUUM", GREEN if pressure > 0.5 else AMBER)
 	text(1, 4.0, "INNER", DIM)
-	text(8, 4.0, "OPEN" if lock.inner.open else ("SHUT" if lock.state == &"in" else "LOCKED"), GREEN)
+	text(8, 4.0, "OPEN" if lock.inner_open and lock.state == &"in" else ("SHUT" if lock.state == &"in" else "LOCKED"), GREEN)
 	text(1, 5.0, "OUTER", DIM)
 	var outer := "OPEN" if lock.state == &"out" else ("SHUT" if collar.stage == &"docked" else "NO SEAL")
 	text(8, 5.0, outer, GREEN if outer != "NO SEAL" else DIM)
