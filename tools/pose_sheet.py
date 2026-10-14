@@ -1,13 +1,14 @@
 """Renders a rigged model's clips at chosen moments on one sheet, for checking animation by eye.
 
     Blender -b art/source/ch_suit.blend -P tools/pose_sheet.py -- <out.png> <view> <clip:t,t,...>...
-        [--hold=<model>[:tilt]] [--focus=<bone>] [--lens=<mm>] [--size=<px>]
+        [--hold=<model>[:tilt]] [--carry=<model>] [--focus=<bone>] [--lens=<mm>] [--size=<px>]
 
 <view> is azimuth,elevation[,distance[,height]] in degrees and metres (0 looks at the model's
 front, 90 at its left side), or "camera" for a first-person rig seen from the origin looking -Y.
 Each clip's moments are 0..1 through it, e.g. walk:0,0.125,0.25,0.375. Rows are clips, columns
 moments. `--hold` puts art/source/<model>.blend in the rig's hand as the game does (Items.hold):
-its SOCKET_grip on the rig's, pitched up `tilt` degrees. `--focus` looks at a bone instead (its
+its SOCKET_grip on the rig's, pitched up `tilt` degrees; `--carry` puts a big thing between the
+hands the same way (its SOCKET_grip on the rig's SOCKET_carry). `--focus` looks at a bone instead (its
 middle, as posed at each moment): the orbit views circle it, "camera" turns from the eye to it;
 with `--lens` (mm; 50 by default) to close in, e.g. `0,20,0.4 cuff:0 --focus=hand.L --lens=70`.
 `--size` sets each tile's height (240).
@@ -39,6 +40,8 @@ def main():
     for option in options:
         if option.startswith("--hold="):
             _hold(scene, option.removeprefix("--hold="))
+        elif option.startswith("--carry="):
+            _hold(scene, option.removeprefix("--carry="), "SOCKET_carry")
         elif option.startswith("--focus="):
             focus = option.removeprefix("--focus=")
         elif option.startswith("--lens="):
@@ -116,14 +119,16 @@ def _place(camera, view, focus):
     camera.rotation_euler = (centre - camera.location).to_track_quat("-Z", "Y").to_euler()
 
 
-def _hold(scene, spec):
+def _hold(scene, spec, socket_name="SOCKET_grip"):
     name, _, tilt = spec.partition(":")
-    hand = scene.objects["SOCKET_grip"]
+    hand = scene.objects[socket_name]
     path = Path(__file__).resolve().parents[1] / "art" / "source" / f"{name}.blend"
     with bpy.data.libraries.load(str(path)) as (source, loaded):
         loaded.objects = list(source.objects)
-    socket = next((o for o in loaded.objects if o.name.startswith("SOCKET_grip")), None)
-    offset = socket.matrix_world.translation.copy() if socket is not None else Vector()
+    # The item's own grip: renamed SOCKET_grip.001 or so on loading, as the rig has one already. Its
+    # sockets are unparented empties, so its location is where it is.
+    socket = next((o for o in loaded.objects if o.name.split(".")[0] == "SOCKET_grip"), None)
+    offset = socket.location.copy() if socket is not None else Vector()
     held = bpy.data.objects.new("held", None)
     scene.collection.objects.link(held)
     held.parent = hand

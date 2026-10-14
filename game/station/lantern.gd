@@ -133,6 +133,7 @@ func _furnish_rooms() -> void:
 	_prop("rm_crate", Vector3(7.75, 0, -1.25), -6.0, [])
 	_prop("rm_crate", Vector3(7.3, 0.8, -1.2), 25.0, [])
 	stock(&"power_cell", Vector3(8.6, 0.0, -1.35), -20.0)
+	stock(&"fuel_cell", Vector3(6.9, 0.02, 1.3), 15.0)
 	_beacon(Vector3(12, 2.6, 0))
 	# Drive room (8..12, 4): the jump drive and the fuel rack that feeds it.
 	_prop("rm_drive_core", Vector3(11.6, 0, 4.0), 0.0, [])

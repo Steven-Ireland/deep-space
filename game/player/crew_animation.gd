@@ -1,9 +1,9 @@
 class_name CrewAnimation
 extends AnimationTree
 ## Blends a crew rig's clips by what its crew member is doing: standing, walking and running in
-## step, crouching, the right arm holding something, the left raising the wrist cuff. Used for the
-## suit everyone else sees and the first-person arms. Set the blend values each frame; they're
-## eased here.
+## step, crouching, the right arm holding something or both arms carrying something big, the left
+## raising the wrist cuff. Used for the suit everyone else sees and the first-person arms. Set the
+## blend values each frame; they're eased here.
 ##
 ## Walk, run and crouch-walk are one stride cycle a second each, left heel strike first (TECH §5),
 ## so they blend in step: `rate` is stride cycles a second, negative walking backwards.
@@ -25,12 +25,13 @@ var run := 0.0
 var crouch := 0.0
 ## 0 .. 1 the wrist cuff raised.
 var cuff := 0.0
-## What the right hand holds: "tool" or "".
+## What the hands hold: "tool" (the right), "carry" (both) or "".
 var hold := ""
 ## Which way the stride plays: 1 forward, -1 walking backwards.
 var direction := 1.0
 
 var _tool := 0.0
+var _carry := 0.0
 var _clips: PackedStringArray
 
 
@@ -62,6 +63,9 @@ func setup(player: AnimationPlayer) -> void:
 	if _has("hold_tool"):
 		tree.add_node("tool", _clip("hold_tool"))
 		top = _layer(tree, top, "tool", "with_tool", skeleton, right_arm)
+	if _has("hold_carry"):
+		tree.add_node("carry", _clip("hold_carry"))
+		top = _layer(tree, top, "carry", "with_carry", skeleton, right_arm + [upper + ".L", "forearm.L", "hand.L"])
 	if _has("cuff"):
 		tree.add_node("cuff", _clip("cuff"))
 		var reading := [upper + ".L", "forearm.L", "hand.L"] + ([] if first_person else ["head", "chest"])
@@ -75,6 +79,7 @@ func setup(player: AnimationPlayer) -> void:
 func step(delta: float, speed: float) -> void:
 	var ease := 1.0 - exp(-delta * 10.0)
 	_tool = lerpf(_tool, 1.0 if hold == "tool" else 0.0, ease)
+	_carry = lerpf(_carry, 1.0 if hold == "carry" else 0.0, ease)
 	set("parameters/gait/blend_amount", run)
 	set("parameters/stand/blend_amount", move)
 	set("parameters/pace/scale", direction * stride_rate(speed, run))
@@ -84,6 +89,8 @@ func step(delta: float, speed: float) -> void:
 		set("parameters/sneak_pace/scale", direction / SNEAK_PERIOD)
 	if _has("hold_tool"):
 		set("parameters/with_tool/blend_amount", _tool)
+	if _has("hold_carry"):
+		set("parameters/with_carry/blend_amount", _carry)
 	if _has("cuff"):
 		set("parameters/reading/blend_amount", cuff * cuff * (3.0 - 2.0 * cuff))
 

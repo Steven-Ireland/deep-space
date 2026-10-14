@@ -159,8 +159,12 @@ def suit():
     grip = _bone_socket(skeleton, "SOCKET_grip", "hand.R", GLOVE_GRIP)
     holds = {style: _hold_pose(skeleton, **spec) for style, spec in HOLDS.items()}
     print(f"ch_suit holds: {holds}")
+    # Something big held in both hands sits between them (`SOCKET_carry`, carried by the chest).
+    carry = _bone_socket(skeleton, "SOCKET_carry", "chest", SUIT_CARRY)
+    holds["carry"] = _suit_carry_pose(skeleton)
+    print(f"ch_suit carry: {holds['carry']}")
     _suit_clips(skeleton, _cuff_pose(skeleton, cuff_centre, Vector((0, -1, 0)), Vector((0, 0, -1))), holds)
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, lens_obj, grip, lamp])
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[skeleton, lights_obj, cuff_obj, lens_obj, grip, lamp, carry])
 
 
 # The front of the helmet lamp's barrel, on the left of the helmet (the suit faces -Y, its left +X):
@@ -338,6 +342,67 @@ def _hold_pose(skeleton, at, aim, tilt):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
+# Carrying something big in both hands (GDD §9.4), by its side handles: they're 0.42 m apart (the
+# fuel cell's, art/blender/items.py), each upright, gripped palm-in. The thing's grip, midway
+# between them, sits at SUIT_CARRY: in front of the belly, clear of the chest unit and the knees.
+CARRY_HANDLES = 0.212
+SUIT_CARRY = (0.0, -0.37, 1.0)
+
+
+def _reach(skeleton, chain, grip, at, axes, limits, starts, label):
+    """An arm (`chain`: upper arm, forearm, hand) bringing `grip` (a rest point the hand carries)
+    to `at`, turning each (rest direction, wanted direction, weight) of `axes` the way it's wanted,
+    within `limits(x, matrices)` (a cost). The shoulder is free (x 0-2), the elbow a hinge with the
+    forearm's twist (3-4), the wrist tilts and bends (5-6). Solved for what it achieves."""
+    at = Vector(at)
+
+    def angles(x):
+        return {chain[0]: tuple(x[0:3]), chain[1]: (x[3], x[4], 0.0), chain[2]: (x[5], 0.0, x[6])}
+
+    def cost(x):
+        m = rig.pose_matrices(skeleton, angles(x))
+        place = (rig.deform(skeleton, m, chain[2], grip) - at).length_squared / 0.01 ** 2
+        turn = sum(w * (1 - rig.deform(skeleton, m, chain[2], rest, direction=True).dot(Vector(want).normalized()))
+                   for rest, want, w in axes)
+        return place + turn + limits(x, m) + sum(a * a for a in x) / 20000
+
+    best = None
+    for start in starts:
+        x, score = rig.solve(cost, start, step=20.0, iterations=5000)
+        if best is None or score < best[1]:
+            best = (x, score)
+    print(f"{label}: score {best[1]:.4f}")
+    return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
+
+
+def _mirror(pose):
+    """A pose of one side's bones as the other side's: the bones mirror across X, so a pitch stays
+    and a twist or a sideways turn reverses."""
+    swap = {".R": ".L", ".L": ".R"}
+    return {name[:-2] + swap[name[-2:]]: (rot[0], -rot[1], -rot[2]) for name, rot in pose.items()}
+
+
+def _suit_carry_pose(skeleton):
+    """Both arms carrying something big by its side handles, as the others see it: the gloves
+    closed on the handles palm-in, the fists upright, elbows bent at the sides. The right arm is
+    solved (as the tool hold is) and the left mirrors it."""
+    elbow_rest = Vector(next(b[1] for b in SUIT_BONES if b[0] == "forearm.R"))
+
+    def limits(x, m):
+        hinge = max(0.0, x[3]) ** 2 + x[4] ** 2 / 4
+        wrist = (max(0.0, x[5] - 35) ** 2 + max(0.0, -x[5] - 20) ** 2 + max(0.0, x[6] - 3) ** 2 * 10
+                 + max(0.0, -x[6] - 20) ** 2) / 4
+        elbow = rig.deform(skeleton, m, "forearm.R", elbow_rest)
+        return hinge + wrist + max(0.0, elbow.x + 0.25) ** 2 / 0.01 ** 2
+
+    at = Vector(SUIT_CARRY) + Vector((-CARRY_HANDLES, 0, 0))
+    right = _reach(skeleton, ("upper_arm.R", "forearm.R", "hand.R"), Vector(GLOVE_GRIP), at,
+                   [((0, -1, 0), (0, 0, 1), 400), ((1, 0, 0), (1, 0, 0), 200)], limits,
+                   ([-30, 0, 0, -70, 0, 0, 0], [-10, 10, 10, -90, 20, 10, 0], [-45, -10, -5, -50, -20, 0, 0]),
+                   "ch_suit carry")
+    return right | _mirror(right)
+
+
 def _cuff_pose(skeleton, cuff_centre, cuff_normal, cuff_up):
     """Reading the wrist cuff, as the others see it: the left forearm lifted across the chest with
     the cuff's face turned up to the visor, the head bowed to it. Solved for what it achieves."""
@@ -390,12 +455,6 @@ def _suit_clips(skeleton, cuff, holds):
                      "upper_arm.L": (-22, 0, -8), "upper_arm.R": (-22, 0, 8), "forearm.L": (-48, 0, 0), "forearm.R": (-48, 0, 0)})
         return pose
 
-    def carry(t):
-        pose = _gait_clip(WALK, arm_swing=0.0)(t)
-        pose.update({"upper_arm.L": (-55, 0, 12), "upper_arm.R": (-55, 0, -12), "forearm.L": (-50, 0, -10),
-                     "forearm.R": (-50, 0, 10), "spine": (-4, 0, 0)})
-        return pose
-
     def death(t):
         e = min(1.0, t * 1.6)
         fall = max(0.0, (t - 0.35) / 0.65)
@@ -417,9 +476,9 @@ def _suit_clips(skeleton, cuff, holds):
     rig.clip(skeleton, "crouch", 2.0, crouch, smooth=True)
     rig.clip(skeleton, "crouch_walk", 1.0, _gait_clip(SNEAK, lean=50, arm_swing=10, elbow=45, twist=4, tilt=2, head=10),
              smooth=True)
-    rig.clip(skeleton, "carry", 1.0, carry, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, held(cuff), smooth=True)
     rig.clip(skeleton, "hold_tool", 2.0, held(holds["tool"]), smooth=True)
+    rig.clip(skeleton, "hold_carry", 2.0, held(holds["carry"]), smooth=True)
     rig.clip(skeleton, "death", 1.4, death, loop=False)
 
 
@@ -493,13 +552,16 @@ def arms():
     rig.bind(low, skeleton)
     rig.bind(screen, skeleton)
     grip = _bone_socket(skeleton, "SOCKET_grip", "hand.R", GRIP)
+    carry_socket = _bone_socket(skeleton, "SOCKET_carry", "root", ARM_CARRY)
     axes = cuff_frame.to_3x3()
     reach = _arm_cuff_pose(skeleton, cuff_top, axes @ Vector((0, -1, 0)), axes @ Vector((0, 0, 1)))
     print(f"ch_arms cuff pose: {reach}")
     tool = _arm_hold_pose(skeleton, **ARM_TOOL)
     print(f"ch_arms tool hold: {tool}")
-    _arm_clips(skeleton, reach, tool)
-    return Model(low=low, decals=[d.to_object()], extras=[skeleton, screen, grip])
+    carry = _arm_carry_pose(skeleton)
+    print(f"ch_arms carry: {carry}")
+    _arm_clips(skeleton, reach, tool, carry)
+    return Model(low=low, decals=[d.to_object()], extras=[skeleton, screen, grip, carry_socket])
 
 
 # The middle of the right fist, where a held item's grip goes.
@@ -581,6 +643,41 @@ def _arm_hold_pose(skeleton, at, aim, tilt):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
+# Carrying something big in first person: its grip (midway between its handles) low in front, so
+# its top shows across the bottom of the view and the hands on its handles are seen looking down.
+# The relaxed left hand closes round its handle under the palm (LEFT_GRIP).
+ARM_CARRY = (0.0, -0.3, -0.62)
+LEFT_GRIP = (0.165, -0.45, -0.28)
+
+
+def _arm_carry_pose(skeleton):
+    """Both arms on a big thing's side handles, in first person: the right fist upright on its
+    handle, palm in; the left hand turned palm-in, fingers forward round the other. Elbows bend
+    only, low, out of the view. Solved for what it achieves."""
+    elbow_rest = {s: Vector(next(b[1] for b in ARM_BONES if b[0] == f"forearm.{s}")) for s in "LR"}
+
+    def limits(side):
+        sign = 1 if side == "R" else -1
+
+        def cost(x, m):
+            hinge = max(0.0, -x[3]) ** 2 + max(0.0, abs(x[4]) - 70) ** 2
+            bend = sign * x[6]
+            wrist = (max(0.0, x[5] - 20) ** 2 + max(0.0, -x[5] - 25) ** 2 + max(0.0, -bend - 3) ** 2 * 10
+                     + max(0.0, bend - 25) ** 2) / 4
+            elbow = rig.deform(skeleton, m, f"forearm.{side}", elbow_rest[side])
+            return hinge + wrist + max(0.0, elbow.z + 0.3) ** 2 / 0.01 ** 2
+        return cost
+
+    centre = Vector(ARM_CARRY)
+    starts = ([0, 0, 0, 20, 0, 0, 0], [20, 0, 10, 40, -40, 10, 0], [-10, 10, 0, 30, 40, 0, 10], [10, -20, -10, 60, 0, 0, 0])
+    right = _reach(skeleton, ("arm.R", "forearm.R", "hand.R"), Vector(GRIP), centre + Vector((-CARRY_HANDLES, 0, 0)),
+                   [((0, -1, 0), (0, 0, 1), 400), ((1, 0, 0), (1, 0, 0), 200)], limits("R"), starts, "ch_arms carry R")
+    left = _reach(skeleton, ("arm.L", "forearm.L", "hand.L"), Vector(LEFT_GRIP), centre + Vector((CARRY_HANDLES, 0, 0)),
+                  [((0, 0, -1), (-1, 0, 0), 300), ((0, -1, 0), (-0.2, -1, 0), 150)], limits("L"),
+                  [(a, -b, -c, d, -e, f, -g) for a, b, c, d, e, f, g in starts], "ch_arms carry L")
+    return right | left
+
+
 def _arm_cuff_pose(skeleton, centre, normal, up):
     """Reading the cuff: the left forearm lifted in front, low and left of centre, its screen square
     to the eye and upright, near enough to fill a good part of the view. Solved for what it
@@ -624,7 +721,7 @@ def _arm_cuff_pose(skeleton, centre, normal, up):
     return {name: tuple(round(a, 2) for a in rot) for name, rot in angles(best[0]).items()}
 
 
-def _arm_clips(skeleton, reach, tool):
+def _arm_clips(skeleton, reach, tool, carried):
     def idle(t):
         b = rig.wave(t)
         return {"root": (0.8 * b, 0, 0), "arm.L": (1.5 * b, 0, 0), "arm.R": (1.5 * rig.wave(t, 1, 0.2), 0, 0)}
@@ -653,10 +750,9 @@ def _arm_clips(skeleton, reach, tool):
         b = rig.wave(t)
         return {name: (rot[0] + b * 0.8, *rot[1:]) for name, rot in tool.items()}
 
-    def carry(t):
-        b = rig.wave(t, 2)
-        return {"arm.L": (-10 + 2 * b, 0, -18), "arm.R": (-10 + 2 * b, 0, 18), "forearm.L": (15, 0, -25), "forearm.R": (15, 0, 25),
-                "hand.L": (0, 0, -30), "hand.R": (0, 0, 30)}
+    def hold_carry(t):
+        b = rig.wave(t)
+        return {name: (rot[0] + b * 0.6, *rot[1:]) for name, rot in carried.items()}
 
     def swing(t):
         wind = max(0.0, 1 - t * 3)
@@ -668,5 +764,5 @@ def _arm_clips(skeleton, reach, tool):
     rig.clip(skeleton, "run", 1.0, run, smooth=True)
     rig.clip(skeleton, "cuff", 2.0, cuff, smooth=True)
     rig.clip(skeleton, "hold_tool", 3.0, hold_tool, smooth=True)
-    rig.clip(skeleton, "carry", 1.0, carry, smooth=True)
+    rig.clip(skeleton, "hold_carry", 3.0, hold_carry, smooth=True)
     rig.clip(skeleton, "swing", 0.6, swing, loop=False, smooth=True)

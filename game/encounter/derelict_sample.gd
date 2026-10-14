@@ -71,6 +71,7 @@ func _dress() -> void:
 	stock(&"salvage_plates", Vector3(28.4, 0.02, 3.0), -30.0)
 	stock(&"cartridge", Vector3(19.0, 0.82, 9.4), 60.0)
 	stock(&"sealant", Vector3(23.8, 0.02, 9.4), 0.0)
+	stock(&"fuel_cell", Vector3(20.4, 0.02, 7.3), -10.0)
 
 
 func _prop(model: String, at: Vector3, yaw: float) -> Node3D:

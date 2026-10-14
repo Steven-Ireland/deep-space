@@ -145,7 +145,8 @@ def fuel_cell():
         stencils.append(geo.text(body_text, 0.05, cream, matrix=frame(normal * face_offset + Vector((0, 0, 0.39)), normal)
                                  @ geo.place(rot=(0, -90, 0))))
 
-    sockets = [_socket("grip_l", (-0.212, 0, 0.41)), _socket("grip_r", (0.212, 0, 0.41)),
+    # Carried two-handed by its handles: `grip` between them goes on the carrier's SOCKET_carry.
+    sockets = [_socket("grip_l", (-0.212, 0, 0.41)), _socket("grip_r", (0.212, 0, 0.41)), _socket("grip", (0, 0, 0.41)),
                _socket("coupling", (0, 0, 0.85))]
     return Model(low=low, decals=[decals, letters, mark, *stencils], extras=sockets)
 

@@ -535,7 +535,7 @@ func _show_held() -> void:
 		print("Crew %s (%s): holds %s" % [name, "own" if is_multiplayer_authority() else "remote", held])
 	var own := is_multiplayer_authority()
 	var rig := view_model if own else body_visual
-	_held_item = Items.hold(held, rig.find_child("SOCKET_grip", true, false) as Node3D, not own)
+	_held_item = Items.hold(held, rig, not own)
 
 
 ## The helmet lamp shines from its lens on the left of the helmet, aimed to cross the line of sight

@@ -10,7 +10,8 @@ class_name Items
 ##     the way a fist holds a hammer (ARM_TOOL solves the arms' tool hold for 75°).
 ##   `glove`, in the suit's glove: 0 runs across it (HOLDS solves the tool hold for 0).
 ## A tool's few degrees either way from its hold's are how it angles from the others. Big things
-## ("carry") take both hands and never go on the belt.
+## ("carry") take both hands and never go on the belt: they sit upright between the hands, their
+## `SOCKET_grip` (midway between their handles) on the rig's `SOCKET_carry`.
 ##
 ## `mass` is in kilograms: heavy things don't fly far when thrown.
 
@@ -30,6 +31,8 @@ const KINDS := {
 	&"salvage_pipes": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_pipes.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 2.5},
 	&"salvage_board": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_board.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 1.0},
 	&"salvage_plates": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_plates.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 3.0},
+	# Big things, carried in both hands.
+	&"fuel_cell": {"name": "FUEL CELL", "model": "res://assets/models/items/fuel_cell.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 30.0},
 }
 
 ## The Tier 0 starting kit (GDD §9.4, §13), in belt order, with a slot to spare.
@@ -73,11 +76,15 @@ static func icon(kind: StringName) -> Texture2D:
 	return load(path) if path != "" and ResourceLoader.exists(path) else null
 
 
-## An instance of `kind` held at `grip` (a hand's grip socket): the item's own `SOCKET_grip` on
-## the hand's, pitched up by its tilt for that hand (the suit's `glove`, or the first-person fist).
-## Held things never cast shadows, so they can't shade the lamp's light on what's ahead.
-static func hold(kind: StringName, grip: Node3D, glove := false) -> Node3D:
-	if not KINDS.has(kind) or grip == null:
+## An instance of `kind` held by `rig` (the first-person arms, or the suit with `glove`): the
+## item's own `SOCKET_grip` on the rig's (the right hand's, or SOCKET_carry for a big thing),
+## pitched up by its tilt for that hand. Held things never cast shadows, so they can't shade the
+## lamp's light on what's ahead.
+static func hold(kind: StringName, rig: Node3D, glove := false) -> Node3D:
+	if not KINDS.has(kind):
+		return null
+	var grip := rig.find_child("SOCKET_carry" if two_handed(kind) else "SOCKET_grip", true, false) as Node3D
+	if grip == null:
 		return null
 	var item: Node3D = model(kind).instantiate()
 	item.name = "Held"
