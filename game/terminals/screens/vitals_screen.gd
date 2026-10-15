@@ -48,18 +48,4 @@ func _draw_screen() -> void:
 	text(0.5, 7.2, "O2 %3d%%" % roundi(o2 * 100.0), GREEN if o2 > 0.25 else RED)
 	if player.in_vacuum and blink():
 		text(10.5, 7.2, "VAC", AMBER)
-	text(0.5, 8.2, _where(player), AMBER)
-
-
-## Where a crew member is: a room aboard, a derelict, a satellite, or outside in space (on EVA); or
-## LOST, left behind.
-func _where(player: Player) -> String:
-	if player.cause == &"lost":
-		return "LOST"
-	var zone := Zone.at(player.get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT)
-	if zone == null:
-		return "OUTSIDE"
-	var deck := zone.get_parent()
-	if deck.is_in_group(&"lantern"):
-		return deck.room_at(player.global_position)
-	return "SATELLITE" if deck.get_parent() is Satellite else "DERELICT"
+	text(0.5, 8.2, player.whereabouts(), AMBER)

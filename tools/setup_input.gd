@@ -17,7 +17,8 @@ const KEYS := {
 	"slot_2": [KEY_2],
 	"slot_3": [KEY_3],
 	"slot_4": [KEY_4],
-	"cuff": [KEY_TAB],
+	"panel": [KEY_TAB],
+	"talk": [KEY_V],
 	"pause": [KEY_ESCAPE],
 }
 const BUTTONS := {

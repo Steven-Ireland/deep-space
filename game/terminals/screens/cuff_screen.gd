@@ -1,9 +1,68 @@
 extends CrtScreen
-## The wrist cuff's little screen (GDD §10): too small for words, so it speaks in bars and blips.
-## O2 as a bar, suit integrity as a bar, the EVA harness's propellant as a thin bar while it's worn,
-## a heartbeat blip at the crew member's pulse, the helmet lamp's battery as a row of cells.
+## The wrist cuff's communicator (GDD §10): suit-to-suit radio on one channel. Hold talk (V) and the
+## cuff comes up to speak into, the channel keyed open for the whole crew with the old keying tones.
+## Its little screen:
+##   - the channel and a lamp: amber TX while it's sending, green RX while it hears someone, dark
+##     while the channel's quiet
+##   - a waterfall of what's on the channel: its spectrum (the Radio bus: Sound.radio_spectrum),
+##     low notes left, high right, the newest line at the top, scrolling down and fading
+##   - who's on it: TX, the crew member heard, or a dim CH 1 standing by; and their signal's bars
+## The voices themselves are to come (TECH §2): for now the channel carries its hiss and its tones.
+
+const BANDS := 44
+const WATERFALL := Rect2i(2, 11, BANDS, 33)
+## How fast the waterfall scrolls (lines a second).
+const SCROLL := 24.0
 
 var player: Player
+var _image: Image
+var _texture: ImageTexture
+var _scroll := 0.0
+
+
+func _ready() -> void:
+	_image = Image.create(WATERFALL.size.x, WATERFALL.size.y, false, Image.FORMAT_RGB8)
+	_image.fill(Color.BLACK)
+	_texture = ImageTexture.create_from_image(_image)
+
+
+func _process(delta: float) -> void:
+	super._process(delta)
+	_scroll += delta * SCROLL
+	var lines := int(_scroll)
+	if lines <= 0:
+		return
+	_scroll -= lines
+	var on := not Sound.talking().is_empty()
+	for i in mini(lines, WATERFALL.size.y):
+		_line(Sound.radio_spectrum(BANDS) if on else PackedFloat32Array())
+	_texture.update(_image)
+
+
+## The waterfall moves down a line and takes `levels` as its newest, along the top.
+func _line(levels: PackedFloat32Array) -> void:
+	var w := _image.get_width()
+	var h := _image.get_height()
+	_image.blit_rect(_image, Rect2i(0, 0, w, h - 1), Vector2i(0, 1))
+	for x in w:
+		var level := levels[x] if x < levels.size() else 0.0
+		# A faint speckle of the receiver's own noise, so a quiet channel still looks alive.
+		level = maxf(level, randf() * 0.12)
+		_image.set_pixel(x, 0, _phosphor(level))
+	# What's older fades: each line a little dimmer than the one above it.
+	for y in range(1, h):
+		if y % 4 == 0:
+			for x in w:
+				_image.set_pixel(x, y, _image.get_pixel(x, y) * 0.94)
+
+
+## A level on the phosphor's ramp: black, through the dim green and the bright, to white.
+static func _phosphor(level: float) -> Color:
+	if level < 0.4:
+		return Color.BLACK.lerp(DIM, level / 0.4)
+	if level < 0.8:
+		return DIM.lerp(GREEN, (level - 0.4) / 0.4)
+	return GREEN.lerp(WHITE, (level - 0.8) / 0.2)
 
 
 func _draw_screen() -> void:
@@ -11,30 +70,24 @@ func _draw_screen() -> void:
 		player = get_tree().get_first_node_in_group(&"local_player") as Player
 		return
 	var w := size.x
-	var h := size.y
-	var o2 := player.o2 / Player.O2_CAPACITY
-	var integrity := 1.0
-	var battery := player.battery
-	# O2 blinks when it's nearly gone.
-	var o2_colour := GREEN if o2 > 0.25 else (RED if o2 > 0.1 or blink(0.5) else DIM)
-	_bar(Rect2(4, 6, w - 8, 7), o2, o2_colour)
-	_bar(Rect2(4, 18, w - 8, 7), integrity, GREEN if integrity > 0.5 else AMBER)
-	if player.harness:
-		var rcs := player.rcs / Player.RCS_FUEL
-		_bar(Rect2(4, 29, w - 8, 5), rcs, AMBER if rcs > 0.25 else (RED if blink(0.5) else DIM))
-	# Heartbeat: a blip that flashes at the pulse, red as health fails; a flat line, dead.
-	var bpm := player.heart_rate()
-	var pulse := GREEN if player.health > 0.3 else RED
-	if bpm > 0.0:
-		var beat := fmod(time * bpm / 60.0, 1.0)
-		draw_circle(Vector2(10, h - 16), 4, Color(pulse, 1.0 - beat * 1.5))
-	draw_line(Vector2(18, h - 16), Vector2(w - 4, h - 16), DIM if bpm > 0.0 else RED, 1.0)
-	# The helmet lamp's battery.
-	for i in 4:
-		var lit := battery > i / 4.0
-		draw_rect(Rect2(4 + i * ((w - 8) / 4.0), h - 7, (w - 8) / 4.0 - 2, 4), AMBER if lit else DIM)
+	var on := Sound.talking()
+	var sending := on.has(player)
+	var hearing := not on.is_empty() and not sending
+	Glyphs.draw(self, "CH1", Vector2(2, 3), DIM if on.is_empty() else GREEN)
+	var lamp := AMBER if sending else (GREEN if hearing else Color(DIM, 0.6))
+	draw_rect(Rect2(w - 6, 3, 4, 5), lamp if on.is_empty() or blink(0.5) else Color(lamp, 0.35))
+	if not on.is_empty():
+		Glyphs.draw(self, "TX" if sending else "RX", Vector2(w - 15, 3), lamp)
+	draw_rect(Rect2(WATERFALL.position - Vector2i(1, 1), WATERFALL.size + Vector2i(2, 2)), DIM, false, 1.0)
+	draw_texture(_texture, Vector2(WATERFALL.position))
+	var who := "TX" if sending else (_short((on[0] as Player).crew_name()) if hearing else "STBY")
+	Glyphs.draw(self, who, Vector2(2, size.y - 8), AMBER if sending else (GREEN if hearing else DIM))
+	# Signal bars: full on the station's own channel, for now.
+	for i in 3:
+		var height := 2 + i * 2
+		draw_rect(Rect2(w - 11 + i * 3, size.y - 3 - height, 2, height), GREEN if not on.is_empty() else Color(DIM, 0.6))
 
 
-func _bar(r: Rect2, value: float, colour: Color) -> void:
-	draw_rect(r, DIM, false, 1.0)
-	draw_rect(Rect2(r.position + Vector2(1, 1), Vector2((r.size.x - 2) * clampf(value, 0, 1), r.size.y - 2)), colour)
+## A crew member's name short enough for the cuff: CREW 2 is C2.
+static func _short(crew: String) -> String:
+	return "C" + crew.get_slice(" ", 1)

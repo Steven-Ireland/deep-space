@@ -1721,6 +1721,165 @@ def generate_suit_alarms():
     save_wav("player/flatline.wav", samples, normalize_to=0.5, saturate=False)
 
 
+# =============================================================================
+# THE SUIT, ITS PANEL AND ITS RADIO (GDD §9.2, §10)
+# =============================================================================
+
+def _tone(samples, start, length, freq, gain=1.0, attack=0.004, release=0.01, shape=0.0):
+    """A plain tone at `freq` Hz (a function of u, 0..1 over its length, or a number) for `length`
+    seconds from `start`, eased in and out; `shape` drives it toward a square's buzz."""
+    first = int(SAMPLE_RATE * start)
+    n = int(SAMPLE_RATE * length)
+    phase = 0.0
+    for k in range(n):
+        i = first + k
+        if i >= len(samples):
+            break
+        t = k / SAMPLE_RATE
+        f = freq(k / n) if callable(freq) else freq
+        phase += 2.0 * math.pi * f / SAMPLE_RATE
+        x = math.sin(phase)
+        if shape > 0.0:
+            x = math.tanh(x * (1.0 + shape * 6.0)) / math.tanh(1.0 + shape * 6.0)
+        env = min(1.0, t / attack) * min(1.0, (length - t) / release)
+        samples[i] += x * env * gain
+
+
+def generate_suit_sounds():
+    """
+    In the wearer's helmet (GDD §9.2):
+    - suit_leak (2 s loop): O2 escaping a breach: a thin, high hiss through a tear, sputtering as
+      its edges flap, a low whistle riding it.
+    - sealant_patch (1.1 s): the can's valve cracking, a fat burst of foam, it crackling as it
+      sets, a gloved palm pressing it flat.
+    - canister_refill (1.3 s): the canister's coupling clicking onto the suit's port, gas rushing
+      in (falling as the pressure evens out), the valve shutting.
+    - geiger_click (0.03 s): the suit's dosimeter ticking; played at the dose rate (GDD §11).
+    """
+    length = int(SAMPLE_RATE * 2.0)
+    n = length + SAMPLE_RATE // 4
+    samples = [0.0] * n
+    rng = random.Random(3001)
+    tear = Biquad.bandpass(5200, q=1.6)
+    edge = Biquad.bandpass(2900, q=1.3)
+    flap = Biquad.lowpass(14.0, q=0.7)
+    whistle = 0.0
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        w = rng.random() * 2.0 - 1.0
+        sputter = 0.75 + 0.25 * math.tanh(flap.process(rng.random() * 2.0 - 1.0) * 40.0)
+        whistle += 2.0 * math.pi * (1850.0 + 30.0 * math.sin(2.0 * math.pi * 3.1 * t)) / SAMPLE_RATE
+        samples[i] = (tear.process(w) * 1.0 + edge.process(w) * 0.55) * sputter + math.sin(whistle) * 0.035 * sputter
+    samples = Biquad.highpass(400, q=0.7).process_all(samples)
+    save_wav("player/suit_leak.wav", seamless(samples, length, fade_seconds=0.08), normalize_to=0.7, saturate=False)
+
+    n = int(SAMPLE_RATE * 1.1)
+    samples = [0.0] * n
+    _click(samples, 0.02, 3011, fc=2800.0, body=1500.0, gain=0.8)
+    _burst(samples, 0.05, 0.55, 3012, 2300.0, q=0.6, gain=1.3, decay=2.2, attack=0.015)
+    _burst(samples, 0.05, 0.5, 3013, 5200.0, q=1.0, gain=0.5, decay=3.0, attack=0.01)
+    rng = random.Random(3014)
+    for k in range(70):
+        at = 0.45 + rng.random() * 0.5
+        _click(samples, at, 3100 + k, fc=rng.uniform(2500.0, 5500.0), body=rng.uniform(900.0, 2200.0),
+               gain=0.12 * (1.0 - (at - 0.45) / 0.5))
+    _burst(samples, 0.88, 0.15, 3015, 700.0, q=1.0, gain=0.5, decay=25.0)
+    _thunk(samples, 0.9, 3016, weight=0.5, gain=0.35)
+    samples = Biquad.highpass(150, q=0.7).process_all(samples)
+    save_wav("foley/sealant_patch.wav", samples, normalize_to=0.82, saturate=False)
+
+    n = int(SAMPLE_RATE * 1.3)
+    samples = [0.0] * n
+    _click(samples, 0.02, 3021, fc=3600.0, body=1700.0, gain=1.0)
+    _click(samples, 0.07, 3022, fc=3000.0, body=1300.0, gain=0.8)
+    noise = pink_noise(n, seed=3023)
+    rush = Biquad.bandpass(1300, q=0.8)
+    for i in range(int(SAMPLE_RATE * 0.1), int(SAMPLE_RATE * 1.05)):
+        t = i / SAMPLE_RATE - 0.1
+        if t > 0.0 and i % 64 == 0:
+            rush = _retune(rush, 1300.0 - 600.0 * t / 0.95, 0.8)
+        samples[i] += rush.process(noise[i]) * min(1.0, t / 0.03) * math.exp(-t * 2.2) * 2.2
+    _click(samples, 1.06, 3024, fc=2400.0, body=1100.0, gain=0.9)
+    _thunk(samples, 1.07, 3025, weight=0.5, gain=0.3)
+    samples = Biquad.highpass(120, q=0.7).process_all(samples)
+    save_wav("foley/canister_refill.wav", samples, normalize_to=0.82, saturate=False)
+
+    n = int(SAMPLE_RATE * 0.03)
+    samples = [0.0] * n
+    _click(samples, 0.0, 3031, fc=4200.0, body=2600.0, gain=1.0)
+    save_wav("player/geiger_click.wav", samples, normalize_to=0.8, saturate=False)
+
+
+def generate_ui_sounds():
+    """
+    The suit panel (GDD §10), on the visor:
+    - ui_open (0.22 s), ui_close (0.2 s): the visor's projector waking with a rising chirp and a
+      soft relay, or dropping away.
+    - ui_tick (0.03 s): a slot or a tab picked.
+    - ui_move (0.14 s): something moved between slots: a magnetic clip letting go and catching.
+    """
+    n = int(SAMPLE_RATE * 0.22)
+    samples = [0.0] * n
+    _click(samples, 0.0, 3201, fc=3000.0, body=1400.0, gain=0.4)
+    _tone(samples, 0.01, 0.18, lambda u: 700.0 + 900.0 * u ** 0.7, gain=0.25, attack=0.01, release=0.06)
+    _tone(samples, 0.01, 0.18, lambda u: 1400.0 + 1800.0 * u ** 0.7, gain=0.08, attack=0.01, release=0.06)
+    save_wav("ui/ui_open.wav", samples, normalize_to=0.6, saturate=False)
+
+    n = int(SAMPLE_RATE * 0.2)
+    samples = [0.0] * n
+    _tone(samples, 0.0, 0.16, lambda u: 1500.0 - 900.0 * u ** 0.7, gain=0.25, attack=0.005, release=0.06)
+    _click(samples, 0.15, 3202, fc=2600.0, body=1200.0, gain=0.35)
+    save_wav("ui/ui_close.wav", samples, normalize_to=0.55, saturate=False)
+
+    n = int(SAMPLE_RATE * 0.03)
+    samples = [0.0] * n
+    _tone(samples, 0.0, 0.025, 2400.0, gain=0.4, attack=0.001, release=0.015)
+    _click(samples, 0.0, 3203, fc=4500.0, body=2400.0, gain=0.2)
+    save_wav("ui/ui_tick.wav", samples, normalize_to=0.45, saturate=False)
+
+    n = int(SAMPLE_RATE * 0.14)
+    samples = [0.0] * n
+    _click(samples, 0.0, 3204, fc=2200.0, body=900.0, gain=0.6)
+    _click(samples, 0.07, 3205, fc=3200.0, body=1500.0, gain=0.9)
+    _thunk(samples, 0.07, 3206, weight=0.35, gain=0.15)
+    save_wav("ui/ui_move.wav", samples, normalize_to=0.55, saturate=False)
+
+
+def generate_radio_sounds():
+    """
+    The communicator on the wrist cuff (GDD §10): suit-to-suit radio, keyed in the old way.
+    - radio_open (0.3 s): the squelch breaking with a crackle, then the keying tone (2525 Hz, a
+      quarter second: the tones the Apollo flights keyed on).
+    - radio_close (0.42 s): the release tone (2475 Hz) and the squelch's hiss closing behind it.
+    - radio_static (2 s loop): an open channel's thin hiss and crackle, very low.
+    """
+    def band(samples):
+        return Biquad.lowpass(3200, q=0.7).process_all(Biquad.highpass(300, q=0.7).process_all(samples))
+
+    n = int(SAMPLE_RATE * 0.3)
+    samples = [0.0] * n
+    _burst(samples, 0.0, 0.05, 3301, 1800.0, q=0.5, gain=1.2, decay=30.0)
+    _click(samples, 0.0, 3302, fc=2500.0, body=1000.0, gain=0.8)
+    _tone(samples, 0.04, 0.25, 2525.0, gain=0.45, attack=0.004, release=0.01)
+    save_wav("ui/radio_open.wav", band(samples), normalize_to=0.6, saturate=False)
+
+    n = int(SAMPLE_RATE * 0.42)
+    samples = [0.0] * n
+    _tone(samples, 0.0, 0.25, 2475.0, gain=0.45, attack=0.004, release=0.01)
+    _burst(samples, 0.25, 0.17, 3303, 1600.0, q=0.4, gain=1.4, decay=14.0, attack=0.003)
+    save_wav("ui/radio_close.wav", band(samples), normalize_to=0.6, saturate=False)
+
+    length = int(SAMPLE_RATE * 2.0)
+    n = length + SAMPLE_RATE // 4
+    samples = [0.0] * n
+    rng = random.Random(3304)
+    for i in range(n):
+        samples[i] = (rng.random() * 2.0 - 1.0) * 0.25
+    for k in range(18):
+        _click(samples, rng.random() * 2.2, 3310 + k, fc=rng.uniform(1200.0, 3000.0), body=rng.uniform(600.0, 1500.0), gain=0.6)
+    save_wav("ui/radio_static.wav", seamless(band(samples), length, fade_seconds=0.08), normalize_to=0.5, saturate=False)
+
+
 def main():
     generate_flashlight_clicks()
     generate_all_footsteps()
@@ -1747,6 +1906,9 @@ def main():
     generate_crawler_sounds()
     generate_hanger_sounds()
     generate_suit_alarms()
+    generate_suit_sounds()
+    generate_ui_sounds()
+    generate_radio_sounds()
 
 
 if __name__ == "__main__":

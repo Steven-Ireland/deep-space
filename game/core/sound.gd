@@ -4,8 +4,11 @@ extends Node
 ##   World    everything heard through the air: doors, footfalls, a teammate's lamp switch, the
 ##            consoles, the jump, and Ambient, the sound of the place itself. Out of the air it's
 ##            heavily low-passed: the vacuum rule, heard only through contact.
-##   Suit     inside the helmet (the lamp's switch, the EVA harness's jets; breathing and the radio
-##            to come): clear anywhere.
+##   Suit     inside the helmet (the lamp's switch, the EVA harness's jets, the suit panel, the
+##            dosimeter, a breach's hiss; breathing to come): clear anywhere.
+##   Radio    the communicator (GDD §10): the channel keyed and released, its hiss while it's open
+##            (and the crew's voices, to come: TECH §2); clear anywhere. Its spectrum is read for
+##            the cuff's waterfall and the visor's bars (radio_spectrum).
 ## The ambience follows the crew member at this machine: the LANTERN's hum aboard (a comfort, and
 ## its absence a warning), a derelict's drone in one, a working relay's whine and fans in a
 ## satellite, nothing out in space. Aboard in a jump (Run,
@@ -129,10 +132,39 @@ const CREATURE := {
 ## helmet; the Vitals board flatlines too).
 const SUIT_WOUND := preload("res://assets/audio/player/suit_wound.wav")
 const FLATLINE := preload("res://assets/audio/player/flatline.wav")
+## A breached suit leaking out of the air (a loop played while it leaks), the dosimeter's tick, and
+## what using something up sounds like (Player.used).
+const SUIT_LEAK := preload("res://assets/audio/player/suit_leak.wav")
+const LEAK_DB := -9.0
+const GEIGER := preload("res://assets/audio/player/geiger_click.wav")
+const USED := {
+	&"o2_canister": preload("res://assets/audio/foley/canister_refill.wav"),
+	&"sealant": preload("res://assets/audio/foley/sealant_patch.wav"),
+}
+## The suit panel (GDD §10) on the visor: opening, closing, a pick, a thing moved between slots.
+const UI := {
+	&"open": preload("res://assets/audio/ui/ui_open.wav"),
+	&"close": preload("res://assets/audio/ui/ui_close.wav"),
+	&"tick": preload("res://assets/audio/ui/ui_tick.wav"),
+	&"move": preload("res://assets/audio/ui/ui_move.wav"),
+	&"deny": preload("res://assets/audio/foley/terminal_error.wav"),
+	&"read": preload("res://assets/audio/foley/terminal_beep.wav"),
+}
+## The communicator (the wrist cuff): the channel keyed open and released, and an open channel's
+## hiss, on the Radio bus (heard clear anywhere, as the suit's own).
+const RADIO := {
+	&"open": preload("res://assets/audio/ui/radio_open.wav"),
+	&"close": preload("res://assets/audio/ui/radio_close.wav"),
+}
+const RADIO_STATIC := preload("res://assets/audio/ui/radio_static.wav")
+const STATIC_DB := -22.0
 
 var _vacuum: AudioEffectLowPassFilter
 var _ambience := {} # ambience: its AudioStreamPlayer, always playing, faded in and out
 var _stage := &"" # the jump's stage last heard (&"" none)
+var _keyed := {} # each crew member on the channel at the last look
+var _static: AudioStreamPlayer
+var _spectrum: AudioEffectSpectrumAnalyzerInstance
 
 
 func _ready() -> void:
@@ -146,9 +178,20 @@ func _ready() -> void:
 		add_child(player)
 		player.play()
 		_ambience[place] = player
+	_static = AudioStreamPlayer.new()
+	_static.name = "RadioStatic"
+	_static.stream = RADIO_STATIC
+	_static.bus = &"Radio"
+	_static.volume_db = SILENT_DB
+	add_child(_static)
+	_static.play()
+	var radio := AudioServer.get_bus_index(&"Radio")
+	if radio >= 0 and AudioServer.get_bus_effect_count(radio) > 0:
+		_spectrum = AudioServer.get_bus_effect_instance(radio, 0) as AudioEffectSpectrumAnalyzerInstance
 
 
 func _process(delta: float) -> void:
+	_follow_radio(delta)
 	var crew := get_tree().get_first_node_in_group(&"local_player") as Player
 	var place := place_of(crew) if crew != null else &""
 	var stage := _stage_of(Run.of(self))
@@ -198,6 +241,49 @@ static func place_of(crew: Player) -> StringName:
 	if zone.get_parent().is_in_group(&"lantern"):
 		return &"lantern"
 	return &"satellite" if zone.get_parent().get_parent() is Satellite else &"derelict"
+
+
+## The crew on the communicator's channel now (their cuff keyed: GDD §10), in crew order.
+func talking() -> Array[Player]:
+	var out: Array[Player] = []
+	var crew := get_tree().get_nodes_in_group(&"crew")
+	crew.sort_custom(func(a, b): return int(str(a.name)) < int(str(b.name)))
+	for player: Player in crew:
+		if player.cuff_up and not player.dead:
+			out.append(player)
+	return out
+
+
+## The channel keyed and released, heard by everyone as each crew member keys it; its hiss while
+## anyone's on it.
+func _follow_radio(delta: float) -> void:
+	var on := talking()
+	for player in on:
+		if not _keyed.has(player):
+			radio(true)
+	for player: Player in _keyed:
+		if not is_instance_valid(player) or player not in on:
+			radio(false)
+	_keyed.clear()
+	for player in on:
+		_keyed[player] = true
+	var level := STATIC_DB if not on.is_empty() else SILENT_DB
+	_static.volume_db = lerpf(_static.volume_db, level, 1.0 - exp(-delta * 20.0))
+
+
+## What's on the channel now: `bands` levels (0 .. about 1), log-spaced from 150 Hz to 4 kHz, the
+## radio's passband.
+func radio_spectrum(bands: int) -> PackedFloat32Array:
+	var out := PackedFloat32Array()
+	out.resize(bands)
+	if _spectrum == null:
+		return out
+	for i in bands:
+		var low := 150.0 * pow(4000.0 / 150.0, float(i) / bands)
+		var high := 150.0 * pow(4000.0 / 150.0, float(i + 1) / bands)
+		var magnitude := _spectrum.get_magnitude_for_frequency_range(low, high).length()
+		out[i] = clampf((linear_to_db(maxf(magnitude, 1e-6)) + 72.0) / 60.0, 0.0, 1.0)
+	return out
 
 
 ## A crew member's footfall on the deck under them: harder at a sprint, softer crouched, heavier
@@ -314,6 +400,64 @@ func wounded(crew: Player) -> void:
 		_play(SUIT_WOUND, &"Suit", 0.0)
 	else:
 		_play_at(SUIT_WOUND, crew, 14.0, -4.0, 1.0, Vector3.UP * Player.CHEST_HEIGHT)
+
+
+## A crew member using something up (`kind`: an O2 canister into the suit, a patch of sealant):
+## in their own helmet, or from them for anyone near.
+func used(crew: Player, kind: StringName) -> void:
+	if not USED.has(kind):
+		return
+	if crew.is_multiplayer_authority():
+		_play(USED[kind], &"Suit", -2.0, randf_range(0.97, 1.03))
+	else:
+		_play_at(USED[kind], crew, 12.0, -2.0, randf_range(0.97, 1.03), Vector3.UP * Player.CHEST_HEIGHT)
+
+
+## A breached suit's leak on `crew`, looping silently until it leaks (leak_level): in the wearer's
+## helmet, or from their suit for anyone near. Returns the player, for leak_level.
+func leak(crew: Player) -> Node:
+	return _loop_on(crew, SUIT_LEAK, "Leak", 10.0)
+
+
+static func leak_level(player: Node, on: bool) -> void:
+	player.set("volume_db", LEAK_DB if on else SILENT_DB)
+
+
+## The suit's dosimeter ticking once, in its wearer's helmet.
+func geiger() -> void:
+	_play(GEIGER, &"Suit", -4.0, randf_range(0.9, 1.1))
+
+
+## The suit panel (`what`: a UI sound), on the visor.
+func ui(what: StringName) -> void:
+	_play(UI[what], &"Suit", -6.0)
+
+
+## The communicator keyed open or released (by anyone on the channel: everyone hears it).
+func radio(opening: bool) -> void:
+	_play(RADIO[&"open" if opening else &"close"], &"Radio", -4.0)
+
+
+## A looping `stream` on `crew`, silent until its level is set: in their helmet (the Suit bus), or
+## from their chest through the air for everyone else, heard to `reach` metres.
+func _loop_on(crew: Player, stream: AudioStream, label: String, reach: float) -> Node:
+	var player: Node
+	if crew.is_multiplayer_authority():
+		player = AudioStreamPlayer.new()
+		player.bus = &"Suit"
+	else:
+		var placed := AudioStreamPlayer3D.new()
+		placed.bus = &"World"
+		placed.unit_size = NEAR
+		placed.max_distance = reach
+		placed.position = Vector3.UP * Player.CHEST_HEIGHT
+		player = placed
+	player.name = label
+	player.stream = stream
+	player.set("volume_db", SILENT_DB)
+	crew.add_child(player)
+	player.play()
+	return player
 
 
 ## A crew member dying (`why`, Player.cause): their suit's monitor flatlining in their helmet.

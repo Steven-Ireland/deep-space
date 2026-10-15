@@ -92,10 +92,31 @@ const LOOK_UP := 4.0
 ## Struck by a creature: how long the jolt to the view lasts, and how hard (as a jump's shake).
 const WOUND_TIME := 0.45
 const WOUND_SHAKE := 2.5
+## Suit integrity (GDD §9.2): blows wear it down by WEAR of what they take from its wearer's health.
+## A blow taking BREACH_AT or more, or any once it's below FRAIL, breaches it: out of the air a
+## breached suit leaks LEAK more seconds of O2 a second, CRACKED times that once it's worn through
+## (its visor cracked), until it's patched with sealant, which seals it and brings it back to PATCH.
+const WEAR := 0.7
+const BREACH_AT := 0.3
+const FRAIL := 0.35
+const LEAK := 3.0
+const CRACKED := 3.0
+const PATCH := 0.6
+## What each way of dying is called (the dead's own screen, the Vitals board).
+const CAUSES := {
+	&"suffocated": "SUFFOCATED", &"lost": "LOST", &"crawler": "MAULED", &"grabbed": "TAKEN FROM BEHIND",
+	&"hanger": "DRAWN UP", &"breach": "SUIT BREACH", &"electrocuted": "ELECTROCUTED", &"irradiated": "IRRADIATED",
+	&"crushed": "CRUSHED", &"spaced": "BLOWN OUT", &"shot": "SHOT",
+}
 
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
 signal belt_changed
+## Emitted on the owner's machine when a log's read into the suit (the suit panel's LOGS).
+signal logs_changed
+## Emitted on the owner's machine with a few words for the visor to flash (SUIT INTACT, SECTION B
+## POWER RESTORED): `level` 0 news, 1 a warning, 2 danger.
+signal notice(text: String, level: int)
 
 ## A jet's puff of gas: a pale cone along -Z, short-lived and see-through; the EVA harness, worn
 ## over the suit.
@@ -108,17 +129,25 @@ var lamp_on := false
 var crouching := false
 var sprinting := false
 ## The kind of item in hand (Items), whether it's burning (a struck flare), and whether the wrist
-## cuff is raised to read.
+## cuff is raised: its communicator keyed, the crew member speaking on the channel (GDD §10).
 var held := &""
 var held_lit := false
 var cuff_up := false
 ## Swings so far: each new one plays the swing for everyone.
 var swings := 0
+## Things used up so far (a canister, a patch), and the last of them: each new one heard by everyone.
+var uses := 0
+var used := &""
 ## The suit (GDD §9.2): O2 left in seconds, health 0..1, and whether it's breathing for its wearer
-## (out of the air).
+## (out of the air). Its dosimeter (owner only): the dose rate where they stand, 0 none .. 1 enough
+## to kill in RAD_LETHAL seconds (Hazards).
 var o2 := O2_CAPACITY
 var health := 1.0
 var in_vacuum := false
+## How whole the suit is (1 new .. 0 worn through), and whether it's breached and leaking.
+var integrity := 1.0
+var breached := false
+var radiation := 0.0
 ## The helmet lamp's charge, 0..1.
 var battery := 1.0
 ## Whether they're on the ground (only the owner's body moves, so only it knows): footfalls and
@@ -132,10 +161,11 @@ var harness := false
 var rcs := RCS_FUEL
 var thrust := Vector3.ZERO
 var bumps := 0
-## Dead (GDD §11), and why: &"suffocated"; &"lost" (left behind when the station jumped: no body to
-## bring home); &"crawler" (its second blow), &"grabbed" (by the Crawler, from behind); &"hanger"
-## (drawn up into its tendrils). Their body lies where they fell (a LooseBody); they watch through
-## the station's cameras (Spectator) until the med bay brings them back (revive).
+## Dead (GDD §11), and why (CAUSES): &"suffocated"; &"breach" (out of O2 through a breached suit);
+## &"lost" (left behind when the station jumped: no body to bring home); &"crawler" (its second
+## blow), &"grabbed" (by the Crawler, from behind); &"hanger" (drawn up into its tendrils); and the
+## hazards' (Hazards). Their body lies where they fell (a LooseBody); they watch through the
+## station's cameras (Spectator) until the med bay brings them back (revive).
 var dead := false
 var cause := &""
 ## Held in a Hanger's tendrils (GDD §12): drawn up off the deck, dying, until it's struck.
@@ -148,6 +178,9 @@ var slot := 0
 ## A big thing held in both hands ({} when there's none), on the owner's machine. While carrying,
 ## nothing comes off the belt.
 var carrying := {}
+## The logs read from data cores into the suit (Lore indices, in the order read), on the owner's
+## machine.
+var logs: Array[int] = []
 
 ## The Interactable under the crosshair, on the owner's machine.
 var aimed_at: Interactable
@@ -157,6 +190,8 @@ var _hold_time := 0.0
 var _hold_lost := 0.0 # seconds the crosshair has been off it
 ## The terminal this crew member is working at, if any (GDD §10).
 var operating: Terminal
+## The suit panel on their visor (Tab), on the owner's machine.
+var panel: SuitPanel
 var _camera_tween: Tween
 
 @onready var head: Node3D = $Head
@@ -205,6 +240,9 @@ var _wounded := 0.0 # seconds left of a wound's jolt (owner)
 ## Seconds since they were last hurt (owner): the visor's red flash reads it.
 var since_hurt := 99.0
 var _charge_lamps: ChargeLamps
+var _uses_heard := 0
+var _leak_sound: Node # a breach's hiss: in the owner's helmet, or from the suit for everyone else
+var _leak_puff: CPUParticles3D # O2 venting from a teammate's breached suit
 
 
 func _init() -> void:
@@ -236,6 +274,10 @@ func _ready() -> void:
 		var hud := preload("res://game/player/visor_hud.tscn").instantiate()
 		hud.player = self
 		add_child(hud)
+		panel = SuitPanel.new()
+		panel.name = "SuitPanel"
+		panel.player = self
+		add_child(panel)
 	else:
 		_animation = _animate_rig(body_visual)
 		_pose = CrewPose.new()
@@ -268,6 +310,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		_terminal_input(event)
 		get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("panel"):
+		panel.toggle()
+		return
+	if panel != null and panel.is_open:
+		# With the panel open, the belt keys and the lamp still answer; nothing else does.
+		if event.is_action_pressed("pause"):
+			panel.close()
+		elif event.is_action_pressed("lamp"):
+			switch_lamp()
+		else:
+			for i in belt.size():
+				if event.is_action_pressed("slot_%d" % (i + 1)):
+					select_slot(i)
+		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		if seized:
 			return
@@ -281,7 +337,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("jump"):
 		_jump_wanted = JUMP_BUFFER
 	elif event.is_action_pressed("lamp"):
-		lamp_on = not lamp_on and battery > 0.0
+		switch_lamp()
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
 		if aimed_at.hold > 0.0:
 			_holding = aimed_at
@@ -312,6 +368,19 @@ static func of_peer(tree: SceneTree, peer: int) -> Player:
 		if player.name == str(peer):
 			return player
 	return null
+
+
+## The crew member at this machine, or null.
+static func local(tree: SceneTree) -> Player:
+	return tree.get_first_node_in_group(&"local_player") as Player
+
+
+## Flashes `text` on the visor of the crew member at this machine (`level` 0 news, 1 a warning, 2
+## danger), if there is one: what the suit picks up of what's happening around it.
+static func tell(tree: SceneTree, text: String, level := 0) -> void:
+	var player := local(tree)
+	if player != null and not player.dead:
+		player.notice.emit(text, level)
 
 
 ## Which crew member they are, by the order they came aboard: CREW 1 to 4 (the Vitals board's tiles).
@@ -367,6 +436,8 @@ func revive(at: Transform3D) -> void:
 	health = 1.0
 	o2 = O2_CAPACITY
 	battery = 1.0
+	integrity = 1.0
+	breached = false
 	harness = false
 	rcs = RCS_FUEL
 	teleport(at.origin)
@@ -380,8 +451,9 @@ func revive(at: Transform3D) -> void:
 	print("Crew %s: brought back." % crew_name())
 
 
-## The host tells their machine a creature struck them (GDD §11, §12): `amount` of their health
-## gone, and if that's the last of it, dead of `why`.
+## The host tells their machine something struck them (GDD §11, §12): `amount` of their health
+## gone, and if that's the last of it, dead of `why`. The blow wears their suit, and a hard one
+## breaches it.
 @rpc("any_peer", "call_local", "reliable")
 func hurt(amount: float, why: StringName) -> void:
 	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority() or dead:
@@ -390,9 +462,27 @@ func hurt(amount: float, why: StringName) -> void:
 	since_hurt = 0.0
 	_wounded = WOUND_TIME
 	Sound.wounded(self)
+	wear(amount)
 	print("Crew %s: hurt by %s (%.2f left)." % [crew_name(), why, health])
 	if health <= 0.0:
 		die(why)
+
+
+## The suit takes a knock worth `amount` of its wearer's health (owner): it wears, and a hard knock,
+## or any once it's frail, breaches it.
+func wear(amount: float) -> void:
+	integrity = maxf(0.0, integrity - amount * WEAR)
+	if amount >= BREACH_AT or integrity < FRAIL:
+		if not breached:
+			print("Crew %s: suit breached." % crew_name())
+		breached = true
+
+
+## Sealant on the breach (GDD §9.2): the leak stops, and the suit's brought back to PATCH.
+func patch() -> void:
+	breached = false
+	integrity = maxf(integrity, PATCH)
+	print("Crew %s: suit patched." % crew_name())
 
 
 ## The host tells their machine a Hanger (at `by`, the same path everywhere) has them: drawn up
@@ -415,6 +505,27 @@ func release() -> void:
 		return
 	seized = false
 	_seizer = NodePath()
+
+
+## Where they are, for the Vitals board and the suit panel: a room aboard, a derelict, a satellite,
+## or OUTSIDE in space (on EVA); LOST, left behind.
+func whereabouts() -> String:
+	if cause == &"lost":
+		return "LOST"
+	var zone := Zone.at(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
+	if zone == null:
+		return "OUTSIDE"
+	var deck := zone.get_parent()
+	if deck.is_in_group(&"lantern"):
+		return deck.room_at(global_position)
+	return "SATELLITE" if deck.get_parent() is Satellite else "DERELICT"
+
+
+## How their health reads at a glance (the suit panel's crew list): OK, HURT, CRITICAL; DEAD, LOST.
+func condition() -> String:
+	if dead:
+		return "LOST" if cause == &"lost" else "DEAD"
+	return "OK" if health > 0.6 else ("HURT" if health > 0.3 else "CRITICAL")
 
 
 ## Beats a minute (the cuff, the Vitals board): resting, up with effort, racing as the air runs
@@ -448,12 +559,42 @@ func use_held() -> void:
 			get_tree().create_timer(SWING_HIT).timeout.connect(_land_swing)
 		"refill":
 			refill(CANISTER_O2)
-			belt[slot] = {}
-			_update_held()
+			_used_up(&"o2_canister")
 		"strike":
 			if not record.has("burn"):
 				record.burn = FLARE_BURN
 				_update_held()
+		"read":
+			read_core(record)
+		"patch":
+			if not breached:
+				notice.emit("SUIT INTACT", 0)
+				return
+			patch()
+			_used_up(&"sealant")
+
+
+## A data core read into the suit (GDD §3): its log goes into the suit panel's LOGS, once. The core
+## is kept: uploaded at the Survey Console, it's Survey Data too.
+func read_core(record: Dictionary) -> void:
+	if not record.has("log"):
+		record.log = randi() % Lore.LOGS.size()
+	if logs.has(record.log):
+		notice.emit("ALREADY READ: " + Lore.title(record.log), 0)
+		return
+	logs.append(record.log)
+	logs_changed.emit()
+	Sound.ui(&"read")
+	notice.emit("LOG READ: " + Lore.title(record.log), 0)
+
+
+## The thing in hand is used up (a canister emptied into the suit, a patch of sealant): gone from the
+## belt, and heard, by everyone (`uses`, `used`).
+func _used_up(kind: StringName) -> void:
+	belt[slot] = {}
+	_update_held()
+	used = kind
+	uses += 1
 
 
 ## The swing lands on whatever's in front within reach (GDD §12, §13): a creature is struck (a shock
@@ -534,6 +675,42 @@ func select_slot(index: int) -> void:
 		return
 	slot = index
 	_update_held()
+
+
+## Swaps belt slots `a` and `b` (the suit panel, GDD §10): what's in hand stays in hand, wherever it
+## goes. Not while carrying.
+func swap_slots(a: int, b: int) -> void:
+	if not carrying.is_empty() or a == b:
+		return
+	var record := belt[a]
+	belt[a] = belt[b]
+	belt[b] = record
+	if slot == a:
+		slot = b
+	elif slot == b:
+		slot = a
+	_update_held()
+
+
+## Sets down what's in belt slot `index` (the suit panel): drawn, then let go of.
+func drop_slot(index: int) -> void:
+	if not carrying.is_empty() or belt[index].is_empty():
+		return
+	select_slot(index)
+	let_go(0.0)
+
+
+## Uses what's in belt slot `index` (the suit panel): drawn, then used as LMB would.
+func use_slot(index: int) -> void:
+	if not carrying.is_empty() or belt[index].is_empty():
+		return
+	select_slot(index)
+	use_held()
+
+
+## The helmet lamp switched (F, or the suit panel): not when it's flat.
+func switch_lamp() -> void:
+	lamp_on = not lamp_on and battery > 0.0
 
 
 ## What's in the hands: the thing carried, or the item drawn from the belt ({} for nothing).
@@ -667,7 +844,9 @@ func _process(delta: float) -> void:
 	if is_multiplayer_authority():
 		rotation.y = look.x
 		head.rotation.x = look.y
-		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty() and not dead
+		# Holding talk keys the communicator: the cuff comes up to speak into (GDD §10).
+		cuff_up = (Input.is_action_pressed("talk") or Args.flag("--cuff")) and operating == null and carrying.is_empty() \
+				and not dead and not seized
 		if _winding >= 0.0:
 			_winding += delta
 		since_hurt += delta
@@ -695,6 +874,7 @@ func _process(delta: float) -> void:
 	_place_lamp()
 	_light_spine()
 	_show_harness()
+	_show_leak()
 	var eye := CROUCH_EYE_HEIGHT if crouching else EYE_HEIGHT
 	head.position.y = move_toward(head.position.y, eye, delta * 3.0)
 	_head_bob(delta)
@@ -745,7 +925,7 @@ func _tick(delta: float, _tick_number: int) -> void:
 	grounded = is_on_floor() and not floating
 	_breathe(delta)
 	if health <= 0.0:
-		die(&"suffocated")
+		die(&"breach" if breached else &"suffocated")
 	_left_behind()
 	if lamp_on:
 		battery = maxf(0.0, battery - delta / LAMP_LIFE)
@@ -892,14 +1072,28 @@ func _ride() -> void:
 
 
 ## The suit breathes for its wearer wherever there's no air (GDD §9.2): O2 runs down, faster at a
-## sprint; with none left, health runs out.
+## sprint, faster still through a breach; with none left, health runs out.
 func _breathe(delta: float) -> void:
 	in_vacuum = not Zone.has_air(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
 	if not in_vacuum:
 		return
-	o2 = maxf(0.0, o2 - delta * (SPRINT_BREATH if sprinting else 1.0))
+	o2 = maxf(0.0, o2 - delta * o2_rate())
 	if o2 <= 0.0:
 		health = maxf(0.0, health - delta / SUFFOCATION)
+
+
+## Seconds of O2 the suit uses a second out of the air: breathing (harder at a sprint), and what
+## a breach leaks.
+func o2_rate() -> float:
+	var rate := SPRINT_BREATH if sprinting else 1.0
+	if breached:
+		rate += LEAK * (CRACKED if integrity <= 0.0 else 1.0)
+	return rate
+
+
+## Whether O2's leaking out of a breach now (out of the air, a breached suit).
+func leaking() -> bool:
+	return breached and in_vacuum and not dead
 
 
 ## Interact held on a thing that takes a hold: used once it's been held long enough, given up if
@@ -1023,6 +1217,13 @@ func _apply_dev_flags() -> void:
 		get_tree().create_timer(float(Args.value("--die", "1"))).timeout.connect(func(): die(&"suffocated"))
 	if Args.flag("--wound"):
 		get_tree().create_timer(float(Args.value("--wound", "1"))).timeout.connect(func(): hurt(Crawler.WOUND, &"crawler"))
+	for i in int(Args.value("--logs", "0")):
+		logs.append(i)
+	if Args.flag("--panel"):
+		var opening := func() -> void:
+			panel.tab = StringName(Args.value("--panel", "gear"))
+			panel.open()
+		opening.call_deferred()
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)
@@ -1032,11 +1233,14 @@ func _apply_dev_flags() -> void:
 		look = Vector2(deg_to_rad(angles[0]), deg_to_rad(angles[1] if angles.size() > 1 else 0.0))
 
 
-## `--o2=<seconds>`, `--health=<0..1>` and `--battery=<0..1>`: how the suit starts.
+## `--o2=<seconds>`, `--health=<0..1>`, `--battery=<0..1>`, `--integrity=<0..1>` and `--breached`:
+## how the suit starts.
 func _dev_suit() -> void:
 	o2 = float(Args.value("--o2", str(O2_CAPACITY)))
 	health = float(Args.value("--health", "1"))
 	battery = float(Args.value("--battery", "1"))
+	integrity = float(Args.value("--integrity", "1"))
+	breached = Args.flag("--breached")
 
 
 ## `--hold`: a `kind` in hand: drawn from the belt if it's there, carried if it's big, otherwise put
@@ -1239,11 +1443,36 @@ func _show_harness() -> void:
 			puff.scale = Vector3.ONE * (0.6 + 0.4 * push) * randf_range(0.85, 1.15)
 
 
+## O2 venting from a teammate's breached suit, out of the air: a thin jet of puffs off the left of
+## their chest, where a blow tears a suit open.
+func _show_leak() -> void:
+	if is_multiplayer_authority():
+		return
+	if _leak_puff == null:
+		var skeleton := body_visual.find_child("Skeleton3D", true, false) as Skeleton3D
+		if skeleton == null:
+			return
+		var chest := BoneAttachment3D.new()
+		chest.name = "LeakAt"
+		chest.bone_name = "chest"
+		skeleton.add_child(chest)
+		_leak_puff = Effects.leak()
+		_leak_puff.position = Vector3(0.16, 0.12, 0.12)
+		_leak_puff.rotation = Vector3(0.0, deg_to_rad(-60.0), 0.0)
+		chest.add_child(_leak_puff)
+	_leak_puff.emitting = leaking()
+
+
 ## Puts the EVA harness on the suit: its mesh, rigged to the suit's own bones (art/blender/
 ## characters.py: ch_harness), bound to the suit's skeleton, and the bone attachment carrying its
 ## jets' sockets with it. Returns the mesh, or null if the suit has no skeleton.
 func _fit_harness() -> Node3D:
-	var skeleton := body_visual.find_child("Skeleton3D", true, false) as Skeleton3D
+	return fit_harness(body_visual)
+
+
+## The EVA harness fitted to `suit` (a ch_suit): its mesh, or null if the suit has no skeleton.
+static func fit_harness(suit: Node3D) -> Node3D:
+	var skeleton := suit.find_child("Skeleton3D", true, false) as Skeleton3D
 	if skeleton == null:
 		return null
 	var model: Node = HARNESS_MODEL.instantiate()
@@ -1267,14 +1496,18 @@ func _fit_harness() -> Node3D:
 func _light_spine() -> void:
 	if _spine_material == null:
 		return
-	var colour := Color(0.3, 1.0, 0.45)
-	if health <= 0.0:
-		colour = Color(0.04, 0.05, 0.04)
-	elif health < 0.3:
-		colour = Color(1.0, 0.25, 0.15) if fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.35 else Color(0.25, 0.06, 0.04)
-	elif health < 0.6:
-		colour = Color(1.0, 0.7, 0.2)
-	_spine_material.set_shader_parameter("albedo", colour)
+	_spine_material.set_shader_parameter("albedo", spine_colour(health))
+
+
+## The spine lights' colour for `whole` health: green, amber, blinking red, dark.
+static func spine_colour(whole: float) -> Color:
+	if whole <= 0.0:
+		return Color(0.04, 0.05, 0.04)
+	if whole < 0.3:
+		return Color(1.0, 0.25, 0.15) if fmod(Time.get_ticks_msec() / 1000.0, 0.6) < 0.35 else Color(0.25, 0.06, 0.04)
+	if whole < 0.6:
+		return Color(1.0, 0.7, 0.2)
+	return Color(0.3, 1.0, 0.45)
 
 
 ## Arms (owner) and suit (everyone else) blend their clips by what the crew member's doing.
@@ -1354,6 +1587,13 @@ func _make_sounds() -> void:
 		_harness_heard = harness
 		if not dead:
 			Sound.harness(self)
+	if uses != _uses_heard:
+		_uses_heard = uses
+		Sound.used(self, used)
+	if leaking() and _leak_sound == null:
+		_leak_sound = Sound.leak(self)
+	if _leak_sound != null:
+		Sound.leak_level(_leak_sound, leaking())
 	if harness and _jet_sound == null:
 		_jet_sound = Sound.jets(self)
 	if _jet_sound != null:
