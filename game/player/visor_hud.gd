@@ -10,10 +10,16 @@ extends CanvasLayer
 ##     running low, blinking when nearly out; and VITALS blinking under it when health is critical.
 ##   - RCS (GDD §8.1): the EVA harness's propellant under it, while they wear it weightless, or when
 ##     it's running low; its label bright while the jets fire.
+##   - Struck (GDD §10): the readouts flicker and jump for a moment, and blood spatters the glass at
+##     an edge of the visor, fading.
 
 const COLOUR := Color(0.72, 0.95, 0.78)
 const FONT := preload("res://assets/fonts/VT323-Regular.ttf")
 const FONT_SIZE := 16
+## Struck: seconds the readouts flicker, and the blood on the glass takes to fade.
+const STRUCK_FLICKER := 1.2
+const SPATTER := 9.0
+const BLOOD := Color(0.42, 0.03, 0.02)
 ## Belt slots, in HUD pixels.
 const SLOT := 22
 const SLOT_GAP := 3
@@ -48,6 +54,9 @@ var _o2_age := 99.0 # seconds since O2 last mattered
 var _last_o2 := 0.0
 var _rcs_shown := 0.0
 var _rcs_age := 99.0 # seconds since the harness's propellant last mattered
+## Blood on the glass: blobs [centre, radius] on the HUD's pixel grid, and how long since.
+var _spatter: Array = []
+var _hurt_seen := 99.0
 
 
 func _ready() -> void:
@@ -63,6 +72,9 @@ func _process(delta: float) -> void:
 	visible = player.operating == null and not player.dead and not Args.flag("--view")
 	_time += delta
 	_belt_age += delta
+	if player.since_hurt < _hurt_seen:
+		_splash()
+	_hurt_seen = player.since_hurt
 	# O2 shows while it matters, and for a few seconds after.
 	# (A refill shows it too.)
 	var o2_matters := player.in_vacuum or player.o2 < Player.O2_CAPACITY * 0.25 or player.health < 0.3 or player.o2 > _last_o2 + 1.0
@@ -123,6 +135,13 @@ func _box_width() -> float:
 
 
 func _draw_hud() -> void:
+	_draw_spatter()
+	if player.since_hurt < STRUCK_FLICKER:
+		# Struck: the readouts drop out and jump about, settling.
+		var shaken := 1.0 - player.since_hurt / STRUCK_FLICKER
+		if randf() < 0.35 * shaken:
+			return
+		canvas.draw_set_transform(Vector2(randi_range(-2, 2), randi_range(-1, 1)) * ceilf(shaken * 2.0))
 	if _shown > 0.0:
 		_draw_prompt(_shown)
 	_draw_belt()
@@ -130,6 +149,34 @@ func _draw_hud() -> void:
 		_draw_o2(_o2_shown)
 	if _rcs_shown > 0.0:
 		_draw_rcs(_rcs_shown)
+	canvas.draw_set_transform(Vector2.ZERO)
+
+
+## Blood thrown across the glass from an edge of the visor: a few big drops, each with a smear
+## inward and a spray of droplets round it.
+func _splash() -> void:
+	_spatter.clear()
+	var size := canvas.size
+	var edge := [Vector2(randf_range(0.15, 0.85) * size.x, 0.0), Vector2(size.x, randf_range(0.2, 0.8) * size.y),
+			Vector2(randf_range(0.15, 0.85) * size.x, size.y), Vector2(0.0, randf_range(0.2, 0.8) * size.y)].pick_random() as Vector2
+	var inward := (size / 2.0 - edge).normalized()
+	for drop in randi_range(3, 5):
+		var heading := inward.rotated(randf_range(-0.9, 0.9))
+		var at := edge + heading * randf_range(4.0, size.y * 0.22)
+		var radius := randf_range(4.0, 8.0)
+		_spatter.append([at, radius])
+		for i in randi_range(3, 6): # the smear, thinning inward
+			_spatter.append([at + heading * radius * (0.6 + i * 0.7), radius * (0.7 - i * 0.1)])
+		for i in randi_range(6, 12): # the spray round it
+			_spatter.append([at + Vector2.from_angle(randf() * TAU) * randf_range(radius, radius * 3.5), randf_range(0.7, 2.2)])
+
+
+func _draw_spatter() -> void:
+	if _spatter.is_empty() or player.since_hurt > SPATTER:
+		return
+	var alpha := 0.85 * (1.0 - player.since_hurt / SPATTER)
+	for drop in _spatter:
+		canvas.draw_circle(drop[0], drop[1], Color(BLOOD, alpha))
 
 
 ## O2: the label, ten cells, the minutes and seconds left. Nearly out, it blinks.

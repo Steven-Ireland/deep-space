@@ -1021,6 +1021,8 @@ func _apply_dev_flags() -> void:
 	_dev_suit()
 	if Args.flag("--die"):
 		get_tree().create_timer(float(Args.value("--die", "1"))).timeout.connect(func(): die(&"suffocated"))
+	if Args.flag("--wound"):
+		get_tree().create_timer(float(Args.value("--wound", "1"))).timeout.connect(func(): hurt(Crawler.WOUND, &"crawler"))
 	var target := Args.value("--operate", "")
 	if target != "":
 		_operate_when_ready.call_deferred(target)

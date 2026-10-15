@@ -25,7 +25,7 @@ const GRAB := 0.6
 ## Where its maw is, under its body (it hangs from its origin, on the ceiling), and where a crew
 ## member it holds is drawn to: their feet this far under it, their head up in its tendrils.
 const MAW := Vector3(0.0, -0.62, 0.0)
-const HOLD_FEET := Vector3(0.0, -2.35, 0.0)
+const HOLD_FEET := Vector3(0.0, -2.62, 0.0)
 ## Its tendrils, for a swing to strike: from under its body down to near the deck.
 const TENDRIL_TOP := -0.6
 const TENDRIL_BOTTOM := -2.9

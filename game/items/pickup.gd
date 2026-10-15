@@ -34,7 +34,7 @@ var _since_hiss := 0.0
 func _ready() -> void:
 	var kind := Items.kind_of(record)
 	collision_layer = LAYER
-	collision_mask = 1 | 2 | LAYER
+	collision_mask = 1 | 2 | LAYER | Creature.LAYER # a Crawler kicks them about
 	mass = Items.mass(kind)
 	angular_damp = 1.5 # cans and bottles don't roll forever
 	continuous_cd = true # small things thrown hard don't pass through walls

@@ -42,6 +42,7 @@ var _jolts_heard := 0
 var _blows_heard := 0
 var _settled := 0.0 # seconds it's been stirring (host)
 var _busy := 0.0 # seconds left of a one-shot clip (host)
+var _debug_in := 0.0
 
 
 ## A creature of `kind` (&"crawler", &"hanger") at `at` in its derelict, the plan's `index`th.
@@ -102,6 +103,11 @@ func _setup() -> void:
 
 
 func _process(delta: float) -> void:
+	if Args.flag("--debug-creatures"):
+		_debug_in -= delta
+		if _debug_in <= 0.0:
+			_debug_in = 1.0
+			print("Creature %s (%s): %s, %s at %s" % [name, "host" if multiplayer.is_server() else "copy", mode, clip, position.snapped(Vector3.ONE * 0.01)])
 	if multiplayer.is_server():
 		rotation.y = yaw
 	else:

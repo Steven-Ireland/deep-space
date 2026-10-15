@@ -76,7 +76,7 @@ func _run() -> void:
 	crawler._rest()
 	noises.make(world, near, &"sprint", player)
 	await _frames(2)
-	_check(crawler.mode == &"hunt" and crawler.prey == player, "a sprint close by didn't set it hunting (%s)" % crawler.mode)
+	_check(crawler.mode in [&"hunt", &"lunge"] and crawler.prey == player, "a sprint close by didn't set it hunting (%s)" % crawler.mode)
 	crawler._rest()
 
 	# Lured by a flare's hiss, and held there: a quiet step doesn't draw it off.

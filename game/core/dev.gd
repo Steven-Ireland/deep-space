@@ -48,6 +48,10 @@ extends Node
 ##   --brake               weightless, they hold the harness's jets against their drift (Player)
 ##   --tour=<dir>          (with --satellite) float through every room of the satellite, a shot
 ##                         four ways from each (<dir>/<room>_<way>.png), and quit
+##   --provoke=<s>         (host) that many seconds in, every Crawler aboard hunts the crew member
+##                         nearest it, as if it had heard them (Crawler)
+##   --debug-creatures     every peer prints what each creature's doing and where, every second
+##   --wound=<s>           that many seconds in, the local crew member takes a Crawler's blow (Player)
 ##   --check-eva[=<dir>]   (with --satellite) an EVA, played through with the keys: put on a harness
 ##                         at the rack, cycle the EVA airlock out, fly across to the satellite on the
 ##                         jets, stop, open its hatch, go in and float up through it; say how each
@@ -75,6 +79,8 @@ func _ready() -> void:
 		_tour(Args.value("--tour", ""))
 	if Args.flag("--clone"):
 		_clone(float(Args.value("--clone", "3")))
+	if Args.flag("--provoke"):
+		_provoke(float(Args.value("--provoke", "2")))
 	if Args.flag("--interact"):
 		_interact(float(Args.value("--interact", "0.2")))
 	var quit_after := float(Args.value("--quit-after", "0"))
@@ -391,3 +397,16 @@ func _press(action: StringName, pressed: bool) -> void:
 	event.action = action
 	event.pressed = pressed
 	Input.parse_input_event(event)
+
+
+## Host, `seconds` in: every Crawler aboard hunts the crew member nearest it.
+func _provoke(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
+	for creature in get_tree().get_nodes_in_group(&"creatures"):
+		if creature is Crawler:
+			var nearest: Player = null
+			for player: Player in get_tree().get_nodes_in_group(&"crew"):
+				if nearest == null or player.global_position.distance_to(creature.global_position) < nearest.global_position.distance_to(creature.global_position):
+					nearest = player
+			if nearest != null:
+				creature.provoke(nearest)

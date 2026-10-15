@@ -23,7 +23,7 @@ const HUNT_SPEED := 3.4
 const TURN := 6.0
 const STRIDE := 0.67
 ## Crew within this (metres, on its own deck) are felt, whatever noise they make or don't.
-const FEEL := 1.4
+const FEEL := 1.7
 ## A crew member's noise at least this loud (0..1, Creature.hear) sets it hunting; quieter, it goes
 ## to listen, and hunts if it hears them again.
 const HUNT_LEVEL := 0.5
@@ -31,17 +31,17 @@ const HUNT_LEVEL := 0.5
 ## seconds and its run is clear; the clip carries it LUNGE_REACH metres, its jaws biting LUNGE_HIT
 ## seconds in, anything within BITE of them. Nearer than SWIPE, it strikes (SWIPE_HIT seconds in,
 ## at anything within SWIPE_REACH in front); from behind (facing away past BEHIND), it grabs.
-const LUNGE_FAR := 3.2
-const LUNGE_NEAR := 1.6
+const LUNGE_FAR := 3.0
+const LUNGE_NEAR := 2.2
 const LUNGE_HEARD := 0.8
 const LUNGE_TIME := 0.7
 const LUNGE_REACH := 1.6
 const LUNGE_HIT := 0.48
 const BITE := 0.9
-const SWIPE := 1.3
+const SWIPE := 1.6
 const SWIPE_TIME := 0.5
 const SWIPE_HIT := 0.25
-const SWIPE_REACH := 1.7
+const SWIPE_REACH := 1.9
 const BEHIND := -0.25
 ## A blow takes this much of a crew member's health: two kill.
 const WOUND := 0.5
@@ -104,7 +104,7 @@ func listens() -> bool:
 func _setup() -> void:
 	model.position.z = MODEL_BACK
 	collision_layer = LAYER
-	collision_mask = 1
+	collision_mask = 1 | 2 # the world, and crew: it stops against them, never in them
 	motion_mode = CharacterBody3D.MOTION_MODE_FLOATING
 	var body := CollisionShape3D.new()
 	body.name = "Shape"
@@ -427,6 +427,11 @@ func _heard(from: Vector3, level: float, what: StringName, source: Player) -> vo
 		_chase(source, from, level)
 	else:
 		_search(from)
+
+
+## Hunts `who` as if it had just heard them where they stand (Dev: --provoke).
+func provoke(who: Player) -> void:
+	_chase(who, derelict.to_local(who.global_position), 1.0)
 
 
 ## Hunts `who`, heard at `from`, `level` loud.
