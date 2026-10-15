@@ -112,7 +112,8 @@ const MODULES := {
 		"finds": {&"supplies": 2.0, &"lore": 2.0},
 	},
 	# The relay core (the Prize, GDD §8.3): the machine the whole satellite serves, glowing in its
-	# vault at the far end, its racks of data around it; a dead end.
+	# vault at the far end, its racks of data around it; a dead end. A survey core stands at its foot
+	# (`core`): the charts it's been relaying.
 	&"prize": {
 		"name": "RELAY CORE", "kind": "prize", "cells": ["##"],
 		"doors": ["0,0,W"],
@@ -120,6 +121,7 @@ const MODULES := {
 				["satellite/sp_rack", Vector3(2.6, 0, -1.57), 0.0], ["satellite/sp_rack", Vector3(2.6, 0, 1.57), 180.0]],
 		"spots": [Vector3(5.4, 0.05, -1.5), Vector3(5.4, 0.05, 1.5), Vector3(0.6, 1.5, -1.0), Vector3(2.9, 1.3, 0.2)],
 		"big": [[Vector3(1.0, 0.02, 1.2), 80.0]],
+		"core": [Vector3(3.05, 0.0, 0.0), -90.0],
 		"finds": {&"lore": 3.0, &"tools": 2.0, &"ammo": 1.5},
 	},
 }

@@ -153,6 +153,92 @@ def fuel_cell():
 
 # Tools and pickups (GDD §9, §13). Held in first person, so they're hero props up close: 128-256 px.
 
+@asset("it_survey_core", "items", texture=256, colors=32, roughness=0.75, specular=0.35)
+def survey_core():
+    """SURVEY CORE: an earlier wave's astrogation memory, the Prize (GDD §8.3).
+
+    Purpose: what a derelict (or a relay) is worth going all the way into. Carried two-handed back
+    to the LANTERN's core reader, it charts where the next jumps lead (GDD §6); without one, the
+    crew jumps blind. It has to read at a glance as precious, and as data, not fuel.
+    Size: 0.3 x 0.26 m, 0.62 m tall with its connector; about 32 kg. Handles as a fuel cell's (the
+    same two-handed hold), on its flanks.
+    Silhouette: a tall cream case on a dark plinth, a ribbed connector crown, grab handles out to
+    either side, torn feed cables trailing from its back.
+    Details: a dark window down its front where the chart it holds glows cyan, systems as points
+    joined by routes, rows of them rising like the Nav Chart's; a teal band; a status strip of
+    lamps; SURVEY CORE on a cream plate; the wave's serial; vents on its back.
+    Palette: cream casing worn to steel at the edges, dark steel frame, teal band, cyan glow.
+    """
+    k = _k()
+    dk = _dk()
+    teal = mats.paint("sc_teal", (0.16, 0.45, 0.46), wear=0.45, grime=0.35, under=(0.55, 0.55, 0.52))
+    window = mats.plain("sc_window", (0.03, 0.06, 0.07), grime=0.1, detail_strength=0.05)
+    m = Mesh("it_survey_core")
+    # The plinth, the case, its corner rails.
+    m.box((0.32, 0.28, 0.04), k["dark"], at=(0, 0, 0.02), bevel=0.008)
+    m.box((0.3, 0.26, 0.5), k["cream"], at=(0, 0, 0.29), bevel=0.02)
+    for x in (-0.14, 0.14):
+        for y in (-0.12, 0.12):
+            m.box((0.03, 0.03, 0.5), k["dark"], at=(x, y, 0.29), bevel=0.006)
+    # The window down its front, set in.
+    m.box((0.2, 0.012, 0.3), window, at=(0, -0.128, 0.31))
+    m.box((0.23, 0.016, 0.018), k["dark"], at=(0, -0.131, 0.469))
+    m.box((0.23, 0.016, 0.018), k["dark"], at=(0, -0.131, 0.151))
+    # The teal band, and the crown: a collar, a ring of contact pins, an orange cap ring.
+    m.box((0.31, 0.27, 0.05), teal, at=(0, 0, 0.51), bevel=0.008)
+    m.cylinder(0.085, 0.04, k["dark"], sides=8, at=(0, 0, 0.56), rot=(0, 0, 22.5))
+    m.cylinder(0.07, 0.03, k["steel"], sides=8, at=(0, 0, 0.595), rot=(0, 0, 22.5))
+    for i in range(6):
+        a = i / 6 * math.tau
+        m.cylinder(0.008, 0.02, k["steel"], sides=4, at=(math.cos(a) * 0.045, math.sin(a) * 0.045, 0.62))
+    m.cylinder(0.088, 0.012, k["orange"], sides=8, at=(0, 0, 0.545), rot=(0, 0, 22.5))
+    # Handles low on its flanks, a fuel cell's: steel stand-offs and bar, a rubber grip. Low, so
+    # it rides up in the arms as high as a cell does, its window to the carrier.
+    for side in (-1, 1):
+        x0, x1 = side * 0.15, side * 0.212
+        m.pipe([(x0, 0, 0.1), (x1, 0, 0.13), (x1, 0, 0.35), (x0, 0, 0.38)], 0.013, k["steel"], sides=6)
+        m.pipe([(x1, 0, 0.16), (x1, 0, 0.32)], 0.018, k["rubber"], sides=6)
+    # Feed cables torn from its back.
+    for i, (x, colour) in enumerate(((-0.07, "dark"), (0.0, "red"), (0.07, "dark"))):
+        m.pipe([(x, 0.13, 0.1 + i * 0.03), (x * 1.3, 0.2, 0.06), (x * 1.6, 0.24, 0.0)], 0.014, k[colour], sides=4)
+    low = m.to_object()
+    d = Mesh("it_survey_core_decals")
+    front = Vector((0, -1, 0))
+    face = -0.135
+    # The chart in the window: rows of systems, joined to the row above.
+    rows = [[-0.06, 0.05], [-0.075, 0.0, 0.07], [-0.045, 0.045], [-0.07, -0.01, 0.06], [-0.03, 0.05], [0.0]]
+    points = []
+    for r, xs in enumerate(rows):
+        z = 0.19 + r * 0.05
+        points.append([(x, z) for x in xs])
+    for r in range(len(points) - 1):
+        for (x0, z0) in points[r]:
+            for (x1, z1) in points[r + 1]:
+                if abs(x1 - x0) < 0.08:
+                    along = Vector((x1 - x0, z1 - z0)).normalized()
+                    n = Vector((-along.y, along.x)) * 0.0025
+                    a, b = Vector((x0, z0)), Vector((x1, z1))
+                    d.polygon([tuple(a - n), tuple(b - n), tuple(b + n), tuple(a + n)], dk["cyan_lit"], frame((0, face, 0), front, lift=0.001))
+    for row in points:
+        for (x, z) in row:
+            d.polygon([(x - 0.007, z - 0.007), (x + 0.007, z - 0.007), (x + 0.007, z + 0.007), (x - 0.007, z + 0.007)], dk["white"],
+                      frame((0, face, 0), front, lift=0.0015))
+    # The status strip: four lamps, three lit.
+    for i in range(4):
+        d.polygon([(-0.008, -0.006), (0.008, -0.006), (0.008, 0.006), (-0.008, 0.006)], dk["green_lit"] if i < 3 else dk["red_lit"],
+                  frame((-0.045 + i * 0.03, -0.131, 0.12), front))
+    # The plate, its name, the wave's serial.
+    d.polygon([(-0.11, -0.022), (0.11, -0.022), (0.11, 0.022), (-0.11, 0.022)], dk["cream"], frame((0, -0.131, 0.08), front))
+    letters = geo.text("SURVEY CORE", 0.026, dk["black"], matrix=frame((0, -0.132, 0.08), front, lift=0.002))
+    serial = geo.text("W3-ASTRO-07", 0.018, dk["black"], matrix=frame((0, -0.131, 0.5), front, lift=0.002))
+    # Vents down its back.
+    back = Vector((0, 1, 0))
+    for i in range(7):
+        d.polygon([(-0.09, -0.006), (0.09, -0.006), (0.09, 0.006), (-0.09, 0.006)], dk["black"], frame((0, 0.131, 0.2 + i * 0.035), back))
+    sockets = [_socket("grip_l", (-0.212, 0, 0.24)), _socket("grip_r", (0.212, 0, 0.24)), _socket("grip", (0, 0, 0.24))]
+    return Model(low=low, decals=[d.to_object(), letters, serial], extras=sockets)
+
+
 def _k():
     return dict(
         steel=mats.metal("it_steel", (0.58, 0.58, 0.56), grime=0.35),

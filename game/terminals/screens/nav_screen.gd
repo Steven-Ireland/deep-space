@@ -1,9 +1,10 @@
 extends CrtScreen
 ## HELM: the Nav Chart (GDD §6). The sector from its departure (bottom) to the boss (top): every
-## system charted so far, by its type's mark, with the jump routes between them; the way the
-## LANTERN came, bright; where it is, boxed and blinking. Until the long-range scan has run here
-## the next systems are unknown; once it has, clicking one of them plots the route, and the panel
-## says whether the drive is ready to jump (fuel loaded, everyone aboard).
+## system identified so far, by its type's mark, with the jump routes between them; the way the
+## LANTERN came, bright; where it is, boxed and blinking. The systems a jump from here can reach
+## always show: as "?" UNKNOWN until a survey core's been read at the core reader, by their marks
+## once it has. Clicking one plots the route (blind or not), and the panel says whether the drive's
+## ready to jump.
 
 ## The chart, in screen pixels: the departure's row at the bottom, the boss's at the top.
 const CHART := Rect2(150, 20, 166, 216)
@@ -54,10 +55,11 @@ func _draw_panel(run: Run) -> void:
 		text(1, 6.2, _label(_type(run, run.route)), WHITE)
 	elif run.jumps().is_empty():
 		text(1, 6.2, "END OF CHART", DIM)
-	elif not run.scanned:
-		text(1, 6.2, "SCAN FOR JUMPS", AMBER if blink() else DIM)
 	else:
 		text(1, 6.2, "SELECT A JUMP", AMBER if blink() else DIM)
+	if not run.scanned and not run.jumping() and not run.jumps().is_empty():
+		Glyphs.draw(self, "JUMPS UNKNOWN" if not run.scanning() else "READING CORE", Vector2(1 * CELL.x + 4, 7.2 * CELL.y + 4),
+				AMBER if run.scanning() else DIM)
 	text(1, 7.8, "FUEL", DIM)
 	for i in run.fuel.size():
 		var cell := Rect2(Vector2(1 * CELL.x + 4 + i * 12, 8.8 * CELL.y + 4), Vector2(9, 9))
@@ -101,8 +103,8 @@ func _draw_chart(run: Run) -> void:
 		for x in range(int(CHART.position.x) + 4, int(CHART.end.x) - 2, 6):
 			draw_rect(Rect2(x, y, 1, 1), Color(DIM, 0.7))
 	var map := run.map
-	var shown := run.charted
-	# Routes between charted systems: the way taken bright, the route plotted brighter.
+	var shown := _shown(run)
+	# Routes between the systems shown: the way taken bright, the route plotted brighter.
 	for from in shown:
 		for to in map.next_of(from):
 			if to not in shown:
@@ -119,8 +121,8 @@ func _draw_chart(run: Run) -> void:
 			_route_line(_point(run, from), _point(run, to), colour)
 	for node in shown:
 		_draw_node(run, node)
-	# From the boss, the way on to the next sector, once it's been scanned.
-	if run.at == SectorMap.boss() and run.scanned and Run.NEXT_SECTOR in run.jumps():
+	# From the boss, the way on to the next sector.
+	if run.at == SectorMap.boss() and Run.NEXT_SECTOR in run.jumps():
 		var colour := WHITE if run.route == Run.NEXT_SECTOR else GREEN
 		_route_line(_point(run, SectorMap.boss()), _point(run, Run.NEXT_SECTOR), colour)
 		_glyph(_point(run, Run.NEXT_SECTOR), "^", colour)
@@ -138,7 +140,9 @@ func _draw_node(run: Run, node: Vector2i) -> void:
 		colour = Color(GREEN, 0.6)
 	if type == &"boss":
 		colour = RED if node != run.at else WHITE
-	_glyph(at, SectorMap.info(type).mark, colour)
+	if not run.identified(node):
+		colour = Color(GREEN, 0.75) if blink(1.2) or node == run.route else Color(GREEN, 0.45)
+	_glyph(at, SectorMap.info(type).mark if run.identified(node) else "?", colour)
 	var box := Rect2(at - Vector2(6, 7), Vector2(13, 14))
 	if node == run.at and blink(0.8):
 		draw_rect(box, WHITE, false, 1.0)
@@ -171,10 +175,19 @@ func _point(run: Run, node: Vector2i) -> Vector2:
 	return Vector2(roundf(CHART.position.x + 12 + x * (CHART.size.x - 24)), _row_y(node.y))
 
 
-## The charted node (or the way on from the boss) under `pointer`, or NOWHERE.
+## What the chart shows: every system identified, and the jumps from here (identified or not).
+func _shown(run: Run) -> Array[Vector2i]:
+	var out := run.charted.duplicate()
+	for node in run.jumps():
+		if node != Run.NEXT_SECTOR and node not in out:
+			out.append(node)
+	return out
+
+
+## The node shown (or the way on from the boss) under `pointer`, or NOWHERE.
 func _node_at(run: Run, pointer: Vector2) -> Vector2i:
-	var candidates := run.charted.duplicate()
-	if run.at == SectorMap.boss() and run.scanned:
+	var candidates := _shown(run)
+	if run.at == SectorMap.boss():
 		candidates.append(Run.NEXT_SECTOR)
 	for node: Vector2i in candidates:
 		if _point(run, node).distance_to(pointer) <= PICK:
@@ -183,11 +196,15 @@ func _node_at(run: Run, pointer: Vector2) -> Vector2i:
 
 
 func _type(run: Run, node: Vector2i) -> StringName:
-	return &"next" if node == Run.NEXT_SECTOR else run.map.type_of(node)
+	if node == Run.NEXT_SECTOR:
+		return &"next"
+	return run.map.type_of(node) if run.identified(node) else &"unknown"
 
 
 func _label(type: StringName) -> String:
 	if type == &"next":
 		return "^ NEXT SECTOR"
+	if type == &"unknown":
+		return "? UNKNOWN"
 	var info := SectorMap.info(type)
 	return "%s %s" % [info.mark, info.name]

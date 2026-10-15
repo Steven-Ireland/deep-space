@@ -7,7 +7,7 @@ extends Node
 ## the sector and builds each star system from the seed itself, and tells the host its checksum,
 ## so a peer that drew something different shows up.
 ##
-## Crew report what they do at the stations (plot a route, start a scan or a survey, load a cell,
+## Crew report what they do at the stations (plot a route, seat a survey core, start a survey, load a cell,
 ## pull the Jump Lever); the host applies it, refusing only what conflicts with how things stand.
 ## Each peer shows the world the run says the LANTERN is in: that system's star and planets, the
 ## derelict alongside if there is one (grown from the node's seed, DerelictLayout), waiting for the
@@ -23,7 +23,7 @@ const NEXT_SECTOR := Vector2i(0, SectorMap.BOSS_ROW + 1)
 const SECTORS := 3
 ## Bays in the drive room's fuel rack, all loaded at the start of a run (GDD §6).
 const BAYS := 3
-## Seconds the long-range scan takes, a planet survey, and skimming fuel or drawing it at a depot.
+## Seconds a survey core takes to read, a planet survey, and skimming fuel or drawing it at a depot.
 const SCAN_TIME := 8.0
 const SURVEY_TIME := 5.0
 const REFUEL_TIME := 20.0
@@ -45,13 +45,18 @@ var map: SectorMap
 var at := SectorMap.start()
 ## The node plotted for the next jump, or NOWHERE.
 var route := NOWHERE
-## Nodes on the Nav Chart: the boss from the start, every system visited, and what scans revealed.
+## Nodes identified on the Nav Chart: the boss from the start, every system visited, and what survey
+## cores revealed. A jump from here that isn't among them shows as UNKNOWN, and is jumped into blind.
 var charted: Array[Vector2i] = []
 ## The systems visited this sector, in order.
 var visited: Array[Vector2i] = []
-## Whether this system's long-range scan has run, and how long it has left if it's running.
+## Whether this system's onward jumps have been identified (a survey core read at the core reader,
+## GDD §6), and how long the reading under way has left. Unidentified, they're jumped into blind.
 var scanned := false
 var scan_left := 0.0
+## Whether a survey core is seated in the core reader (being read, or read): it stays there till
+## the next jump.
+var core_seated := false
 ## The fuel rack's bays: whether each holds a cell.
 var fuel: Array[bool] = []
 ## This system's planets surveyed (their indices), the one being surveyed and how long it has left,
@@ -116,9 +121,9 @@ func _begin() -> void:
 	_dev_flags()
 
 
-## Dev flags (Dev): `--scanned` starts with this system scanned; `--route` with the first jump
-## plotted too; `--jump` jumps along it a second in (whoever's where); `--fuel=<n>` starts with n
-## cells loaded (in _begin).
+## Dev flags (Dev): `--scanned` starts with this system's jumps identified (as if a survey core had
+## been read); `--route` with the first jump plotted too; `--jump` jumps along it a second in
+## (whoever's where); `--fuel=<n>` starts with n cells loaded (in _begin).
 func _dev_flags() -> void:
 	if Args.flag("--scanned") or Args.flag("--route") or Args.flag("--jump"):
 		_finish_scan()
@@ -243,7 +248,7 @@ func system_seed(node: Vector2i, chart: SectorMap = null) -> int:
 	return chart.node(node).get("seed", 0)
 
 
-## What the long-range scan identifies here (GDD §6): the oddity's name, and what it is.
+## What's here (GDD §6), as the station's sensors name it on arrival: the oddity's name, and what it is.
 func oddity() -> Array[String]:
 	return Oddities.of(here(), system_seed(at), system)
 
@@ -258,29 +263,46 @@ func checksum() -> int:
 
 # --- Crew at the stations (reported to the host) ---------------------------------------------
 
-## The Nav Chart: plot the next jump to `node` (one of jumps(), charted).
+## The Nav Chart: plot the next jump to `node` (one of jumps(): identified, or blind).
 func plot(node: Vector2i) -> void:
 	_plot.rpc_id(1, node)
 
 
 @rpc("any_peer", "call_local", "reliable")
 func _plot(node: Vector2i) -> void:
-	if multiplayer.is_server() and not jumping() and node in jumps() and (node in charted or (node == NEXT_SECTOR and scanned)):
+	if multiplayer.is_server() and not jumping() and node in jumps():
 		route = node
 		_broadcast()
 
 
-## The long-range scanner: scan this system.
-func scan() -> void:
-	_scan.rpc_id(1)
+## Whether a jump from here leads somewhere identified, or blind.
+func identified(node: Vector2i) -> bool:
+	return node == NEXT_SECTOR or node in charted
+
+
+## The core reader (GDD §6): a crew member's seated the survey core they carried. If it can't be
+## read now (one's read here already, or the drive's engaged), it's set down at `spill` instead.
+func read_core(spill: Transform3D) -> void:
+	_read_core.rpc_id(1, spill)
+
+
+## Whether a survey core seated now would be read.
+func can_read() -> bool:
+	return started and not scanned and not scanning() and not jumping() and not core_seated
 
 
 @rpc("any_peer", "call_local", "reliable")
-func _scan() -> void:
-	if multiplayer.is_server() and not scanned and not _scanning and not jumping():
-		_scanning = true
-		scan_left = SCAN_TIME
-		_broadcast()
+func _read_core(spill: Transform3D) -> void:
+	if not multiplayer.is_server():
+		return
+	if not can_read():
+		LooseItems.of(self).put(Items.make(&"survey_core"), spill)
+		return
+	core_seated = true
+	_scanning = true
+	scan_left = SCAN_TIME
+	print("Run: reading a survey core.")
+	_broadcast()
 
 
 func scanning() -> bool:
@@ -290,7 +312,7 @@ func scanning() -> bool:
 func _finish_scan() -> void:
 	_scanning = false
 	scanned = true
-	print("Run: scanned %s; jumps to %s." % [at, jumps()])
+	print("Run: survey core read at %s; jumps to %s." % [at, jumps()])
 	for node in jumps():
 		if node != NEXT_SECTOR and node not in charted:
 			charted.append(node)
@@ -392,7 +414,7 @@ func jump() -> void:
 	_broadcast()
 
 
-## Host: the jump's done: the LANTERN is in its new system, with everything to scan again.
+## Host: the jump's done: the LANTERN is in its new system, its jumps on unknown again.
 func _arrive() -> void:
 	if jump_to == NEXT_SECTOR:
 		sector += 1
@@ -409,6 +431,7 @@ func _arrive() -> void:
 	jump_to = NOWHERE
 	jump_left = 0.0
 	scanned = false
+	core_seated = false
 	surveyed.clear()
 	refuelled = false
 	_broadcast()
@@ -425,7 +448,7 @@ func _pack() -> Dictionary:
 	return {"seed": seed, "sector": sector, "at": at, "route": route, "charted": charted, "visited": visited, "scanned": scanned,
 			"scan_left": scan_left, "fuel": fuel, "surveyed": surveyed, "survey_target": survey_target,
 			"survey_left": survey_left, "survey_data": survey_data, "refuelled": refuelled, "refuel_left": refuel_left,
-			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time, "dev_derelict": dev_derelict,
+			"jump_to": jump_to, "jump_left": jump_left, "jump_time": jump_time, "dev_derelict": dev_derelict, "core_seated": core_seated,
 				"dev_satellite": dev_satellite}
 
 
@@ -452,6 +475,7 @@ func _state(data: Dictionary) -> void:
 	jump_to = data.jump_to
 	jump_left = data.jump_left
 	jump_time = data.jump_time
+	core_seated = data.core_seated
 	dev_derelict = data.dev_derelict
 	dev_satellite = data.dev_satellite
 	started = true

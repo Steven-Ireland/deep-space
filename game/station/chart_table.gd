@@ -118,7 +118,7 @@ func _draw_routes(run: Run) -> void:
 	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.5) < 0.3
 	for from in run.charted:
 		for to in map.next_of(from):
-			if to not in run.charted:
+			if to not in run.charted and not (from == run.at and to in run.jumps()):
 				continue
 			var colour := DIM
 			if from in run.visited and to in run.visited:
@@ -141,9 +141,17 @@ func _draw_routes(run: Run) -> void:
 func _draw_marks(run: Run) -> void:
 	var map := run.map
 	var blink := fmod(Time.get_ticks_msec() / 1000.0, 0.8) < 0.5
-	for node in run.charted:
+	# The jumps from here not yet identified show as "?" (GDD §6: jumped into blind).
+	var shown := run.charted.duplicate()
+	for node in run.jumps():
+		if node != Run.NEXT_SECTOR and node not in shown:
+			shown.append(node)
+	for node in _marks:
+		(_marks[node] as Label3D).visible = node in shown
+	for node in shown:
 		if not _marks.has(node):
-			_marks[node] = _label(_point(map, node) + Vector3.UP * 0.045, SectorMap.info(map.type_of(node)).mark, 0.0032)
+			_marks[node] = _label(_point(map, node) + Vector3.UP * 0.045, "?", 0.0032)
+		(_marks[node] as Label3D).text = SectorMap.info(map.type_of(node)).mark if run.identified(node) else "?"
 		var colour := DIM
 		if node == run.at:
 			colour = WHITE if blink else GREEN

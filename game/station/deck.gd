@@ -241,25 +241,28 @@ func _scene(kind: String) -> PackedScene:
 
 
 ## Stocks the deck with a loose `kind` (Items) at `at`, turned `yaw` degrees: a marker the host
-## puts the real thing out at when a crew starts (LooseItems).
-func stock(kind: StringName, at: Vector3, yaw := 0.0) -> void:
+## puts the real thing out at when a crew starts (LooseItems). `extra` goes into its record (the
+## Prize's `prize`).
+func stock(kind: StringName, at: Vector3, yaw := 0.0, extra := {}) -> void:
 	var spot := Marker3D.new()
 	spot.name = "Stock_%s" % kind
 	spot.position = at
 	spot.rotation.y = deg_to_rad(yaw)
 	spot.set_meta(&"kind", kind)
+	spot.set_meta(&"extra", extra)
 	spot.add_to_group(&"loot")
 	add_child(spot)
 
 
 ## Racks a loose `kind` at `where`: held there (not falling) until someone takes it.
-func rack(kind: StringName, where: Transform3D) -> void:
+func rack(kind: StringName, where: Transform3D, extra := {}) -> void:
 	var spot := Marker3D.new()
 	spot.name = "Rack_%s" % kind
 	add_child(spot)
 	spot.global_transform = where
 	spot.set_meta(&"kind", kind)
 	spot.set_meta(&"racked", true)
+	spot.set_meta(&"extra", extra)
 	spot.add_to_group(&"loot")
 
 

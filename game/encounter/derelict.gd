@@ -32,6 +32,9 @@ var _nav: DerelictNav
 ## Its power (GDD §8.3): sections, breakers, lights; and its secure store's lock, if it has one.
 var power: DerelictPower
 var vault: VaultLock
+## Whether its Prize has been taken from its cradle (host), and the signal that it has.
+var prize_gone := false
+signal prize_event(by: Player)
 
 
 ## A derelict built from `plan`, stocked for `crew`.
@@ -77,12 +80,20 @@ func _dress() -> void:
 	for i in layout.creatures.size():
 		add_child(Creature.make(layout.creatures[i].kind, layout.creatures[i].at, i))
 	for find: Dictionary in layout.loot(crew):
+		var extra := {"prize": true} if find.get("prize", false) else {}
 		if find.has("rack"):
-			var socket := placed[find.rack].find_child("SOCKET_rack_%s" % find.kind, true, false) as Node3D
+			var socket := placed[find.rack].find_child(find.get("socket", "SOCKET_rack_%s" % find.kind), true, false) as Node3D
 			if socket != null:
-				rack(find.kind, socket.global_transform)
+				rack(find.kind, socket.global_transform, extra)
 		else:
 			stock(find.kind, find.at.origin, rad_to_deg(find.at.basis.get_euler().y))
+
+
+## Host: the Prize has been taken from its cradle by `by` (GDD §8.3): it may set something off.
+func prize_taken(by: Player) -> void:
+	prize_gone = true
+	print("Derelict: the Prize taken by %s." % (by.crew_name() if by != null else "someone"))
+	prize_event.emit(by)
 
 
 ## The fittings that still work once their section has power again: O2 racks, lamp chargers.

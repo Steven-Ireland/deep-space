@@ -19,6 +19,7 @@ class_name DerelictRooms
 ##            "debris" on the deck, a "corpse": one of an earlier wave's crew)
 ##   spots    where loose things may lie: on the deck (y 0.05) or on furniture
 ##   big      where a two-handed thing may stand (the fuel cell)
+##   core     the prop (its index in props) whose SOCKET_core holds the Prize, the survey core
 ##   open     clear floor, for what lives here (a Crawler on it, a Hanger above it)
 ##   finds    how likely each kind of find (FINDS) turns up here, against 1 elsewhere
 ##   weight   how often it's picked, and `most` how many a derelict has at most
@@ -159,17 +160,19 @@ const MODULES := {
 		"open": [Vector3(0.3, 0, 0.0)],
 		"finds": {&"supplies": 4.0, &"tools": 1.0},
 	},
-	# The Prize (GDD §8.3) on its sled, torn out of the ceiling's feeds; a dead end.
+	# The Prize (GDD §8.3): the derelict's survey core, standing in its astrogation cradle at the far
+	# end, the cradle's feeds torn out of the ceiling; a dead end.
 	&"prize": {
 		"name": "PRIZE", "kind": "prize", "cells": ["##"],
 		"doors": ["0,0,W"],
-		"props": [["derelict/dk_prize_core", Vector3(4.0, 0, 0), -90.0], ["derelict/dk_cables", Vector3(5.2, 3.0, 0.2), 90.0],
+		"props": [["derelict/dk_core_cradle", Vector3(4.95, 0, 0), -90.0, [&"survey_core"]], ["derelict/dk_cables", Vector3(5.2, 3.0, 0.2), 90.0],
 				["derelict/dk_cables", Vector3(2.6, 3.0, -1.0), 10.0],
 				["rooms/rm_crate", Vector3(0.9, 0, -1.4), 8.0], ["rooms/rm_crate", Vector3(0.9, 0.8, -1.4), 30.0],
 				["rooms/rm_crate", Vector3(1.5, 0, 1.4), -12.0]],
 		"strobes": [[Vector3(2.0, 2.3, -1.81), 0.0], [Vector3(5.0, 2.3, 1.81), 180.0]],
 		"spots": [Vector3(1.5, 0.85, 1.4), Vector3(5.4, 0.05, -1.5), Vector3(5.4, 0.05, 1.5)],
 		"big": [[Vector3(2.0, 0.02, 1.2), 80.0]],
+		"core": 0,
 		"finds": {&"ammo": 3.0, &"tools": 2.0, &"lore": 1.0},
 	},
 	# A secure store (GDD §8.3): shelves of what an earlier wave thought worth locking up, behind a

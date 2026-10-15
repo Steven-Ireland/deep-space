@@ -183,6 +183,10 @@ func loot(crew: int) -> Array[Dictionary]:
 				var big: Array = module(type).big[0]
 				out.append({"kind": &"fuel_cell", "at": frame_of(index) * _local(big[0], big[1])})
 				break
+	# The Prize: a survey core at the relay core's foot, held there till it's taken.
+	if prize >= 0 and module(rooms[prize].type).has("core"):
+		var core: Array = module(rooms[prize].type).core
+		out.append({"kind": &"survey_core", "at": frame_of(prize) * _local(core[0], core[1]), "racked": true})
 	var spots := []
 	for index in rooms.size():
 		for spot: Vector3 in module(rooms[index].type).get("spots", []):

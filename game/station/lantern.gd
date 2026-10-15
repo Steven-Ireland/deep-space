@@ -131,8 +131,9 @@ func room_at(at: Vector3) -> String:
 	return room
 
 
-## The bridge stations (GDD §5): helm and science face the viewport; ops and engineering stand
-## against the aft wall; the chart table between them, its hologram the sector chart.
+## The bridge stations (GDD §5): helm and science face the viewport, the core reader beside
+## science; ops and engineering stand against the aft wall; the chart table between them, its
+## hologram the sector chart.
 func _furnish_bridge() -> void:
 	var helm := _prop("br_helm", Vector3(-3.0, 0, -4.3), 0.0, [["screen_nav", "nav_screen", Vector2i(320, 240), GREEN]])
 	JumpLever.fit(helm)
@@ -144,6 +145,8 @@ func _furnish_bridge() -> void:
 		ops.append(["screen_vitals_%d" % (i + 1), "vitals_screen", Vector2i(192, 144), GREEN, {"slot": i}])
 	_prop("br_ops", Vector3(-3.4, 0, 5.3), 180.0, ops)
 	_prop("br_engineering", Vector3(3.4, 0, 5.3), 180.0, [["screen_power", "power_screen", Vector2i(320, 240), AMBER]])
+	# The core reader beside science: where a survey core brought back is read (GDD §6).
+	CoreReader.fit(_prop("rm_core_reader", Vector3(1.5, 0, -4.6), 0.0, []))
 	var table := _prop("br_chart_table", Vector3(0, 0, -0.4), 0.0, [])
 	table.find_child("SOCKET_holo", true, false).add_child(ChartTable.new())
 

@@ -194,12 +194,29 @@ func loot(crew: int) -> Array[Dictionary]:
 		var spot: Array = spots.pop_at(_weighted(rng, weights))
 		out.append({"kind": _roll(rng, DerelictRooms.FINDS[find]), "at": spot[1]})
 	out.append_array(_vault_loot(crew))
+	# The Prize: the survey core in its cradle (GDD §8.3), always; taking it may set something off.
+	var cradle := _prop_of(prize, module(&"prize").get("core", -1))
+	if cradle >= 0:
+		out.append({"kind": &"survey_core", "rack": cradle, "socket": "SOCKET_core", "prize": true})
 	# A kit rack keeps a flare now and then: {kind, rack (the prop's index)}.
 	for i in props.size():
 		for kind: StringName in props[i].rack:
-			if rng.randf() < 0.5:
+			if kind != &"survey_core" and rng.randf() < 0.5:
 				out.append({"kind": kind, "rack": i})
 	return out
+
+
+## The index in `props` of room `index`'s `nth` prop from its module (-1 for none).
+func _prop_of(index: int, nth: int) -> int:
+	if nth < 0:
+		return -1
+	var seen := 0
+	for i in props.size():
+		if props[i].get("room", -1) == index and not props[i].has("pose"):
+			if seen == nth:
+				return i
+			seen += 1
+	return -1
 
 
 ## What the secure store holds (DerelictRooms.VAULT_FINDS), on its shelves: its own label, so the

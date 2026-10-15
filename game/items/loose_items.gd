@@ -32,7 +32,9 @@ func stock(root: Node) -> void:
 	for spot: Node3D in get_tree().get_nodes_in_group(&"loot"):
 		if root == spot or root.is_ancestor_of(spot):
 			spot.remove_from_group(&"loot")
-			put(Items.make(spot.get_meta(&"kind")), spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
+			var record := Items.make(spot.get_meta(&"kind"))
+			record.merge(spot.get_meta(&"extra", {}))
+			put(record, spot.global_transform, Vector3.ZERO, spot.get_meta(&"racked", false))
 
 
 ## Everything loose in the world now (Pickups and LooseBodies; each has a `record`, a `centre()`
@@ -103,7 +105,14 @@ func take(pickup: Node3D, peer: int) -> void:
 	if pickup.is_queued_for_deletion() or player == null:
 		return
 	pickup.queue_free()
-	player.receive.rpc_id(peer, pickup.record)
+	var record: Dictionary = pickup.record.duplicate()
+	if record.get("prize", false):
+		# The Prize leaves its place (GDD §8.3): whatever that sets off, it sets off once.
+		record.erase("prize")
+		var derelict := Derelict.at(pickup.get_world_3d(), pickup.centre() + Vector3.UP * 0.2)
+		if derelict != null:
+			derelict.prize_taken(player)
+	player.receive.rpc_id(peer, record)
 
 
 ## On a crew member's machine: their swing hit `pickup` at `where`, knocking it with `impulse`.

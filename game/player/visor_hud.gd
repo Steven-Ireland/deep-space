@@ -58,6 +58,8 @@ var player: Player
 @onready var canvas: Control = %Canvas
 
 # The prompt: what it points at, where its box floats, how far it's faded in and drawn out.
+## The finest step its box's spring is followed in (s).
+const SPRING_STEP := 1.0 / 120.0
 var _target: Interactable
 var _verb := ""
 var _usable := true
@@ -153,11 +155,15 @@ func _process(delta: float) -> void:
 	_drawn = move_toward(_drawn, 1.0, delta / 0.14)
 	if _shown <= 0.0:
 		_target = null
-	# The box floats after its spot on a soft spring, bobbing a pixel.
+	# The box floats after its spot on a soft spring, bobbing a pixel: stepped finely, so a slow
+	# frame or a hitch can't fling it off the visor.
 	var goal := _anchor + _offset(_anchor) + Vector2(0, roundf(sin(_time * 2.4)))
-	var pull := (goal - _box) * 140.0 - _box_velocity * 22.0
-	_box_velocity += pull * delta
-	_box += _box_velocity * delta
+	var left := minf(delta, 0.25)
+	while left > 0.0:
+		var step := minf(left, SPRING_STEP)
+		_box_velocity += ((goal - _box) * 140.0 - _box_velocity * 22.0) * step
+		_box += _box_velocity * step
+		left -= step
 	canvas.queue_redraw()
 
 
@@ -385,7 +391,7 @@ func _draw_prompt(alpha: float) -> void:
 	var elbow := Vector2(anchor.x + (rise if join.x > anchor.x else -rise), mid_y)
 	if (join.x - elbow.x) * (join.x - anchor.x) < 0.0:
 		elbow = Vector2(join.x, mid_y)
-	var start := anchor + (elbow - anchor).normalized() * 3.0
+	var start := anchor + ((elbow - anchor).normalized() * 3.0 if elbow != anchor else Vector2.ZERO)
 	var points := PackedVector2Array([start, elbow, join])
 	var length := start.distance_to(elbow) + elbow.distance_to(join)
 	var shown := _drawn * length

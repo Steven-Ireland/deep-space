@@ -1,7 +1,8 @@
 extends SceneTree
 ## A scene smoke test (TECH §8): every scene in the game and every built model loads and
 ## instances without an error; then the world runs, and a jump is played through on its own (no
-## crew, no network, time sped up): the scan charts the first row, the route is plotted, the lever
+## crew, no network, time sped up): a blind jump plots, a survey core read identifies the first row,
+## a second isn't taken, the route is plotted, the lever
 ## is pulled, a cell is burnt, and the LANTERN arrives at a derelict waiting off the bow with its
 ## loot put out. The collar docks it; the airlock cycles out to it and back; undocking, the siren
 ## counts down while the airlock comes in, and the derelict drifts off vented, its loot aboard; it
@@ -43,11 +44,18 @@ func _run() -> void:
 	await _frames(5)
 	_check(run.at == Vector2i(0, 0) and run.fuel_left() == 3, "the run doesn't start at its departure with three cells")
 	Engine.time_scale = 8.0
-	run.scan()
-	await _until(func() -> bool: return run.scanned, 3.0)
-	_check(run.scanned, "the scan never finished")
 	var jumps: Array = run.jumps()
-	_check(not jumps.is_empty() and jumps.all(func(node: Vector2i) -> bool: return node in run.charted), "the scan didn't chart the next row")
+	_check(not jumps.is_empty() and jumps.all(func(node: Vector2i) -> bool: return not run.identified(node)), "the next row starts identified")
+	run.plot(jumps[-1])
+	await _frames(2)
+	_check(run.route == jumps[-1], "a blind jump couldn't be plotted")
+	run._read_core(Transform3D())
+	_check(run.core_seated and run.scanning(), "a survey core seated in the reader isn't being read")
+	await _until(func() -> bool: return run.scanned, 3.0)
+	_check(run.scanned, "the survey core was never read")
+	_check(jumps.all(func(node: Vector2i) -> bool: return node in run.charted), "the survey core didn't identify the next row")
+	run._read_core(Transform3D())
+	_check(run.core_seated and not run.scanning(), "a second core was read in the same system")
 	run.plot(jumps[0])
 	await _frames(2)
 	_check(run.route == jumps[0], "the route wasn't plotted")

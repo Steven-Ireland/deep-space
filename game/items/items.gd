@@ -38,6 +38,7 @@ const KINDS := {
 	&"salvage_plates": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_plates.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 3.0, "desc": "Alloy plate, stripped from a bulkhead. Feed it to the recycler."},
 	# Big things, carried in both hands. A dead crew member's body (GDD §11) is a Ragdoll, lying
 	# loose as a LooseBody; its record says whose it is ({kind, peer, crew}).
+	&"survey_core": {"name": "SURVEY CORE", "model": "res://assets/models/items/it_survey_core.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 32.0, "desc": "An earlier wave's astrogation memory: the charts they made. Seat it in the core reader on the bridge to see where the next jumps lead."},
 	&"fuel_cell": {"name": "FUEL CELL", "model": "res://assets/models/items/fuel_cell.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 30.0, "desc": "A class IV warp fuel cell. One jump. Load it into the drive room's fuel rack."},
 	&"body": {"name": "BODY", "model": "res://assets/models/characters/ch_suit.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 90.0, "desc": "A crew member. The med bay can bring them back."},
 }

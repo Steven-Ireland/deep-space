@@ -1,6 +1,6 @@
 extends CrtScreen
-## DOCKING (GDD §5, §8.1): the collar's readout on the dock panel. What's alongside (named once the
-## long-range scan has identified it), how far off it lies, what the collar's doing, the pressure
+## DOCKING (GDD §5, §8.1): the collar's readout on the dock panel. What's alongside (named by the
+## station's sensors on arrival), how far off it lies, what the collar's doing, the pressure
 ## beyond it once it's sealed, and the undock countdown; at the foot, what the lever does now.
 
 
@@ -12,7 +12,7 @@ func _draw_screen() -> void:
 		return
 	var target := "NONE"
 	if collar.derelict != null:
-		target = run.oddity()[0] if run != null and run.scanned else "UNIDENTIFIED"
+		target = run.oddity()[0] if run != null else "UNIDENTIFIED"
 	text(1, 1.6, "TARGET", DIM)
 	text(1, 2.6, target, GREEN if collar.derelict != null else DIM)
 	text(1, 4.0, "COLLAR", DIM)

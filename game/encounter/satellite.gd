@@ -178,6 +178,7 @@ func _dress() -> void:
 		spot.name = "Stock_%s" % find.kind
 		spot.transform = find.at
 		spot.set_meta(&"kind", find.kind)
+		spot.set_meta(&"racked", find.get("racked", false))
 		spot.add_to_group(&"loot")
 		add_child(spot)
 

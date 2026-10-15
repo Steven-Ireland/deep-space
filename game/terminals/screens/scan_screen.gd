@@ -1,9 +1,11 @@
 extends CrtScreen
-## SCIENCE: the long-range scanner (GDD §6). Its scope sweeps over range rings, a blip for each
-## planet at its true bearing, fading after the beam passes. Run the scan (click) and the beam
-## races for a few seconds; then it names the system's oddity, marks it on the scope, and charts
-## the systems a jump can reach (on the Nav Chart, by type; a signal stays unidentified). The
-## screen is round: the scope in its upper part, a few centred lines of findings under it.
+## SCIENCE: the long-range scope (GDD §6). Its beam sweeps over range rings, a blip for each planet
+## at its true bearing, fading after the beam passes, and the oddity here marked and named. What
+## lies a jump on is beyond it: that's the survey cores' to tell (a derelict's or a relay's Prize,
+## seated in the core reader beside the station). Reading one, the beam races; read, it charts the
+## systems a jump can reach round the scope's rim (on the Nav Chart too, by type). Until then they
+## show as "?", jumped into blind. The screen is round: the scope in its upper part, a few centred
+## lines under it.
 
 const SWEEP := 2.8 # seconds per turn, idle
 const FAST_SWEEP := 0.7 # while scanning
@@ -11,22 +13,8 @@ const CENTRE := Vector2(120, 94)
 const RADIUS := 66.0
 ## The findings' lines (text rows), and the button, in screen pixels.
 const LINES := [11.2, 12.2, 13.2]
-const BUTTON := Rect2(78, 184, 84, 20)
 
 var _sweep := 0.0
-
-
-func _gui_input(event: InputEvent) -> void:
-	var run := Run.of(self)
-	if run == null or not run.started:
-		return
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		if BUTTON.grow(4).has_point(event.position) and not run.scanned and not run.scanning():
-			if run.jumping():
-				refuse()
-			else:
-				run.scan()
-				confirm()
 
 
 func _process(delta: float) -> void:
@@ -60,40 +48,42 @@ func _draw_screen() -> void:
 		text(26, 6.6, str(system.planets.size()), DIM)
 	if run == null or not run.started:
 		return
+	_draw_oddity(run)
 	if run.scanned:
-		_draw_results(run)
+		_draw_jumps(run, true)
+		_centred(LINES[2], "JUMPS CHARTED", GREEN)
 	elif run.scanning():
 		var done := 1.0 - run.scan_left / Run.SCAN_TIME
-		_centred(LINES[0], "SCANNING %d%%" % roundi(done * 100.0), AMBER)
-		var bar := Rect2(Vector2(CENTRE.x - 60, LINES[1] * CELL.y + 8), Vector2(120, 8))
+		_draw_jumps(run, false)
+		_centred(LINES[2] - 0.1, "READING CORE %d%%" % roundi(done * 100.0), AMBER)
+		var bar := Rect2(Vector2(CENTRE.x - 60, (LINES[2] + 0.85) * CELL.y), Vector2(120, 6))
 		draw_rect(bar, DIM, false, 1.0)
-		draw_rect(Rect2(bar.position + Vector2(1, 1), Vector2((bar.size.x - 2) * done, 6)), AMBER)
+		draw_rect(Rect2(bar.position + Vector2(1, 1), Vector2((bar.size.x - 2) * done, 4)), AMBER)
 	else:
-		_centred(LINES[0], "UNSCANNED", DIM)
-		draw_rect(BUTTON, GREEN if blink() else DIM, false, 1.0)
-		_centred(LINES[1] + 0.25, "RUN SCAN", GREEN)
+		_draw_jumps(run, false)
+		_centred(LINES[2], "JUMPS UNKNOWN: NO CORE" if blink(1.6) else "SEAT A SURVEY CORE", DIM)
 
 
-## The scan's findings: the oddity named and marked, the jumps it charted along the rim.
-func _draw_results(run: Run) -> void:
+## The oddity here, marked on the scope and named: the station's own sensors know what's alongside.
+func _draw_oddity(run: Run) -> void:
 	var oddity := run.oddity()
 	var bearing := _oddity_bearing(run)
 	if not is_nan(bearing):
 		var at := CENTRE + _bearing(bearing) * RADIUS * 0.55
 		var pulse := 4.0 + 2.0 * sin(time * 5.0)
 		draw_rect(Rect2(at - Vector2(pulse, pulse), Vector2(pulse, pulse) * 2), AMBER, false, 1.0)
+	_centred(LINES[0], oddity[0], AMBER)
+	_centred(LINES[1], oddity[1], DIM)
+
+
+## The jumps from here round the rim: their marks once a core's been read, "?" until then.
+func _draw_jumps(run: Run, known: bool) -> void:
 	var jumps := run.jumps()
 	for i in jumps.size():
 		var a := TAU * (i + 0.5) / jumps.size() - PI * 0.5
-		var mark: String = "^" if jumps[i] == Run.NEXT_SECTOR else SectorMap.info(run.map.type_of(jumps[i])).mark
+		var mark: String = "^" if jumps[i] == Run.NEXT_SECTOR else ("?" if not known else SectorMap.info(run.map.type_of(jumps[i])).mark)
 		var at := CENTRE + _bearing(a) * (RADIUS + 9)
-		draw_string(FONT, at + Vector2(-3.5, 5), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, GREEN)
-	_centred(LINES[0], oddity[0], AMBER)
-	_centred(LINES[1], oddity[1], DIM)
-	var marks := PackedStringArray()
-	for node in jumps:
-		marks.append("^" if node == Run.NEXT_SECTOR else SectorMap.info(run.map.type_of(node)).mark)
-	_centred(LINES[2], "JUMPS " + (" ".join(marks) if not marks.is_empty() else "NONE"), GREEN)
+		draw_string(FONT, at + Vector2(-3.5, 5), mark, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, GREEN if known else DIM)
 
 
 ## A line of text centred across the screen at text row `row`.

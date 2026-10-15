@@ -788,3 +788,84 @@ def med_pod():
     low = m.to_object()
     collider = br._console_collider("rm_med_pod", (2.4, 1.1, 1.0), (0.1, 0, 0.5))
     return Model(low=low, decals=[d.to_object()] + texts, extras=[screen, glass_obj, collider, lamp.to_object()])
+
+
+# The survey core's stands -------------------------------------------------------------------------
+
+## Where a survey core stands in its reader or cradle: its plinth's foot, model space.
+CORE_SEAT = (0.0, -0.02, 0.74)
+
+
+def _core_stand(name, derelict):
+    """A waist-high pedestal a survey core (items.py: it_survey_core) stands in, its plinth dropped
+    into a well on top, clamped by two jaws. The LANTERN's (`rm_core_reader`) reads one: a clean
+    cream cabinet, its feed dropping through the deck. A derelict's
+    (`dk_core_cradle`) held one where the Prize was kept: dark, its feeds torn out of the ceiling
+    and hanging. Two lamps on its front (`lamp_seat`, `lamp_read`: split off, Godot lights them),
+    a hazard band round the well, a label plate. A core shows at SOCKET_core."""
+    k = br._materials()
+    dk = br._decals()
+    m = Mesh(name)
+    d = Mesh(f"{name}_decals")
+    texts = []
+    casing = k["casing_dark"] if derelict else k["casing"]
+    # The cabinet, a kick recess, a top plate.
+    m.box((0.62, 0.52, 0.64), casing, at=(0, 0, 0.38), bevel=0.02)
+    m.box((0.56, 0.46, 0.07), k["casing_dark"], at=(0, 0.02, 0.035))
+    m.box((0.66, 0.56, 0.04), k["dark_steel"], at=(0, 0, 0.71), bevel=0.008)
+    # The well: a rim round the seat, the seat plate, the clamp jaws either side.
+    sx, sy, sz = CORE_SEAT
+    for (w, dpt, x, y) in ((0.46, 0.05, 0, sy - 0.18), (0.46, 0.05, 0, sy + 0.18), (0.05, 0.31, -0.205, sy), (0.05, 0.31, 0.205, sy)):
+        m.box((w, dpt, 0.07), k["dark_steel"], at=(x, y, sz + 0.035), bevel=0.006)
+    m.box((0.36, 0.31, 0.012), k["bezel"], at=(sx, sy, sz - 0.006))
+    for side in (-1, 1):
+        m.box((0.04, 0.12, 0.09), k["orange"], at=(side * 0.25, sy, sz + 0.06), bevel=0.01)
+        m.box((0.02, 0.08, 0.05), k["steel"], at=(side * 0.225, sy, sz + 0.08))
+    # The front: two lamps in bezels, the label plate, a hazard band round the well's front.
+    for x in (-0.12, 0.12):
+        m.cylinder(0.032, 0.02, k["bezel"], sides=8, at=(x, -0.265, 0.58), rot=(90, 0, 0))
+    lamps = []
+    for lamp_name, x in (("lamp_seat", -0.12), ("lamp_read", 0.12)):
+        lamp = Mesh(lamp_name)
+        lamp.cylinder(0.024, 0.03, mats.plain("lk_lamp", (0.2, 0.9, 0.3)), sides=8, at=(x, -0.28, 0.58), rot=(90, 0, 0))
+        lamps.append(lamp.to_object())
+    _plate(d, dk["cream"], (0, -0.261, 0.42), FRONT, 0.4, 0.07)
+    texts.append(geo.text("ASTROGATION" if derelict else "SURVEY CORE", 0.032, dk["black"],
+                          matrix=frame((0, -0.262, 0.42), FRONT, lift=0.002)))
+    texts.append(geo.text("SEAT", 0.022, dk["cream"], matrix=frame((-0.12, -0.261, 0.52), FRONT, lift=0.002)))
+    texts.append(geo.text("READ" if not derelict else "LINK", 0.022, dk["cream"], matrix=frame((0.12, -0.261, 0.52), FRONT, lift=0.002)))
+    _stripes(d, dk, (0, -0.281, 0.71), FRONT, 0.66, 0.04, pitch=0.08)
+    if derelict:
+        # Its feeds, torn out of the ceiling: thick looms down to the cabinet's back, two cut short
+        # and hanging free.
+        for i, (x, colour) in enumerate(((-0.16, "cable"), (-0.05, "cable_red"), (0.06, "cable"), (0.17, "cable"))):
+            if i in (1, 2):
+                m.pipe([(x, 0.3, 0.68), (x * 1.2, 0.36, 1.4), (x * 1.4, 0.45, 2.2), (x * 1.5, 0.5, 3.0)], 0.022, k[colour], sides=5)
+            else:
+                m.pipe([(x * 1.5, 0.5, 3.0), (x * 1.6, 0.48, 2.5), (x * 1.9, 0.4, 2.0), (x * 2.2, 0.3, 1.75)], 0.022, k[colour], sides=5)
+        m.box((0.5, 0.06, 0.12), k["dark_steel"], at=(0, 0.27, 0.66), bevel=0.01)
+    else:
+        # Its feed, out of a gland on its back and down through the deck under a grommet plate.
+        m.box((0.16, 0.06, 0.1), k["dark_steel"], at=(0.14, 0.27, 0.2), bevel=0.01)
+        m.pipe([(0.14, 0.3, 0.2), (0.14, 0.36, 0.17), (0.14, 0.4, 0.08), (0.14, 0.41, 0.0)], 0.03, k["orange"], sides=6)
+        m.cylinder(0.07, 0.015, k["dark_steel"], sides=8, at=(0.14, 0.41, 0.008))
+    low = m.to_object()
+    collider = br._console_collider(name, (0.66, 0.56, 0.76), (0, 0, 0.38))
+    socket = bpy.data.objects.new("SOCKET_core", None)
+    socket.location = CORE_SEAT
+    bpy.context.scene.collection.objects.link(socket)
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider, socket] + lamps)
+
+
+@asset("rm_core_reader", "rooms", texture=256, colors=32, ao=0.5)
+def core_reader():
+    """The LANTERN's core reader, by the science station (GDD §6): a survey core seated in it is
+    read, and charts where the next jumps lead."""
+    return _core_stand("rm_core_reader", False)
+
+
+@asset("dk_core_cradle", "derelict", texture=256, colors=32, ao=0.55)
+def core_cradle():
+    """Where a derelict kept its survey core, its Prize (GDD §8.3): the astrogation bay's cradle,
+    its feeds torn down."""
+    return _core_stand("dk_core_cradle", True)
