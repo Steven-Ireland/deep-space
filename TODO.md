@@ -1,6 +1,6 @@
 # Deep Space: status and next steps
 
-Last updated 2026-10-14. Read this with [docs/GDD.md](docs/GDD.md) (design, look and feel) and
+Last updated 2026-10-15. Read this with [docs/GDD.md](docs/GDD.md) (design, look and feel) and
 [docs/TECH.md](docs/TECH.md) (how it's built). The target is the **vertical slice** in GDD §16;
 the build order is TECH §9.
 
@@ -128,7 +128,6 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   their rings.
 - **Tests:** `test_derelict_layout` checks 900 layouts from the walls the Deck builds.
 
-Still to come: creature behaviour.
 
 **EVA and relays (M5, first part, 2026-10-14):**
 
@@ -160,12 +159,42 @@ Still to come: creature behaviour.
   test cycles the EVA airlock, sets a satellite out and flies a crew member round it on the jets;
   `--check-eva` plays a whole EVA through with the keys, `--tour` shoots every room.
 
+**Creatures (M4, 2026-10-15):**
+
+- **They come alive** once their derelict docks, run by the host and seen by everyone (synced like
+  crew; checked with a host and a client, also after a jump brings a new derelict).
+- **Noise:** footfalls by gait (a crouched step carries 1.5 m, a walk 6, a sprint 16), landings,
+  doors and hatches, things dropped or thrown landing (now heard: they clatter), a tool striking
+  anything, a prod's jolt, a flare's hiss. Heard on the host through the derelict's rooms, over a
+  0.5 m grid of its floor worked out from its colliders (a shut door muffles it).
+- **The Crawler:** waits clicking, ambles; goes to listen at a quiet sound; hunts whoever made a
+  loud one (3.4 m/s: sprint to outrun it) to where it heard them; feels anyone within 1.7 m;
+  lunges from 2.2–3 m, strikes closer (half a crew member's health), grabs from behind (dead);
+  beats at a shut door it can't open; a flare lures and holds it. A charged shock prod drops it
+  for 5 s, five crowbar blows kill it, a door shut on it crushes it. Crew and it are solid to one
+  another; it kicks loose things about.
+- **The Hanger:** its tendrils no longer glow (only their beads, low over the deck, and its sacs);
+  walk into them and they snap shut round you, draw you up and hold you looking up into it, dead
+  in 3 s unless someone strikes it (your own blow counts, with a tool in hand); then it lets go
+  and draws up out of reach for a while. Three crowbar blows kill it.
+- **The crew:** the shock prod holds three jolts (lamps on it), filled at the lamp charger. A blow
+  jolts the view, sets off the suit's alarm, flickers the visor's readouts and spatters blood on
+  its glass. Deaths are `crawler`, `grabbed`, `hanger`; each flatlines in the helmet and on the
+  Vitals board.
+- **Art and sound:** new clips (Crawler stunned and hurt; Hanger grab as a cage, hold, hurt, draw
+  up, lower, death); synthesized clatters, tool strikes, flesh hits, the prod's zap, the Crawler's
+  and the Hanger's sounds, the suit's alarm and the flatline.
+- **Tools:** `build.py --keep-texture` rebuilds a model (its clips) keeping its bake and UVs, for
+  when the photo scans aren't to hand; `tools/build_audio.py <groups>` builds only those sounds;
+  `--provoke`, `--wound`, `--debug-creatures`.
+- **Tests:** `test_creatures` plays it all through headless.
+
 ## Next: the gameplay loop (proposed order)
 
 1. **Rest of M1, the crew:**
    - the Prize and a body as two-handed carries (with M4; the fuel cell's done)
-   - what a swing does to creatures and hatches (with M4), the shock prod's stun and charge,
-     sealant (with suit integrity), weapons in use (slice wrap-up)
+   - what a swing does to hatches (with M4), sealant (with suit integrity), weapons in use
+     (slice wrap-up: the plasma cutter on creatures and sealed hatches)
    - suit integrity and breaches (with hazards)
 2. **Rest of M3, navigation:**
    - the boss node is only a name and a way on to the next sector (its greybox is M5); saving
@@ -176,10 +205,10 @@ Still to come: creature behaviour.
    - power zones and breakers (the drive room has a breaker box already)
    - loot: fuel, salvage, O2, power cells, data cores, sealant
    - the Prize and Prize events
-   - hazards
-   - Crawler AI (an eyeless sound hunter) and Hanger AI (a ceiling trap)
-   - more ways to die (creatures, hazards), each specific; a death sound and the Vitals board's
-     flatline
+   - hazards, and the ways to die of them, each specific
+   - creatures, the rest: something following the crew aboard through an open hatch (GDD §5;
+     the Airlock Turret upgrade), the Infestation Prize event's creature, Hangers only in dark
+     rooms (they're placed anywhere now)
 4. **Slice wrap-up:**
    - upgrades: O2 Capacity I, Med Bay
    - the Workshop's recycler and Fabricator
@@ -233,6 +262,16 @@ Still to come: creature behaviour.
     home free of propellant. Cheapest first step: a straight line you unclip to go deep into a
     relay. The full version wraps round corners inside (a thread back through the dark). Say
     whether to build it, and which.
+  - **Creatures (2026-10-15):** how lethal the Crawler is (two blows; a grab from behind is the end;
+    fleeing at a walk gets you caught, so turn or sprint); its speeds (0.7 ambling, 1.5 listening,
+    3.4 hunting); how far each noise carries (a crouched step 1.5 m, a walk 6, a sprint 16, a door
+    18); that it can't open doors at all; how long a prod stuns (5 s) and how many blows kill it
+    (five crowbar); the Hanger's 3 s, its touch radius (0.5 m), whether a victim's own blow should
+    free them (it does, for solo play), how high it draws them (feet 0.38 m off the deck) and the
+    view looking up into it; how long it stays drawn up (6 s struck, 12 jolted, 25 fed).
+  - **The creature and impact sounds are unheard:** synthesized and checked only as spectrograms
+    (clicks, slaps, shriek, snarls, gurgles, the Hanger's creak and snap, clatters, the tool's
+    strike, the zap, the flatline). Listen to each, and to their levels against the drone.
 - **Upgrades and costs (later):** with the economy, whether the Med Bay needs its upgrade, and what
   a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
@@ -256,6 +295,13 @@ Still to come: creature behaviour.
   - The EVA harness is 532 triangles and its rack 1,850, over the props' 20–300.
   - You don't see your own harness in first person; teammates' jet puffs are plain pale cones.
   - A relay's loot knocked out of its hatch drifts off for good (cleared when the LANTERN leaves).
+- **Creatures, first take:**
+  - A teammate's prod always shows its charge lamps lit (only the holder's machine knows the
+    charge).
+  - The Crawler's body is a cylinder round its middle: its head and haunches can poke into a
+    wall as it turns in a tight spot (not seen yet).
+  - A crew member held by a Hanger hangs in the float pose; their suit isn't wrapped by the
+    tendrils, which close round where a body would be.
 - **Derelict rust reads grey.**
 - **Triangle budgets:**
   - The suit is about 1,548 triangles, over the characters' 600–1,200 (GDD §14).
@@ -293,7 +339,9 @@ Still to come: creature behaviour.
 
 ## How to build and check
 
-- **Godot:** `/Applications/Godot.app/Contents/MacOS/Godot` (or `tools/godot.sh`). Launch a
+- **Godot:** `/Applications/Godot.app/Contents/MacOS/Godot` (or `tools/godot.sh`). In a Linux
+  cloud container: Godot's Linux build with `GODOT=` set, shots under `xvfb-run` with Mesa's
+  software Vulkan (slow: use bursts), Blender as `bpy` 5.2.1 from PyPI (TECH §1). Launch a
   local crew with `tools/run.sh [clients] [host flags]` (e.g. `tools/run.sh 1 --satellite`).
 - **Build models:** `/Applications/Blender.app/Contents/MacOS/Blender -b --factory-startup -P
   art/blender/build.py -- <names>`. This writes the `.glb`, textures, preview and belt icon. Then
@@ -339,6 +387,13 @@ Still to come: creature behaviour.
     each room's middle in the world. (Run 7's: its hatch about (-40.9, -0.2, -8.8); the relay
     core at about (-51, 6.7, -10).) `--harness` starts wearing a harness; outside, `--at` floats
     you where it puts you. `--check-eva=<dir>` and `--tour=<dir>` (with `--satellite`) as above.
+
+    **Creatures:** run 14256631's departure derelict (`--derelict`) has a Crawler waiting at
+    (24, 0, 16) in a corridor (stand at (24, 0, 12.6), `--look=180,-14`) and a Hanger over (36, 0, 4)
+    (stand under it to be caught; at (31, 0, 4), `--look=-90,12`, to see it). `--provoke=<s>`
+    sets the Crawler hunting the nearest crew member, `--wound=<s>` strikes you,
+    `--debug-creatures` logs each creature's state on every peer. Run 3 jumps from a Crawler to
+    another Crawler (`--route --jump`, then dock).
 
     `--interact=<s>` holds interact on what's aimed at, so a shot can dock (`--interact=2.4` at the
     lever) or cycle the airlock (stand at (12.6, 0, 1), `--look=-120,-25`, `--interact=1`);

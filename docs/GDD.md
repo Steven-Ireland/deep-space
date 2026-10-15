@@ -1,6 +1,6 @@
 # DEEP SPACE — Game Design Document (working title)
 
-*Draft 0.1 — 2026-10-14. Living document. It covers game design and look/feel only; implementation notes live in [`TECH.md`](TECH.md). Open questions and assumptions are collected in §17.*
+*Draft 0.1 — 2026-10-15. Living document. It covers game design and look/feel only; implementation notes live in [`TECH.md`](TECH.md). Open questions and assumptions are collected in §17.*
 
 ---
 
@@ -299,7 +299,7 @@ Death is frequent and specific.
 
 | Hazard | Death | Counter-play |
 |---|---|---|
-| Creatures | Grabs, lunges, executions (§12) | Light, sound discipline, doors, teamwork |
+| Creatures | Mauled by the Crawler (its second blow), grabbed from behind by it, drawn up into a Hanger (§12) | Light, sound discipline, doors, teamwork |
 | Vacuum | Helmet breach, cycling the airlock with someone inside, a blown hatch | Read the pressure lights, patch the suit, communicate |
 | O2 depletion | Suffocation (slow, audible, with a dimming visor) | Route planning, canisters |
 | Decompression | Sucked out through a breach when someone opens the wrong door | Check pressure gauges before opening doors |
@@ -332,10 +332,19 @@ Death is frequent and specific.
   - Its states are wander → investigate → hunt → lunge. Two hits kill, and a grab from behind is an instant execution.
   - It ignores lamp beams. A hissing flare can lure it.
   - It can be stunned with a shock prod, cut down slowly with the plasma cutter, or crushed in a door or airlock. Reinforces the "move intentionally" pillar.
+  - **As built (2026-10-15):**
+    - It waits in the dark, clicking, and now and then ambles somewhere near.
+    - What it hears carries through the rooms (a shut door muffles it): a crouched step barely a pace, a walk about 6 m, a sprint 16, a door or hatch 18–20, anything dropped or thrown by how hard it lands. A quiet sound sends it to listen there, head sweeping; a loud one, or a second one, sets it hunting whoever made it.
+    - Hunting, it goes fast (3.4 m/s: a walk can't outpace it, a sprint can) to where it last heard them. A crew member standing still is nowhere to it until it's close enough to feel them (under 2 m).
+    - From 2–3 m it lunges; closer, it strikes. Its back to it, a crew member is grabbed: the end of them. After a lunge or a blow it stands open for a moment.
+    - It can't open doors: one shut between it and its prey, it beats on it, then gives up. A door shut on it in the doorway crushes it.
+    - A flare's hiss draws it to the flare, and holds it there while it burns: quiet steps don't draw it off. A flare in someone's hand draws it to them.
+    - A shock prod's jolt drops it twitching for 5 s (a prod holds three, shown by the lamps on it, and the suit room's lamp charger fills it again); five crowbar blows kill it, if the crew can land them.
 - **Hanger** *(the ceiling trap)*:
   - Hangs in dark rooms with long, translucent tendrils that are only visible under a lamp beam.
   - Touching a tendril yanks you up. You die within about 3 s unless a teammate hits it.
   - Teaches players to use the light and look up.
+  - **As built (2026-10-15):** in the dark, only the beads at its tendrils' ends show, low over the deck, and the sacs on its body. Walk into the tendrils and they snap shut round you: you're drawn up off the deck, held looking up into it, unable to move. Any blow on it, even your own if you have a tool in hand, makes it let go and draw its tendrils up out of reach for a while (longer after a jolt, longer still once it's fed). Three crowbar blows kill it.
 
 **Roster ideas (post-slice):**
 - **Moth:** drawn to light, so you go dark to survive (the reverse of the usual rule).
@@ -445,7 +454,8 @@ Death is frequent and specific.
 - **Vacuum rule:** in unpressurized zones, outside sound is heavily low-passed (you "hear" through contact). Your own breathing, your harness's jets and the radio stay clear.
 - A working relay has its own sound through the hull: a thin electrical whine, fans, a relay ticking over, a telemetry chirp now and then.
 - The station hum is a comfort, and its absence is a warning.
-- Creatures are mostly heard before they are seen: directional clicks, wet movement, distant impacts.
+- Creatures are mostly heard before they are seen: directional clicks, wet movement, distant impacts. The Crawler clicks as it waits, its long hands slap the deck as it moves, and it screeches as it starts to hunt; a Hanger only creaks, until it snaps shut.
+- Things dropped or thrown clatter, and a tool striking a bulkhead is heard down the corridor: everything the crew hear, the Crawler hears too.
 - The PA voice of the station computer, KEEPER, is dry and clipped.
 
 ## 16. Vertical Slice
@@ -495,6 +505,12 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 
 15. **EVA is by thruster harness** (§8.1, §9.1): a small cold-gas pack with limited propellant, put on at a rack in the suit room, slow on foot. Weightless crew haul along surfaces for free, drift out of reach, and fly on the jets. Mag-boots wait for weightless derelicts.
 16. **Relays are working satellites** (§8.4): pristine, lit and humming, airless and weightless, on several levels joined by hatchways; nothing alive aboard for now.
+
+**Decided (2026-10-15):**
+
+17. **The creatures, as built** (§12): the Crawler hears and feels and nothing else; it can't open doors, so a shut door is a real refuge (and closing one on it kills it). Crew and creatures are solid to one another.
+18. **A Hanger's victim can free themselves** with a tool in hand, as a teammate can, by striking it: solo must be viable (A7), and it rewards keeping a tool drawn. Without one, they need a teammate.
+19. **A struck suit shows it** (§10): the readouts flicker and jump, and blood spatters the visor's glass at an edge and fades. The suit's alarm sounds; a crew member's death flatlines in their helmet and on the Vitals board.
 
 **Open (proposed 2026-10-14): the tether.** A safety line for EVA, to decide after playing the harness:
 - The harness carries a reel. At the EVA airlock's outer hatch (and the anchor rings by a relay's hatch), crew CLIP their line on before going out. It pays out behind them up to its length (about 50 m: the crossing and a little more), drawn as a line from the anchor to their harness.
