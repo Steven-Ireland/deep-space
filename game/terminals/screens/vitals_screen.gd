@@ -43,7 +43,10 @@ func _draw_screen() -> void:
 	var trace := GREEN if player.health > 0.3 else RED
 	for i in range(1, _trace.size()):
 		draw_line(Vector2((i - 1) * 2, mid + _trace[i - 1] * 22), Vector2(i * 2, mid + _trace[i] * 22), trace, 1.0)
-	text(0.5, 6.2, "%3d BPM" % int(bpm) if bpm > 0.0 else "NO PULSE", trace)
+	if player.dead and player.cause != &"" and fmod(time, 3.0) > 1.5:
+		text(0.5, 6.2, Player.CAUSES.get(player.cause, String(player.cause).to_upper()), RED)
+	else:
+		text(0.5, 6.2, "%3d BPM" % int(bpm) if bpm > 0.0 else "NO PULSE", trace)
 	var o2 := player.o2 / Player.O2_CAPACITY
 	text(0.5, 7.2, "O2 %3d%%" % roundi(o2 * 100.0), GREEN if o2 > 0.25 else RED)
 	if player.in_vacuum and blink():

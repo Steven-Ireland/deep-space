@@ -41,6 +41,10 @@ const LOCKDOWN := "LOCKDOWN"
 		_update_state()
 ## Forced open with a crowbar (a dead door): it stays open, jammed.
 @export var forced := false
+## Faulty (a derelict's hazard, Hazards): with power it cycles on a dying circuit, the host working
+## it; it slams shut SLAM times as fast as it should, and its lamp stutters.
+@export var faulty := false
+const SLAM := 3.0
 ## What its panels say while it's sealed.
 @export var seal_text := "SEALED":
 	set(value):
@@ -68,12 +72,16 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var gap := OPEN_GAP * (FORCED_GAP if forced else 1.0)
 	var target := gap if open else 0.0
-	var slide := (FORCED_SPEED if forced else SPEED) * delta if _live else OPEN_GAP
+	var speed := FORCED_SPEED if forced else SPEED * (SLAM if faulty and not open else 1.0)
+	var slide := speed * delta if _live else OPEN_GAP
 	_live = true
 	left.position.x = move_toward(left.position.x, -target, slide)
 	right.position.x = move_toward(right.position.x, target, slide)
 	# Solid until it's nearly open, so nobody slips through a closing door.
 	blocker.disabled = left.position.x < -gap * 0.8
+	if faulty and powered and not sealed and lamp != null:
+		# A dying circuit: its lamp won't hold steady.
+		lamp.material_override = LAMP_DEAD if randf() < 0.3 else (LAMP_OPEN if open else LAMP_SHUT)
 
 
 ## Host: a panel's been used by `peer`: with power, the door opens or shuts; without, a crew member
@@ -88,7 +96,8 @@ func _on_used(peer: int) -> void:
 			print("Door %s: forced out of its lockdown." % name)
 		return
 	if powered:
-		open = not open
+		if not faulty:
+			open = not open
 		return
 	if not open and player != null and player.held == &"crowbar":
 		forced = true

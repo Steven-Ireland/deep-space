@@ -4,7 +4,8 @@ extends Interactable
 ## derelict section, GDD §8.3) it's stuck as it is: NO POWER, unless it's shut and the crew member
 ## has a crowbar in hand, when they can PRY it open, heaving at it for PRY_TIME (loud: every heave
 ## is heard, Noises). Sealed, it says why (SEALED, LOCKED, LOCKDOWN, VENTING, BUCKLED); a crowbar
-## can FORCE a locked-down one, heaving for FORCE_TIME.
+## can FORCE a locked-down one, heaving for FORCE_TIME. A faulty one with power is nobody's to work
+## (FAULT): it cycles on its own (Hazards).
 
 ## Seconds of heaving with a crowbar to force a dead door open, and a locked-down one (GDD §8.3:
 ## its bolts sheared, not just its leaves).
@@ -32,13 +33,15 @@ func prompt(player: Player) -> String:
 		return "FORCE"
 	if door.sealed:
 		return door.seal_text
+	if door.powered and door.faulty:
+		return "FAULT"
 	if door.powered:
 		return "CLOSE" if door.open else "OPEN"
 	return "PRY" if _prying(player) else "NO POWER"
 
 
 func usable_by(player: Player) -> bool:
-	return enabled and ((not door.sealed and (door.powered or _prying(player))) or _forcing(player))
+	return enabled and ((not door.sealed and ((door.powered and not door.faulty) or _prying(player))) or _forcing(player))
 
 
 func hold_for(player: Player) -> float:

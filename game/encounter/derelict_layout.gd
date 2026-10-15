@@ -61,6 +61,14 @@ const FLOOR_CLEAR := 1.1
 ## How many falls of debris on the way back from the Prize, in a structural breach.
 const FALLS := 4
 
+## Its hazards (GDD §11): how likely its drive room's core is to be leaking (radiation), the
+## weights for none, one or two coolant spills (live once their section has power), each a spill's
+## reach from its cell's middle, and how likely a door is to be faulty (cycling on a dying circuit).
+const HOT_CORE_CHANCE := 0.5
+const PUDDLES := [3.0, 5.0, 2.0]
+const PUDDLE_OUT := 0.85
+const FAULTY_CHANCE := 0.5
+
 ## The emergency strobes ({at, failing, room}) and what lives here ({kind, at}), in the derelict's
 ## space.
 var strobes: Array[Dictionary] = []
@@ -91,6 +99,12 @@ var buckle := ""
 var heap := Transform3D()
 var falls: Array[Transform3D] = []
 var nest := Transform3D()
+## Its hazards: whether its drive core leaks (and where it stands), its coolant spills ({at, room})
+## and its faulty doors (edge keys).
+var hot_core := false
+var hot_at := Vector3.ZERO
+var puddles: Array[Dictionary] = []
+var faulty: Array[String] = []
 
 
 ## The layout for `seed` (a derelict node's own), in `sector`; `event` forces its Prize's event
@@ -167,6 +181,7 @@ func _dress(rng: RandomNumberGenerator) -> void:
 	_vault(Seeds.rng(seed, "vault/%d" % attempt))
 	_power(Seeds.rng(seed, "power/%d" % attempt))
 	_event(Seeds.rng(seed, "event/%d" % attempt))
+	_hazards(Seeds.rng(seed, "hazards/%d" % attempt))
 
 
 ## What lives here: in rooms at least two in from the entry (never the Prize room), on open floor.
@@ -620,6 +635,58 @@ func _nest(rng: RandomNumberGenerator) -> bool:
 	return true
 
 
+# --- Hazards ----------------------------------------------------------------------------------
+
+## Lays out its hazards, after everything else (so nothing else changes for them, and they keep
+## clear of it all): a leaking drive core, coolant spills in rooms past the entry's section (never
+## the Prize's, the secure store's or the entry), and a faulty door (never one an event needs).
+func _hazards(rng: RandomNumberGenerator) -> void:
+	var drive := _first(&"drive")
+	var core := _prop_of(drive, 0) if drive >= 0 else -1
+	if core >= 0 and rng.randf() < HOT_CORE_CHANCE:
+		hot_core = true
+		hot_at = props[core].at.origin
+		props[core]["role"] = "hot_core"
+	var rooms_out := range(rooms.size()).filter(func(index: int) -> bool:
+		return index != 0 and index != prize and index != vault and section_of[index] > 0)
+	for i in _weighted(rng, PUDDLES):
+		while not rooms_out.is_empty():
+			var index: int = rooms_out.pop_at(rng.randi() % rooms_out.size())
+			var spot: Variant = _spill_spot(index, rng)
+			if spot != null:
+				puddles.append({"at": spot, "room": index})
+				props.append({"model": "derelict/dk_puddle", "at": spot, "rack": [], "room": index, "pose": [], "role": "puddle"})
+				break
+	if rng.randf() < FAULTY_CHANCE:
+		var taken := lockdown + vent_doors + [buckle, vault_door]
+		var doors := joins.keys().filter(func(key: String) -> bool: return joins[key].kind == "door" and not key in taken)
+		if not doors.is_empty():
+			faulty.append(doors[rng.randi() % doors.size()])
+
+
+## A spot for a coolant spill in room `index`: off a corner of one of its cells (its cable clear
+## of the light), clear of everything else on the floor, and of where debris will fall; or null.
+func _spill_spot(index: int, rng: RandomNumberGenerator) -> Variant:
+	var spots := []
+	for cell: Vector3i in rooms[index].cells:
+		for corner in [Vector3(1, 0, 1), Vector3(-1, 0, 1), Vector3(1, 0, -1), Vector3(-1, 0, -1)]:
+			spots.append(centre_of(cell) + corner * PUDDLE_OUT)
+	var frame := frame_of(index)
+	var finds: Array = module(rooms[index].type).get("spots", []).map(func(spot: Vector3) -> Vector3: return frame * spot)
+	finds.append_array(module(rooms[index].type).get("big", []).map(func(big: Array) -> Vector3: return frame * big[0]))
+	var landings: Array = falls.map(func(at: Transform3D) -> Vector3: return at.origin)
+	if buckle != "":
+		landings.append(heap.origin)
+	if event == &"nest":
+		landings.append(nest.origin)
+	while not spots.is_empty():
+		var at: Vector3 = spots.pop_at(rng.randi() % spots.size())
+		if _clear_of_all(at, FLOOR_CLEAR) and finds.all(func(find: Vector3) -> bool: return _flat_distance(find, at) >= FLOOR_CLEAR) \
+				and landings.all(func(spot: Vector3) -> bool: return _flat_distance(spot, at) >= 2.0):
+			return Transform3D(Basis(Vector3.UP, rng.randf() * TAU), at)
+	return null
+
+
 ## A spot in room `index`'s ceiling for a sentry, clear of what else is up there (and of anything
 ## tall, breakers, strobes, a Hanger); or null.
 func _ceiling_spot(index: int, rng: RandomNumberGenerator) -> Variant:
@@ -718,7 +785,7 @@ static func letter(section: int) -> String:
 func checksum() -> int:
 	var boxes := breakers.map(func(box: Dictionary) -> Array: return [box.section, box.room, box.at.origin.snapped(Vector3.ONE * 0.01), box.cell])
 	return hash([super.checksum(), creatures.size(), section_of, boxes, vault, vault_door, event, lockdown, sentries.size(),
-			blowout, buckle, falls.size()])
+			blowout, buckle, falls.size(), hot_core, puddles.size(), faulty])
 
 
 ## The plan as text for the host's log: each room's centre where it lies docked (the entry's cell
@@ -739,6 +806,14 @@ func describe_docked() -> String:
 			text += "\nPrize event: infestation, a nest at %s" % (nest.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1)
 		_:
 			text += "\nPrize event: none"
+	var hazards := []
+	if hot_core:
+		hazards.append("a leaking drive core at %s" % (hot_at + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1))
+	for spill: Dictionary in puddles:
+		hazards.append("a coolant spill at %s" % (spill.at.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1))
+	for key in faulty:
+		hazards.append("a faulty door at %s" % key)
+	text += "\nHazards: %s" % (", ".join(hazards) if not hazards.is_empty() else "none")
 	return text
 
 

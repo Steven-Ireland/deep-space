@@ -150,6 +150,8 @@ var in_vacuum := false
 var integrity := 1.0
 var breached := false
 var radiation := 0.0
+## The dose a second where they stand (a leaking core near: Hazards), on their own machine.
+var exposure := 0.0
 ## The helmet lamp's charge, 0..1.
 var battery := 1.0
 ## Whether they're on the ground (only the owner's body moves, so only it knows): footfalls and
@@ -440,6 +442,8 @@ func revive(at: Transform3D) -> void:
 	battery = 1.0
 	integrity = 1.0
 	breached = false
+	radiation = 0.0
+	exposure = 0.0
 	harness = false
 	rcs = RCS_FUEL
 	teleport(at.origin)
@@ -1089,6 +1093,7 @@ func _breathe(delta: float) -> void:
 	in_vacuum = not Zone.has_air(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
 	if not dead:
 		PrizeEvent.buffet(self, delta)
+		Hazards.irradiate(self, delta)
 	if not in_vacuum:
 		return
 	o2 = maxf(0.0, o2 - delta * o2_rate())

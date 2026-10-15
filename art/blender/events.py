@@ -1,6 +1,7 @@
 """What taking a derelict's Prize can set off (GDD §8.3): a security system's ceiling sentries and
 the alarm beacons over its locked-down doors; the outer wall a depressurization blows out; the heap
-a structural breach brings down against a door; the nest an infestation bursts from.
+a structural breach brings down against a door; the nest an infestation bursts from. And a
+derelict's hazards (GDD §11): a coolant spill a torn cable hangs in, live once its section has power.
 """
 
 import math
@@ -78,7 +79,7 @@ def sentry():
     for i in range(12):
         a = i / 12 * math.tau
         d.polygon([(-0.02, -0.006), (0.02, -0.006), (0.0, 0.006), (-0.035, 0.006)], dk["black"],
-                  frame((math.cos(a) * 0.24, math.sin(a) * 0.24, -0.053), Vector((0, 0, -1)), lift=0.001))
+                  frame((math.cos(a) * 0.24, math.sin(a) * 0.24, -0.053), Vector((0, 0, -1)), up=(math.cos(a), math.sin(a), 0), lift=0.001))
     low = m.to_object()
     eye = Mesh("sentry_eye")
     eye.cylinder(0.02, 0.02, mats.plain("lk_lamp", (0.9, 0.15, 0.1)), sides=8, at=(0, -0.198, pz + 0.035), rot=(90, 0, 0))
@@ -310,3 +311,48 @@ def heap():
     low = m.to_object()
     collider = kit._collider("dk_heap_col", (2.5, 1.5, 2.3), (0, 0.0, 1.15))
     return Model(low=low, decals=[], extras=[collider])
+
+
+## Where the torn cable's frayed end lies in its spill, model space.
+PUDDLE_TIP = (0.12, -0.05, 0.03)
+
+
+@asset("dk_puddle", "derelict", texture=128, colors=32, ao=0.5, angles=((-35, 35), (145, 30), (90, 10), (-20, 70)))
+def puddle():
+    """A coolant spill (GDD §11: hazards): a slick of coolant across the deck from a burst line, a
+    torn power cable hanging out of the ceiling into it. Dead, it's only a mess; once its section
+    has power the cable's live, and so is the spill: sparks spit from the cable's end, arcs crawl
+    over it, and anyone who steps in it is electrocuted.
+    Size: the spill about 1.7 x 1.2 m; the cable from the ceiling (z = 3) to the deck.
+    Parts: the spill's surface is a separate mesh (`puddle_surface`, unbaked) Godot gives a wet,
+    sparking material; SOCKET_tip where the cable's end lies in it."""
+    c = br._materials()
+    copper = mats.metal("dk_copper", (0.72, 0.42, 0.24), grime=0.5, detail_strength=0.35)
+    stain = mats.plain("dk_coolant_stain", (0.16, 0.2, 0.19), grime=0.4, variation=0.15)
+    m = Mesh("dk_puddle")
+    # The stain the spill's spread over, a little wider than the spill; a few drips beyond it.
+    outline = []
+    for i in range(14):
+        a = i / 14 * math.tau
+        r = 0.78 + 0.16 * math.sin(a * 3.0 + 0.7) + 0.08 * math.sin(a * 5.0)
+        outline.append((math.cos(a) * r, math.sin(a) * r * 0.72))
+    floor = Vector((0, 0, 1))
+    m.polygon([(x * 1.12, y * 1.12) for x, y in outline], stain, frame((0, 0, 0.004), floor, up=(0, 1, 0), lift=0.0))
+    for (x, y, r) in ((0.95, 0.3, 0.07), (-0.9, -0.35, 0.09), (0.6, -0.62, 0.05), (-0.4, 0.66, 0.06)):
+        m.cylinder(r, 0.006, stain, sides=7, at=(x, y, 0.003))
+    # The cable: out of a torn ceiling panel, sagging down, its end frayed open in the spill.
+    m.box((0.7, 0.45, 0.04), c["casing_dark"], at=(0.25, 0.1, 2.97), rot=(14, -6, 20))
+    tx, ty, tz = PUDDLE_TIP
+    m.pipe([(0.3, 0.12, 3.0), (0.32, 0.08, 2.2), (0.26, 0.02, 1.2), (0.2, -0.02, 0.45), (tx + 0.05, ty, 0.12), (tx, ty, tz + 0.02)],
+           0.03, c["cable"], sides=6)
+    m.pipe([(0.38, 0.16, 3.0), (0.42, 0.2, 2.5), (0.5, 0.28, 2.1)], 0.02, c["cable_red"], sides=5)
+    for i in range(5):
+        a = i / 5 * math.tau
+        m.pipe([(tx, ty, tz + 0.02), (tx + math.cos(a) * 0.06, ty + math.sin(a) * 0.06, tz + 0.01),
+                (tx + math.cos(a + 0.4) * 0.12, ty + math.sin(a + 0.4) * 0.11, tz)], 0.005, copper, sides=3)
+    m.box((0.12, 0.08, 0.05), c["dark_steel"], at=(tx + 0.08, ty + 0.02, 0.36), rot=(0, 30, 10), bevel=0.01)
+    low = m.to_object()
+    surface = Mesh("puddle_surface")
+    surface.polygon([(x * 0.97, y * 0.97) for x, y in outline], mats.plain("dk_coolant", (0.1, 0.32, 0.36)),
+                    frame((0, 0, 0.012), floor, up=(0, 1, 0), lift=0.0))
+    return Model(low=low, decals=[], extras=[surface.to_object(), _socket("tip", PUDDLE_TIP)])

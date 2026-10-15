@@ -17,7 +17,7 @@ extends CanvasLayer
 ##     member heard) and a few bars of what's on it.
 ##   - Struck (GDD §10): the readouts flicker and jump for a moment, and blood spatters the glass at
 ##     an edge of the visor, fading. Breached out of the air, frost creeps in from the visor's
-##     edges; nearly out of O2, the glass fogs.
+##     edges; nearly out of O2, the glass fogs. Near a leaking core, radiation specks the sensors.
 
 const COLOUR := Color(0.72, 0.95, 0.78)
 const AMBER := Color(1.0, 0.74, 0.3)
@@ -60,6 +60,8 @@ var player: Player
 # The prompt: what it points at, where its box floats, how far it's faded in and drawn out.
 ## The finest step its box's spring is followed in (s).
 const SPRING_STEP := 1.0 / 120.0
+## Specks of radiation static on the visor for each unit of dose a second.
+const STATIC_SPECKS := 9000.0
 var _target: Interactable
 var _verb := ""
 var _usable := true
@@ -226,6 +228,7 @@ func _draw_hud() -> void:
 		if randf() < 0.35 * shaken:
 			return
 		canvas.draw_set_transform(Vector2(randi_range(-2, 2), randi_range(-1, 1)) * ceilf(shaken * 2.0))
+	_draw_static()
 	if _shown > 0.0:
 		_draw_prompt(_shown)
 	_draw_belt()
@@ -233,6 +236,15 @@ func _draw_hud() -> void:
 	_draw_notices()
 	_draw_comms()
 	canvas.draw_set_transform(Vector2.ZERO)
+
+
+## Radiation striking the visor's sensors (a leaking core near: Hazards): white specks flicking on
+## and off across it, more the stronger the dose.
+func _draw_static() -> void:
+	var specks := mini(160, roundi(player.exposure * STATIC_SPECKS))
+	for i in specks:
+		var at := Vector2(randf() * canvas.size.x, randf() * canvas.size.y).floor()
+		canvas.draw_rect(Rect2(at, Vector2(1, 1)), Color(1, 1, 1, randf_range(0.3, 0.9)))
 
 
 # --- Gauges ------------------------------------------------------------------------------------

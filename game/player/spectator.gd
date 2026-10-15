@@ -83,7 +83,9 @@ func _draw_overlay() -> void:
 		_canvas.draw_string(FONT, Vector2(12, 12) * block + Vector2(0, line), caption, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, COLOUR)
 	if fmod(_time, 1.2) < 0.7:
 		_canvas.draw_circle(Vector2(size.x - 18 * block, 18 * block), 3.0 * block, RED)
-	var status := "SIGNAL LOST  -  THE MED BAY CAN CLONE YOU" if player.cause == &"lost" else "NO PULSE  -  BRING THE BODY TO THE MED BAY"
+	var why: String = Player.CAUSES.get(player.cause, String(player.cause).to_upper())
+	var status := "SIGNAL LOST  -  THE MED BAY CAN CLONE YOU" if player.cause == &"lost" \
+			else "%s  -  BRING THE BODY TO THE MED BAY" % why
 	_canvas.draw_string(FONT, Vector2(12 * block, size.y - 14 * block), status, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, RED if fmod(_time, 2.0) < 1.4 else COLOUR)
 	var hint := "LMB / WHEEL: NEXT CAM"
 	var width := FONT.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, int(font_size * 0.75)).x

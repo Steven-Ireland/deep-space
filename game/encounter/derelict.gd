@@ -37,7 +37,10 @@ var vault: VaultLock
 var prize_gone := false
 signal prize_event(by: Player)
 var event: PrizeEvent
-## Its fittings with a part to play, by role (the plan's props' `role`: "sentry", "nest").
+## Its hazards: live spills, a leaking core, faulty doors.
+var hazards: Hazards
+## Its fittings with a part to play, by role (the plan's props' `role`: "sentry", "nest", "puddle",
+## "hot_core").
 var fixtures := {}
 
 
@@ -66,6 +69,8 @@ func _ready() -> void:
 	event = PrizeEvent.new()
 	add_child(event)
 	prize_event.connect(event.begin)
+	hazards = Hazards.new()
+	add_child(hazards)
 
 
 ## The plan's dressing: furniture and decay, the strobes, the stand-in creatures, and the loot

@@ -85,14 +85,20 @@ func _draw_wheels() -> void:
 		_arrow(Vector2(wheel.get_center().x, wheel.position.y - 7), true)
 		_arrow(Vector2(wheel.get_center().x, wheel.end.y + 7), false)
 	var hover_enter := cursor.x >= 0 and ENTER.grow(3).has_point(cursor)
-	draw_rect(ENTER, GREEN if hover_enter else DIM, not hover_enter, 1.0)
+	if hover_enter:
+		draw_rect(ENTER, GREEN)
+	else:
+		draw_rect(ENTER, DIM, false, 1.0)
 	draw_string(FONT, Vector2(ENTER.get_center().x - 18, ENTER.end.y - 4), "ENTER", HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE,
 			Color.BLACK if hover_enter else GREEN)
 	text(1, 9.4, "TRIES", DIM)
 	for i in VaultLock.TRIES:
 		var cell := Rect2(Vector2(54 + i * 9, 9.4 * CELL.y + 7), Vector2(7, 8))
 		var left := i < lock.tries_left()
-		draw_rect(cell if left else cell.grow(-0.5), (AMBER if lock.tries_left() <= 2 else GREEN) if left else DIM, left, 1.0)
+		if left:
+			draw_rect(cell, AMBER if lock.tries_left() <= 2 else GREEN)
+		else:
+			draw_rect(cell.grow(-0.5), DIM, false, 1.0)
 	if not lock.live():
 		return
 	var last: Array = lock.guesses.back() if not lock.guesses.is_empty() else []

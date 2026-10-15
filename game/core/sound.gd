@@ -494,7 +494,8 @@ func alarm(source: Node3D, seconds: float) -> void:
 
 ## What a Prize event makes heard (`what`) from `source` (`offset` from it, in its space): a
 ## sentry waking, locking on, firing, struck, knocked out; the structure groaning and creaking, debris
-## falling, a heap of ceiling coming down; a wall blowing out; a nest stirring and bursting.
+## falling, a heap of ceiling coming down; a wall blowing out; a nest stirring and bursting; and the
+## hazards': a live spill arcing, and jolting someone.
 ## (Stand-ins, all of them: other sounds pitched and stacked, till they have their own: TODO.md.)
 func event(what: StringName, source: Node3D, offset := Vector3.ZERO) -> void:
 	match what:
@@ -522,6 +523,10 @@ func event(what: StringName, source: Node3D, offset := Vector3.ZERO) -> void:
 			_play_at(CLATTER_HEAVY, source, 60.0, 6.0, 0.4, offset)
 		&"stir":
 			_play_at(FLESH_HIT.pick_random(), source, 16.0, -4.0, 0.5, offset)
+		&"arc":
+			_play_at(ZAP, source, 14.0, -6.0, randf_range(1.3, 1.6), offset)
+		&"zap":
+			_play_at(ZAP, source, 22.0, 4.0, 0.9, offset)
 		&"burst":
 			_play_at(FLESH_HIT.pick_random(), source, 30.0, 6.0, 0.6, offset)
 			_play_at(AIRLOCK_VENT, source, 20.0, -2.0, 1.6, offset)
