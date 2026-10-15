@@ -195,6 +195,16 @@ func shake() -> float:
 	return CONTACT_SHAKE * exp(-since * 3.0) if since < 1.5 else 0.0
 
 
+## The way something follows the crew aboard from the derelict (GDD §5; Crawler), in the world:
+## along the tube from the derelict's hatch to the collar's outer hatch, then in through it.
+func way_aboard() -> PackedVector3Array:
+	var lantern := get_parent() as Node3D
+	var piece := (hatch.get_parent() as Node3D).transform
+	var out := piece.basis.z.normalized()
+	return PackedVector3Array([lantern.to_global(_mouth.origin - out * 0.5), lantern.to_global(piece.origin + out * 0.7),
+			lantern.to_global(piece.origin - out * 1.4)])
+
+
 ## Whether a world point's in the tube, run out.
 func in_tube(point: Vector3) -> bool:
 	if extension() < 1.0:

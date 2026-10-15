@@ -9,7 +9,8 @@ extends CharacterBody3D
 ## it.
 ##
 ## It belongs to its derelict: made from the plan on every peer under the same name (so the host's
-## state finds it everywhere), a child of the derelict, in its space, so it rides with it.
+## state finds it everywhere), a child of the derelict, in its space, so it rides with it. One that
+## follows the crew aboard (Crawler) belongs to the LANTERN from then on: `deck` is wherever it is.
 
 ## Physics layers: "creatures" (solid to crew), and "hitboxes" (struck by a swing, in nobody's way).
 const LAYER := 1 << 4
@@ -31,8 +32,10 @@ var health := 1.0
 var jolts := 0
 var blows := 0
 
-## Its derelict, and which it is there (its index in the plan).
+## Its derelict, and which it is there (its index in the plan); the deck it's on (its derelict, or
+## the LANTERN once it's come aboard), whose space it moves in.
 var derelict: Derelict
+var deck: Deck
 var index := 0
 var model: Node3D
 var _animation: AnimationPlayer
@@ -76,7 +79,8 @@ func kind() -> StringName:
 
 func _ready() -> void:
 	add_to_group(&"creatures")
-	derelict = get_parent() as Derelict
+	deck = get_parent() as Deck
+	derelict = deck as Derelict
 	model = load(MODELS % kind()).instantiate()
 	add_child(model)
 	Deck._mark_interior(model)
@@ -161,16 +165,38 @@ func loop(name: StringName, speed := 1.0) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	if not multiplayer.is_server() or derelict == null:
+	if not multiplayer.is_server() or deck == null:
 		return
 	_busy -= delta
-	if not derelict.awake():
+	if not _awake():
 		_settled = 0.0
 		return
 	_settled += delta
 	if _settled < STIR:
 		return
 	_think(delta)
+
+
+## Whether it's stirring: in its derelict, once that's docked (Derelict.awake); aboard the
+## LANTERN, always.
+func _awake() -> bool:
+	return not (deck is Derelict) or (deck as Derelict).awake()
+
+
+## Everyone: it's come aboard `onto` (the LANTERN), keeping where it stands in the world: it
+## belongs to that deck from now on.
+@rpc("authority", "call_local", "reliable")
+func _board(onto: NodePath) -> void:
+	var lantern := get_node_or_null(onto) as Deck
+	if lantern == null:
+		return
+	var at := global_transform
+	get_parent().remove_child(self)
+	lantern.add_child(self)
+	global_transform = at
+	yaw = rotation.y
+	deck = lantern
+	print("%s %s: aboard the LANTERN." % [String(kind()).capitalize(), name])
 
 
 ## Host: what it does now (each kind's own).
@@ -186,12 +212,12 @@ func alive() -> bool:
 # --- Senses ------------------------------------------------------------------------------------
 
 ## Host: a noise (Noises) of kind `what` at `at` (world space), carrying `reach` metres, made by
-## `source` (a crew member, or null). Heard if it carries this far through the derelict's rooms.
+## `source` (a crew member, or null). Heard if it carries this far through its deck's rooms.
 func hear(at: Vector3, reach: float, what: StringName, source: Node) -> void:
-	if not listens() or not alive() or derelict == null or not derelict.awake() or _settled < STIR:
+	if not listens() or not alive() or deck == null or not _awake() or _settled < STIR:
 		return
-	var from := derelict.to_local(at)
-	var nav := derelict.nav()
+	var from := deck.to_local(at)
+	var nav := deck.nav()
 	if not nav.inside(from):
 		return
 	var distance := nav.heard(from, position, reach)
@@ -204,19 +230,25 @@ func listens() -> bool:
 	return false
 
 
-## Host: it heard `what` at `from` (its derelict's space), `level` loud (0 at the edge of hearing,
+## Host: it heard `what` at `from` (its deck's space), `level` loud (0 at the edge of hearing,
 ## 1 at its source), made by `source` (a crew member, or null).
 func _heard(_from: Vector3, _level: float, _what: StringName, _source: Player) -> void:
 	pass
 
 
-## The living crew in its derelict, on the host.
+## The living crew on its deck, on the host.
 func crew_aboard() -> Array[Player]:
 	var out: Array[Player] = []
 	for player: Player in get_tree().get_nodes_in_group(&"crew"):
-		if not player.dead and Derelict.at(get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT) == derelict:
+		if not player.dead and on_deck(player):
 			out.append(player)
 	return out
+
+
+## Whether `player` is on its deck (in one of its rooms).
+func on_deck(player: Player) -> bool:
+	var zone := Zone.at(get_world_3d(), player.global_position + Vector3.UP * Player.CHEST_HEIGHT)
+	return zone != null and zone.get_parent() == deck
 
 
 # --- Being struck ------------------------------------------------------------------------------

@@ -104,6 +104,7 @@ var hatches := {}
 var zones := {}
 ## The ceiling fixtures' lights, and the ceilings they hang from.
 var lights: Array[OmniLight3D] = []
+var _nav: DerelictNav
 var ceilings: Array[Node3D] = []
 
 
@@ -330,3 +331,12 @@ func _light(at: Vector3) -> void:
 	light.light_cull_mask = ~HULL_LAYER
 	add_child(light)
 	lights.append(light)
+
+
+## The ways through it for what lives aboard (DerelictNav), worked out the first time they're
+## needed, its doorways brought up to date with its doors and hatches.
+func nav() -> DerelictNav:
+	if _nav == null:
+		_nav = DerelictNav.build(self)
+	_nav.refresh()
+	return _nav

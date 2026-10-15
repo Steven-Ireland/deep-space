@@ -178,6 +178,8 @@ func _make_lights() -> void:
 		var roll := Seeds.rng(derelict.layout.seed, "light/%d/%d" % [cell.x, cell.y])
 		var r := roll.randf()
 		var kind := 2 if r < BROKEN else (1 if r < BROKEN + FAILING else 0)
+		if derelict.layout.room_of.get(Vector3i(cell.x, 0, cell.y), -1) in derelict.layout.dark:
+			kind = 2 # a Hanger's room: its lights are dead for good
 		var light := OmniLight3D.new()
 		light.position = Deck.centre_of(cell) + Vector3(0, 2.75, 0)
 		light.light_color = LIGHT_COLOUR

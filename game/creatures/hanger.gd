@@ -10,6 +10,8 @@ extends Creature
 ##   holding   someone in its tendrils
 ##   recoil    struck: tendrils drawn up, nobody caught however near, for RECOIL seconds
 ##   sated     fed: drawn up for SATED seconds
+##   shy       a burning flare within SHY_REACH (in a hand, or lying near): tendrils drawn up out of
+##             its light till it's gone (it only hangs where the lights are dead: DerelictLayout)
 ##   dead
 
 ## A crew member this near its middle (metres across the deck) has walked into its tendrils.
@@ -22,6 +24,8 @@ const SATED := 25.0
 const LOWER := 1.5
 ## Seconds its tendrils take to snap shut round someone (its grab).
 const GRAB := 0.6
+## A burning flare this near (metres) and it shies from the light.
+const SHY_REACH := 3.5
 ## Where its maw is, under its body (it hangs from its origin, on the ceiling), and where a crew
 ## member it holds is drawn to: their feet this far under it, their head up in its tendrils.
 const MAW := Vector3(0.0, -0.62, 0.0)
@@ -72,7 +76,7 @@ func _setup() -> void:
 func _process(delta: float) -> void:
 	super._process(delta)
 	# Its tendrils are only there to strike while they hang down (or hold someone).
-	_tendrils.disabled = mode in [&"recoil", &"sated", &"dead"]
+	_tendrils.disabled = mode in [&"recoil", &"sated", &"shy", &"dead"]
 
 
 ## Where a crew member it holds is drawn to: their feet, in the world.
@@ -97,7 +101,20 @@ func _think(delta: float) -> void:
 			_touch_in -= delta
 			if _touch_in <= 0.0:
 				_touch_in = 0.05
+				if _flare_near():
+					mode = &"shy"
+					act(&"draw")
+					_left = LOWER
+					return
 				_touched()
+		&"shy":
+			if _flare_near():
+				_left = LOWER
+			elif _left <= 0.0:
+				act(&"lower")
+				mode = &"recoil"
+				_lowering = true
+				_left = LOWER
 		&"holding":
 			if _left <= 0.0:
 				loop(&"hold") # once its tendrils have snapped shut (grab)
@@ -115,12 +132,25 @@ func _think(delta: float) -> void:
 				mode = &"set"
 
 
+## Whether a flare's burning within SHY_REACH of it: in a crew member's hand, or lying loose.
+func _flare_near() -> bool:
+	var here := global_position + Vector3.DOWN * 2.0
+	for player in crew_aboard():
+		if player.held_lit and player.global_position.distance_to(here) < SHY_REACH:
+			return true
+	var items := LooseItems.of(self)
+	for thing in items.loose() if items != null else []:
+		if thing is Pickup and Items.burning((thing as Pickup).record) and thing.global_position.distance_to(here) < SHY_REACH:
+			return true
+	return false
+
+
 ## Whether anyone's walked into its tendrils: the first is caught.
 func _touched() -> void:
 	for player in crew_aboard():
 		if player.seized:
 			continue
-		var off := derelict.to_local(player.global_position) - position
+		var off := deck.to_local(player.global_position) - position
 		if Vector2(off.x, off.z).length() < TOUCH:
 			_catch(player)
 			return

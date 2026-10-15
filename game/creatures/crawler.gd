@@ -6,6 +6,8 @@ extends Creature
 ##   wait     still in the dark, clicking; now and then it ambles somewhere near (prowl)
 ##   prowl    ambling
 ##   listen   gone to where it heard something, head sweeping; a flare's hiss holds it there
+##   cross    after its prey out through the derelict's hatch and along the collar's tube, to
+##            come aboard the LANTERN through the airlock (or, shut out, back)
 ##   hunt     after a crew member it heard, fast, to where it last heard them
 ##   lunge    springs at them from a few metres
 ##   swipe    a blow from in front; from behind, a grab: the end of them (`grab`)
@@ -61,6 +63,10 @@ const BANG := 5.0
 const BANG_EVERY := 0.7
 ## Waiting, it stirs after WAIT seconds (a range), and ambles up to PROWL metres.
 const WAIT := Vector2(12.0, 35.0)
+## Following the crew aboard (GDD §5): it goes after its prey out through the derelict's hatch, down
+## the collar's tube and in through its airlock, if it heard them within FOLLOW seconds; a shut
+## outer hatch it beats on for BANG seconds, then turns back.
+const FOLLOW := 8.0
 const PROWL := 8.0
 ## Its jaws, in its own space (it faces +Z), and how its body sits: the model's middle on its
 ## origin, so it turns about its middle.
@@ -69,7 +75,7 @@ const MODEL_BACK := -0.2
 ## Where a move's got to (`_go`).
 enum { MOVING, THERE, NO_WAY }
 
-## Host: who it's after and where it last heard them (its derelict's space), how loud, and how long
+## Host: who it's after and where it last heard them (its deck's space), how loud, and how long
 ## ago; where it's going and the way there; the time left in what it's doing.
 var prey: Player
 var prey_at := Vector3.ZERO
@@ -85,12 +91,17 @@ var _lured := false # listening to a flare
 var _flinched := 0.0
 var _feel_in := 0.0
 var _rng := RandomNumberGenerator.new()
-var _door: Door
+var _door: Node3D # a Door, or a Hatch
+var _door_middle := Vector3.ZERO
 ## What it sounds like, on every peer.
 var _mode_heard := &""
 var _acts_heard := 0
 var _gait := 0.0
 var _click_in := 3.0
+## Host: the way it's crossing to the LANTERN (world points), and whether it's turned back.
+var _way := PackedVector3Array()
+var _back := false
+var _banging := false
 
 
 func kind() -> StringName:
@@ -148,7 +159,7 @@ func _think(delta: float) -> void:
 		&"wait":
 			loop(&"idle")
 			if _left <= 0.0:
-				_goal = derelict.nav().wander_point(position, PROWL, _rng)
+				_goal = deck.nav().wander_point(position, PROWL, _rng)
 				_set_mode(&"prowl")
 		&"prowl":
 			if _go(delta, PROWL_SPEED) != MOVING:
@@ -169,6 +180,8 @@ func _think(delta: float) -> void:
 			_swipe()
 		&"bang":
 			_bang(delta)
+		&"cross":
+			_cross(delta)
 		&"recover", &"stunned":
 			if mode == &"stunned":
 				loop(&"stunned")
@@ -199,6 +212,9 @@ func _hunt(delta: float) -> void:
 		prey = null
 		_search(prey_at)
 		return
+	if not on_deck(prey) and _can_follow():
+		_follow(delta)
+		return
 	var flat := _flat(prey_at - position)
 	var heard_now := _since_heard < LUNGE_HEARD
 	if flat.length() < SWIPE and heard_now:
@@ -210,10 +226,11 @@ func _hunt(delta: float) -> void:
 	_goal = prey_at
 	var got := _go(delta, HUNT_SPEED)
 	if got == NO_WAY:
-		var door := derelict.nav().door_between(position, prey_at)
+		var door := deck.nav().door_between(position, prey_at)
 		if not door.is_empty():
 			_door = door[0]
 			_goal = door[1]
+			_door_middle = door[2]
 			_set_mode(&"bang")
 			_left = BANG
 			return
@@ -221,6 +238,86 @@ func _hunt(delta: float) -> void:
 		return
 	if got == THERE and _since_heard > LOST:
 		_search(prey_at)
+
+
+# --- Following the crew aboard (host) -----------------------------------------------------------
+
+## Whether its prey's gone out through its derelict's hatch, into the collar's tube or aboard the
+## LANTERN, while the collar holds the derelict docked and open, and it heard them lately.
+func _can_follow() -> bool:
+	var collar := Collar.of(self)
+	if collar == null or deck != collar.derelict or not collar.sealed() or not collar.derelict_hatch_open():
+		return false
+	if _since_heard > FOLLOW:
+		return false
+	var lantern := get_tree().get_first_node_in_group(&"lantern")
+	var zone := Zone.at(get_world_3d(), prey.global_position + Vector3.UP * Player.CHEST_HEIGHT)
+	return collar.in_tube(prey.global_position + Vector3.UP * 0.5) or (zone != null and zone.get_parent() == lantern)
+
+
+## Where it stands just inside its derelict's hatch (its space).
+func _inside_hatch() -> Vector3:
+	var frame := derelict.dock_point()
+	return _flat(frame.origin + frame.basis.z * 1.0)
+
+
+## After its prey to the derelict's hatch; there, out along the tube.
+func _follow(delta: float) -> void:
+	_goal = _inside_hatch()
+	if _go(delta, HUNT_SPEED) == MOVING:
+		return
+	if _flat(_goal - position).length() < 1.0:
+		_way = Collar.of(self).way_aboard()
+		_back = false
+		_banging = false
+		_set_mode(&"cross")
+		print("Crawler %s: following %s aboard." % [name, prey.crew_name()])
+
+
+## Along the tube toward the LANTERN (or back). The collar's outer hatch shut in its face, it beats
+## on it, then turns back; through it, it's aboard: the LANTERN's from now on, still hunting.
+func _cross(delta: float) -> void:
+	var collar := Collar.of(self)
+	if collar == null or not collar.sealed() or deck != collar.derelict:
+		# The collar's let go under it: it's back inside, by the hatch.
+		position = _inside_hatch()
+		_search(position)
+		return
+	if _way.is_empty():
+		_search(position)
+		return
+	var target := deck.to_local(_way[0])
+	var way := target - position
+	way.y = 0.0
+	if not _back and _way.size() == 1 and not collar.hatch.passable():
+		velocity = Vector3.ZERO
+		_face(way, delta)
+		if not _banging:
+			_banging = true
+			_left = BANG
+		if fmod(_left, BANG_EVERY) < delta:
+			act(&"attack", 1.4)
+			Noises.make(self, collar.hatch.centre(), &"bang", self)
+		if _left <= 0.0:
+			# Turns back the way it came, to where it can get in again.
+			_back = true
+			_way = PackedVector3Array([collar.way_aboard()[0], deck.to_global(_inside_hatch())])
+		return
+	if way.length() < 0.3:
+		_way.remove_at(0)
+		if _way.is_empty():
+			if _back:
+				_search(position)
+			else:
+				_board.rpc(get_tree().get_first_node_in_group(&"lantern").get_path())
+				prey_at = deck.to_local(prey.global_position) if _prey_alive() else position
+				_since_heard = 0.0
+				_set_mode(&"hunt")
+		return
+	_face(way, delta)
+	velocity = deck.global_basis * (way.normalized() * HUNT_SPEED)
+	move_and_slide()
+	loop(&"crawl", HUNT_SPEED / STRIDE)
 
 
 ## Whether who it's after is still there and alive (a crew member who's left the game is gone).
@@ -257,7 +354,7 @@ func _lunge() -> void:
 			victim.hurt.rpc_id(victim.get_multiplayer_authority(), WOUND, &"crawler")
 	if _left <= 0.0:
 		# The clip's spring carried its body ahead: it lands there (short of anything solid).
-		var landed := derelict.global_basis * (_forward() * LUNGE_REACH)
+		var landed := deck.global_basis * (_forward() * LUNGE_REACH)
 		move_and_collide(landed)
 		position.y = 0.0
 		act(&"idle")
@@ -291,13 +388,13 @@ func _swipe() -> void:
 
 
 func _bang(delta: float) -> void:
-	if _door == null or not is_instance_valid(_door) or _door.open or _left <= 0.0:
+	if _door == null or not is_instance_valid(_door) or _door.get("open") or _left <= 0.0:
 		_door = null
 		_search(position)
 		return
 	if _go(delta, HUNT_SPEED) == MOVING:
 		return
-	_face(_flat(_door.position - position), delta)
+	_face(_flat(_door_middle - position), delta)
 	if fmod(_left, BANG_EVERY) < delta:
 		act(&"attack", 1.4)
 		Noises.make(self, global_position, &"bang", self)
@@ -306,7 +403,7 @@ func _bang(delta: float) -> void:
 ## Moves toward `_goal` at `speed` along the way through the rooms: MOVING, THERE, or NO_WAY (there's
 ## no way there on foot).
 func _go(delta: float, speed: float) -> int:
-	var nav := derelict.nav()
+	var nav := deck.nav()
 	if _goal.distance_to(_route_goal) > 0.75 or _route_age > 1.0:
 		_route = nav.path(position, _goal)
 		_route_goal = _goal
@@ -324,14 +421,14 @@ func _go(delta: float, speed: float) -> int:
 	_face(way, delta)
 	var ahead := clampf(_forward().dot(way.normalized()), 0.15, 1.0)
 	var local := way.normalized() * speed * ahead
-	velocity = derelict.global_basis * local
+	velocity = deck.global_basis * local
 	move_and_slide()
 	position.y = 0.0
 	loop(&"crawl", maxf(0.4, speed * ahead / STRIDE))
 	return MOVING
 
 
-## Turns toward `way` (its derelict's space), at TURN radians a second (or at once, `delta` INF).
+## Turns toward `way` (its deck's space), at TURN radians a second (or at once, `delta` INF).
 func _face(way: Vector3, delta: float) -> void:
 	if way.length() < 0.01:
 		return
@@ -350,19 +447,19 @@ static func _flat(v: Vector3) -> Vector3:
 
 ## Whether its lunge has a clear run along `way` (nothing solid in its path, LUNGE_REACH and more).
 func _clear_run(way: Vector3) -> bool:
-	var from := derelict.to_global(position + Vector3.UP * 0.5)
-	var to := derelict.to_global(position + Vector3.UP * 0.5 + way.normalized() * (LUNGE_REACH + 0.6))
+	var from := deck.to_global(position + Vector3.UP * 0.5)
+	var to := deck.to_global(position + Vector3.UP * 0.5 + way.normalized() * (LUNGE_REACH + 0.6))
 	var query := PhysicsRayQueryParameters3D.create(from, to, 1, [get_rid()])
 	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
-## The living crew member nearest `at` (its derelict's space) within `reach`, `ahead` of it only if
+## The living crew member nearest `at` (its deck's space) within `reach`, `ahead` of it only if
 ## asked; or null.
 func _nearest_to(at: Vector3, reach: float, ahead := false) -> Player:
 	var best: Player = null
 	var best_distance := reach
 	for player in crew_aboard():
-		var off := _flat(derelict.to_local(player.global_position) - at)
+		var off := _flat(deck.to_local(player.global_position) - at)
 		if ahead and off.length() > 0.3 and _forward().dot(off.normalized()) < 0.2:
 			continue
 		if off.length() < best_distance:
@@ -378,14 +475,14 @@ func _feel(delta: float) -> void:
 		return
 	_feel_in = 0.2
 	for player in crew_aboard():
-		var at := derelict.to_local(player.global_position)
+		var at := deck.to_local(player.global_position)
 		if _flat(at - position).length() < FEEL:
 			_heard(at, 1.0, &"felt", player)
 
 
 ## Shut in a door: a door shutting on it while it's in the doorway crushes it.
 func _crushed() -> bool:
-	for door: Door in derelict.doors.values():
+	for door: Door in deck.doors.values():
 		if door.open or door.blocker.disabled:
 			continue
 		var off := position - door.position
@@ -417,12 +514,12 @@ func _heard(from: Vector3, level: float, what: StringName, source: Player) -> vo
 			_lured = what == &"flare"
 			_search(from)
 		return
-	if mode in [&"hunt", &"bang", &"lunge", &"swipe", &"recover"]:
+	if mode in [&"hunt", &"bang", &"lunge", &"swipe", &"recover", &"cross"]:
 		if source == prey:
 			prey_at = from
 			_prey_level = level
 			_since_heard = 0.0
-			if mode == &"bang" and _door != null and derelict.nav().door_between(position, prey_at).is_empty():
+			if mode == &"bang" and _door != null and deck.nav().door_between(position, prey_at).is_empty():
 				_set_mode(&"hunt")
 		elif prey == null or _since_heard > LOST or level > _prey_level + 0.25:
 			_chase(source, from, level)
@@ -437,7 +534,7 @@ func _heard(from: Vector3, level: float, what: StringName, source: Player) -> vo
 
 ## Hunts `who` as if it had just heard them where they stand (Dev: --provoke).
 func provoke(who: Player) -> void:
-	_chase(who, derelict.to_local(who.global_position), 1.0)
+	_chase(who, deck.to_local(who.global_position), 1.0)
 
 
 ## Hunts `who`, heard at `from`, `level` loud.
@@ -463,7 +560,7 @@ func struck(damage: float, jolt: bool, by: Player) -> void:
 	if by != null and not by.dead:
 		# Whoever struck it, it knows where they are.
 		prey = by
-		prey_at = derelict.to_local(by.global_position)
+		prey_at = deck.to_local(by.global_position)
 		_since_heard = 0.0
 	if jolt:
 		velocity = Vector3.ZERO

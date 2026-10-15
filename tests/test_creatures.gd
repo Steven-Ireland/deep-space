@@ -6,7 +6,9 @@ extends SceneTree
 ## hunting, a quiet step sends it to listen, a flare's hiss lures it and holds it. Faced, it wounds;
 ## from behind, it grabs (dead); a shock prod's jolt drops it twitching; five crowbar blows kill it;
 ## a door shut on it crushes it. The Hanger catches whoever walks into its tendrils and draws them
-## up; struck, it lets them go and draws up out of reach; left alone, it kills them.
+## up; struck, it lets them go and draws up out of reach; left alone, it kills them. A Crawler on
+## their heels follows them out through the collar and aboard the LANTERN, unless the airlock's
+## outer hatch is shut in its face: then it beats on it and turns back.
 ##   tools/godot.sh --headless -s tests/test_creatures.gd
 
 const SEED := 14256631
@@ -155,6 +157,36 @@ func _run() -> void:
 	_check(player.dead and player.cause == &"hanger", "left in its tendrils, they didn't die of it (%s)" % player.cause)
 	await _frames(10)
 	_check(hanger.mode == &"sated", "fed, it didn't draw up (%s)" % hanger.mode)
+
+	# Followed aboard: a Crawler on their heels goes after them out of the derelict's hatch, along
+	# the collar's tube and in through its airlock, and hunts them on the LANTERN; with the outer
+	# hatch shut in its face, it beats on it and turns back.
+	player.revive(Transform3D(Basis(), Vector3(0, 0, 0)))
+	await _frames(3)
+	var lantern: Node = world.get_node("Lantern")
+	var collar = derelict.get_tree().get_first_node_in_group(&"collar")
+	var hatch_at: Transform3D = derelict.dock_point()
+	var den: Vector3 = hatch_at.origin + hatch_at.basis.z * 3.0
+	var shut_out = load("res://game/creatures/creature.gd").make(&"crawler", Transform3D(Basis(), Vector3(den.x, 0, den.z)), 11)
+	derelict.add_child(shut_out)
+	await _until(func() -> bool: return shut_out._settled > 1.2, 3.0)
+	player.teleport(lantern.to_global(Vector3(12, 0, 0)))
+	shut_out._chase(player, shut_out.position, 1.0)
+	await _until(func() -> bool: return shut_out._back, 12.0)
+	_check(shut_out._back and shut_out.deck == derelict, "the outer hatch shut, it didn't beat on it and turn back (%s)" % shut_out.mode)
+	shut_out._die()
+	var follower = load("res://game/creatures/creature.gd").make(&"crawler", Transform3D(Basis(), Vector3(den.x, 0, den.z)), 12)
+	derelict.add_child(follower)
+	await _until(func() -> bool: return follower._settled > 1.2, 3.0)
+	collar.airlock._begin(&"to_out")
+	await _until(func() -> bool: return collar.hatch.passable(), 4.0)
+	_check(collar.hatch.passable(), "the collar's airlock didn't cycle out")
+	follower._chase(player, follower.position, 1.0)
+	await _until(func() -> bool: return follower.deck == lantern, 12.0)
+	_check(follower.deck == lantern and follower.get_parent() == lantern, "it didn't follow them aboard (%s)" % follower.mode)
+	_check(follower.mode in [&"hunt", &"lunge", &"swipe", &"recover"] and follower.prey == player, "aboard, it isn't hunting them (%s)" % follower.mode)
+	await _until(func() -> bool: return player.health < 1.0, 6.0)
+	_check(player.health < 1.0, "aboard, it never reached them")
 	_finish()
 
 

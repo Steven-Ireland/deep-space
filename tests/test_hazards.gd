@@ -1,7 +1,8 @@
 extends SceneTree
 ## A derelict's hazards (GDD §11, TECH §8). Across 300 seeds, laid out by their rules: coolant
 ## spills only past the entry's section, never in the entry, the Prize's room or the secure store;
-## a leaking core only in a drive room; a faulty door only where no event needs it. Then in a
+## a leaking core only in a drive room; a faulty door only where no event needs it; a Hanger only
+## in a room with no strobe lit, whose lights stay dead. Then in a
 ## derelict of its own, run on its own (no network): a dead spill is harmless and a live one jolts
 ## whoever stands in it; near the leaking core the dose climbs; a faulty door won't answer its
 ## panel, and crushes whoever's in its doorway as it slams.
@@ -51,6 +52,12 @@ func _check_layout(layout, seed: int) -> void:
 		var drive: int = layout._first(&"drive")
 		_check(drive >= 0 and layout.hot_at.distance_to(layout.frame_of(drive) * Vector3(4.3, 0, 4.3)) < 0.01,
 				"seed %d: a leaking core outside the drive room" % seed)
+	for creature: Dictionary in layout.creatures:
+		if creature.kind == &"hanger":
+			var at: Vector3 = creature.at.origin
+			var index: int = layout.room_of.get(Vector3i(roundi(at.x / 4.0), 0, roundi(at.z / 4.0)), -1)
+			_check(index in layout.dark and not layout.strobes.any(func(strobe: Dictionary) -> bool: return strobe.room == index),
+					"seed %d: a Hanger hangs in a room that's lit, or can be" % seed)
 	for key: String in layout.faulty:
 		_check(layout.joins[key].kind == "door", "seed %d: a faulty %s, not a door" % [seed, key])
 		_check(not key in layout.lockdown and not key in layout.vent_doors and key != layout.buckle and key != layout.vault_door,

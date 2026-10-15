@@ -73,6 +73,8 @@ const FAULTY_CHANCE := 0.5
 ## space.
 var strobes: Array[Dictionary] = []
 var creatures: Array[Dictionary] = []
+## Rooms whose lights are dead for good (a Hanger's).
+var dark: Array[int] = []
 ## Each room's power section (an index, 0 the entry's; letters A, B... by how far in), how many
 ## sections there are, and their breaker boxes ({section, room, at: Transform3D, cell: whether it
 ## still holds a charged cell}), one a section.
@@ -185,7 +187,8 @@ func _dress(rng: RandomNumberGenerator) -> void:
 
 
 ## What lives here: in rooms at least two in from the entry (never the Prize room), on open floor.
-## A Hanger hangs from the ceiling in the dark, its growth on the deck below; a Crawler waits.
+## A Hanger hangs from the ceiling in the dark, its growth on the deck below: only in a room with no
+## strobe lit, whose lights stay dead even once its section has power (`dark`); a Crawler waits.
 func _creatures(rng: RandomNumberGenerator) -> void:
 	var count := 0
 	var roll := rng.randi_range(1, CREATURES.reduce(func(a: int, b: int) -> int: return a + b))
@@ -204,12 +207,15 @@ func _creatures(rng: RandomNumberGenerator) -> void:
 	var used := {}
 	for i in count:
 		var choices := dens.filter(func(den: Array) -> bool: return not used.has(den[0]))
+		if kinds[i] == &"hanger":
+			choices = choices.filter(func(den: Array) -> bool: return not strobes.any(func(strobe: Dictionary) -> bool: return strobe.room == den[0]))
 		if choices.is_empty():
 			return
 		var den: Array = choices[rng.randi() % choices.size()]
 		used[den[0]] = true
 		var yaw := rng.randf() * TAU
 		if kinds[i] == &"hanger":
+			dark.append(den[0])
 			creatures.append({"kind": &"hanger", "at": Transform3D(Basis(Vector3.UP, yaw), den[1] + Vector3.UP * Deck.ROOM_HEIGHT)})
 			props.append({"model": "derelict/dk_growth", "at": Transform3D(Basis(Vector3.UP, yaw), den[1]), "rack": [], "room": den[0]})
 		else:

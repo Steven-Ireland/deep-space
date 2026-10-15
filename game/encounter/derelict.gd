@@ -28,7 +28,6 @@ var entry_opening := ""
 var entry: Hatch
 var vented := false
 var _entry_cell := Vector2i.ZERO
-var _nav: DerelictNav
 ## Its power (GDD §8.3): sections, breakers, lights; and its secure store's lock, if it has one.
 var power: DerelictPower
 var vault: VaultLock
@@ -148,18 +147,9 @@ func _play(node: Node, clip: String, at := -1.0) -> void:
 ## cast off with crew still aboard.
 func awake() -> bool:
 	if _nav != null:
-		return true
+		return true # once it's stirred, it's stirred
 	var collar := Collar.of(self)
 	return collar == null or collar.derelict != self or collar.stage in [&"docked", &"countdown"]
-
-
-## The ways through its rooms for what lives here (host), worked out the first time they're needed,
-## its doorways brought up to date with its doors.
-func nav() -> DerelictNav:
-	if _nav == null:
-		_nav = DerelictNav.build(self)
-	_nav.refresh()
-	return _nav
 
 
 ## What lives here: its creatures, alive or not.

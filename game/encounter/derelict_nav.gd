@@ -1,13 +1,14 @@
 class_name DerelictNav
 extends RefCounted
-## The ways through a derelict for what lives in it (GDD §12), worked out on the host when first
-## needed (Derelict.nav): its rooms' floor in STEP squares, each open if a creature's body fits
-## there clear of walls and furniture (a shape query against the derelict's own colliders),
-## joined to its neighbours (diagonally only where no corner's in the way). Two grids:
-##   walk   for moving: a shut door closes its doorway (a creature can't open one)
-##   sound  for hearing: a shut door only muffles what's beyond it (the way through counts
+## The ways through a deck for what lives in it (GDD §12): a derelict, or the LANTERN once
+## something's followed the crew aboard. Worked out on the host when first needed (Deck.nav): its
+## rooms' floor in STEP squares, each open if a creature's body fits there clear of walls and
+## furniture (a shape query against the deck's own colliders), joined to its neighbours
+## (diagonally only where no corner's in the way). Two grids:
+##   walk   for moving: a shut door or hatch closes its doorway (a creature can't open one)
+##   sound  for hearing: a shut one only muffles what's beyond it (the way through counts
 ##          DOOR_MUFFLE times as far)
-## Points are in the derelict's own space, on its deck, so it holds however the derelict moves.
+## Points are in the deck's own space, on its floor, so it holds however the deck moves.
 
 const STEP := 0.5
 ## Squares across a 4 m cell; the first square's middle from its cell's middle.
@@ -27,20 +28,21 @@ const NONE := Vector2i(-1000000, -1000000)
 
 var walk := AStarGrid2D.new()
 var sound := AStarGrid2D.new()
-var _cells := {} # the derelict's room cells (Vector2i)
-var _doors := {} # Door: its doorway's open squares
-var _door_at := {} # square: the Door whose doorway it's in
-var _shut := {} # Door: whether it was shut when last looked at
+var _cells := {} # the deck's room cells (Vector2i)
+var _doors := {} # Door or Hatch: its doorway's open squares
+var _door_at := {} # square: the Door or Hatch whose doorway it's in
+var _shut := {} # Door or Hatch: whether it was shut when last looked at
+var _middle := {} # Door or Hatch: its doorway's middle, in the deck's space
 
 
-## The ways through `derelict`, from its colliders where it stands now.
-static func build(derelict: Derelict) -> DerelictNav:
+## The ways through `deck`, from its colliders where it stands now.
+static func build(deck: Deck) -> DerelictNav:
 	var nav := DerelictNav.new()
-	nav._build(derelict)
+	nav._build(deck)
 	return nav
 
 
-func _build(derelict: Derelict) -> void:
+func _build(derelict: Deck) -> void:
 	var low := -NONE
 	var high := NONE
 	for cell: Vector2i in derelict.cells:
@@ -57,12 +59,16 @@ func _build(derelict: Derelict) -> void:
 		grid.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
 		grid.update()
 		grid.fill_solid_region(region, true)
-	# Doors are left out of the queries: their doorways open and shut (refresh).
+	# Doors and hatches are left out of the queries: their doorways open and shut (refresh).
 	var exclude: Array[RID] = []
 	for door: Door in derelict.doors.values():
 		var blocker := door.get_node_or_null("Blocker") as CollisionObject3D
 		if blocker != null:
 			exclude.append(blocker.get_rid())
+	for hatch: Hatch in derelict.hatches.values():
+		var seal := hatch.get_node_or_null("Seal") as CollisionObject3D
+		if seal != null:
+			exclude.append(seal.get_rid())
 	var query := PhysicsShapeQueryParameters3D.new()
 	var body := CylinderShape3D.new()
 	body.radius = BODY
@@ -81,29 +87,36 @@ func _build(derelict: Derelict) -> void:
 				if space.intersect_shape(query, 1).is_empty():
 					walk.set_point_solid(square, false)
 					sound.set_point_solid(square, false)
+	var ways := {}
 	for door: Door in derelict.doors.values():
+		ways[door] = door.transform
+	for hatch: Hatch in derelict.hatches.values():
+		ways[hatch] = (hatch.get_parent() as Node3D).transform
+	for way: Node3D in ways:
+		var opening: Transform3D = ways[way]
 		var squares: Array[Vector2i] = []
-		var middle := square_of(door.position)
+		var middle := square_of(opening.origin)
 		for k in range(-3, 4):
 			for l in range(-3, 4):
 				var square := middle + Vector2i(k, l)
 				if not walk.is_in_boundsv(square) or walk.is_point_solid(square):
 					continue
-				var off := point_of(square) - door.position
-				if absf(off.dot(door.transform.basis.x)) < DOORWAY.x and absf(off.dot(door.transform.basis.z)) < DOORWAY.y:
+				var off := point_of(square) - opening.origin
+				if absf(off.dot(opening.basis.x)) < DOORWAY.x and absf(off.dot(opening.basis.z)) < DOORWAY.y:
 					squares.append(square)
-					_door_at[square] = door
-		_doors[door] = squares
+					_door_at[square] = way
+		_doors[way] = squares
+		_middle[way] = opening.origin
 	refresh()
 
 
 ## Brings the doorways up to date with their doors: a shut door (or one shutting) is closed to a
 ## creature, and muffles sound through it.
 func refresh() -> void:
-	for door: Door in _doors:
+	for door: Node3D in _doors:
 		if not is_instance_valid(door):
 			continue
-		var shut := not door.open
+		var shut: bool = not (door as Hatch).passable() if door is Hatch else not (door as Door).open
 		if _shut.get(door, not shut) == shut:
 			continue
 		_shut[door] = shut
@@ -112,7 +125,7 @@ func refresh() -> void:
 			sound.set_point_weight_scale(square, DOOR_MUFFLE if shut else 1.0)
 
 
-## The square a point (the derelict's space) lies in.
+## The square a point (the deck's space) lies in.
 static func square_of(at: Vector3) -> Vector2i:
 	return Vector2i(floori((at.x - FIRST) / STEP + 0.5), floori((at.z - FIRST) / STEP + 0.5))
 
@@ -122,7 +135,7 @@ static func point_of(square: Vector2i) -> Vector3:
 	return Vector3(FIRST + square.x * STEP, 0.0, FIRST + square.y * STEP)
 
 
-## Whether a point lies in one of the derelict's rooms.
+## Whether a point lies in one of the deck's rooms.
 func inside(at: Vector3) -> bool:
 	return _cells.has(Vector2i(roundi(at.x / Deck.CELL), roundi(at.z / Deck.CELL)))
 
@@ -180,8 +193,9 @@ func heard(from: Vector3, to: Vector3, reach: float) -> float:
 	return distance
 
 
-## When the way on foot from `from` to `to` is closed only by shut doors: the first of them on the
-## way, and where to stand before it ([Door, Vector3]); otherwise [].
+## When the way on foot from `from` to `to` is closed only by shut doors (or hatches): the first of
+## them on the way, where to stand before it and its middle ([Door or Hatch, Vector3, Vector3]);
+## otherwise [].
 func door_between(from: Vector3, to: Vector3) -> Array:
 	var start := nearest_open(from, sound)
 	var end := nearest_open(to, sound)
@@ -189,9 +203,9 @@ func door_between(from: Vector3, to: Vector3) -> Array:
 		return []
 	var ids := sound.get_id_path(start, end)
 	for i in range(1, ids.size()):
-		var door: Door = _door_at.get(ids[i])
+		var door: Node3D = _door_at.get(ids[i])
 		if door != null and _shut.get(door, false):
-			return [door, point_of(ids[i - 1])]
+			return [door, point_of(ids[i - 1]), _middle[door]]
 	return []
 
 
