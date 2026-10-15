@@ -175,9 +175,10 @@ func _think(delta: float) -> void:
 			else:
 				loop(&"idle")
 			if _left <= 0.0:
-				_set_mode(&"hunt" if prey != null and not prey.dead else &"listen")
+				var on := _prey_alive()
+				_set_mode(&"hunt" if on else &"listen")
 				_left = SEARCH
-				_goal = prey_at if prey != null else position
+				_goal = prey_at if on else position
 
 
 func _set_mode(next: StringName) -> void:
@@ -194,7 +195,7 @@ func _rest() -> void:
 
 
 func _hunt(delta: float) -> void:
-	if prey == null or prey.dead or not is_instance_valid(prey):
+	if not _prey_alive():
 		prey = null
 		_search(prey_at)
 		return
@@ -220,6 +221,11 @@ func _hunt(delta: float) -> void:
 		return
 	if got == THERE and _since_heard > LOST:
 		_search(prey_at)
+
+
+## Whether who it's after is still there and alive (a crew member who's left the game is gone).
+func _prey_alive() -> bool:
+	return prey != null and is_instance_valid(prey) and not prey.dead
 
 
 ## Goes to look round `at`, listening, for SEARCH seconds.
