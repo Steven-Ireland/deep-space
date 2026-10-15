@@ -7,7 +7,7 @@ class_name DerelictRooms
 ## A module is authored in its own space: cell (c, r) of `cells` (rows run north to south, '#' a
 ## cell) has its centre at (4c, 0, 4r), so cell (0, 0) is at the origin, and a wall's face stands
 ## 1.85 m from its cell's centre. Placed, a module turns by quarter turns about its origin.
-##   kind     "entry", "corridor", "room" or "prize"
+##   kind     "entry", "corridor", "room", "prize" or "vault" (a secure store, locked: DerelictLayout)
 ##   doors    "c,r,S": where it can join another module (N, E, S, W of cell c, r). Nothing stands in
 ##            a door's way: 1.25 m either side of its middle, 1.2 m into the room
 ##   hatch    the entry's: where the LANTERN's collar docks (W, toward the LANTERN)
@@ -115,12 +115,11 @@ const MODULES := {
 		"open": [Vector3(2.2, 0, -0.2)],
 		"finds": {&"tools": 3.0, &"ammo": 2.0},
 	},
-	# The dead drive and its empty fuel rack; a section breaker on the wall.
+	# The dead drive and its empty fuel rack.
 	&"drive": {
 		"name": "DRIVE ROOM", "kind": "room", "cells": ["##", "##"], "weight": 2, "most": 1,
 		"doors": ["0,0,W", "1,0,N", "0,1,S"],
 		"props": [["rooms/rm_drive_core", Vector3(4.3, 0, 4.3), 0.0], ["rooms/rm_fuel_rack", Vector3(0, 0, -1.45), 0.0],
-				["derelict/dk_breaker", Vector3(-1.69, 0, 4.4), 90.0],
 				["rooms/rm_crate", Vector3(5.42, 0, 0.3), 6.0], ["rooms/rm_crate", Vector3(5.4, 0, 1.15), -8.0]],
 		"strobes": [[Vector3(2.6, 2.3, 5.81), 180.0], [Vector3(-1.81, 2.3, -1.55), 90.0]],
 		"scatter": [["cables", Vector3(2.0, 3.0, 2.0), 45.0], ["debris", Vector3(1.0, 0, 3.2), 30.0],
@@ -173,7 +172,25 @@ const MODULES := {
 		"big": [[Vector3(2.0, 0.02, 1.2), 80.0]],
 		"finds": {&"ammo": 3.0, &"tools": 2.0, &"lore": 1.0},
 	},
+	# A secure store (GDD §8.3): shelves of what an earlier wave thought worth locking up, behind a
+	# door that opens only to its code, given at the lock panel outside it. A dead end off a
+	# corridor; never grown, only added (DerelictLayout).
+	&"vault": {
+		"name": "SECURE STORE", "kind": "vault", "cells": ["#"],
+		"doors": ["0,0,W"],
+		"props": [["rooms/rm_shelf", Vector3(1.61, 0, 0), -90.0], ["rooms/rm_shelf", Vector3(0.1, 0, 1.61), 180.0],
+				["rooms/rm_crate", Vector3(1.25, 0, -1.3), 12.0], ["rooms/rm_crate", Vector3(0.4, 0, -1.4), -6.0],
+				["rooms/rm_crate", Vector3(0.85, 0.8, -1.35), 30.0]],
+		"strobes": [[Vector3(-0.6, 2.3, -1.81), 0.0]],
+		"spots": [Vector3(1.6, 0.2, -0.45), Vector3(1.6, 0.7, 0.35), Vector3(1.6, 1.2, -0.25), Vector3(0.45, 0.7, 1.6),
+				Vector3(-0.35, 1.2, 1.6), Vector3(0.85, 1.65, -1.35), Vector3(0.4, 0.85, -1.4)],
+	},
 }
+
+## What a secure store holds (DerelictLayout.loot): a weapon, cartridges for it, a power cell, a
+## data core, a supply; one more supply for every two crew past the first.
+const VAULT_FINDS := [&"weapon", &"ammo", &"ammo", &"power", &"lore", &"supplies"]
+const WEAPONS := {&"plasma_cutter": 1, &"rivet_driver": 1}
 
 ## What turns up, by kind of find: each kind's weight.
 const FINDS := {

@@ -418,7 +418,7 @@ func _draw_prompt(alpha: float) -> void:
 		_draw_digit("E", key.position + Vector2(3, 2), Color(DARK, alpha))
 	canvas.draw_string(FONT, rect.position + Vector2(17 if _usable else 6, 12), _verb, HORIZONTAL_ALIGNMENT_LEFT, -1, FONT_SIZE, Color(COLOUR, text))
 	# A thing that takes a hold (the Jump Lever) has a gauge under its box that fills while it's held.
-	if _usable and _target != null and _target.hold > 0.0:
+	if _usable and _target != null and _target.hold_for(player) > 0.0:
 		var gauge := Rect2(rect.position + Vector2(0, height + 2), Vector2(width, 3))
 		canvas.draw_rect(gauge.grow(-0.5), Color(COLOUR, 0.4 * alpha), false, 1.0)
 		var filled := player.hold_progress(_target)

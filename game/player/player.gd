@@ -92,6 +92,8 @@ const LOOK_UP := 4.0
 ## Struck by a creature: how long the jolt to the view lasts, and how hard (as a jump's shake).
 const WOUND_TIME := 0.45
 const WOUND_SHAKE := 2.5
+## A crowbar heaves at a dead door this often while it's held there (DoorPanel).
+const HEAVE := 0.55
 ## Suit integrity (GDD §9.2): blows wear it down by WEAR of what they take from its wearer's health.
 ## A blow taking BREACH_AT or more, or any once it's below FRAIL, breaches it: out of the air a
 ## breached suit leaks LEAK more seconds of O2 a second, CRACKED times that once it's worn through
@@ -339,7 +341,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("lamp"):
 		switch_lamp()
 	elif event.is_action_pressed("interact") and aimed_at != null and aimed_at.usable_by(self):
-		if aimed_at.hold > 0.0:
+		if aimed_at.hold_for(self) > 0.0:
 			_holding = aimed_at
 			_hold_time = 0.0
 			_hold_lost = 0.0
@@ -847,6 +849,9 @@ func _process(delta: float) -> void:
 		# Holding talk keys the communicator: the cuff comes up to speak into (GDD §10).
 		cuff_up = (Input.is_action_pressed("talk") or Args.flag("--cuff")) and operating == null and carrying.is_empty() \
 				and not dead and not seized
+		if operating != null and not operating.live():
+			# The power's gone from under it: its screen dies, and they step back.
+			leave_terminal()
 		if _winding >= 0.0:
 			_winding += delta
 		since_hurt += delta
@@ -1107,14 +1112,28 @@ func _keep_holding(delta: float) -> void:
 		_holding = null
 		return
 	_hold_time += delta
-	if _hold_time >= _holding.hold:
+	_heave(delta)
+	if _hold_time >= _holding.hold_for(self):
 		_holding.request_use()
 		_holding = null
 
 
 ## How far through its hold `thing` is, 0..1 (0 when it isn't being held).
 func hold_progress(thing: Interactable) -> float:
-	return clampf(_hold_time / thing.hold, 0.0, 1.0) if _holding == thing and thing.hold > 0.0 else 0.0
+	var whole := thing.hold_for(self)
+	return clampf(_hold_time / whole, 0.0, 1.0) if _holding == thing and whole > 0.0 else 0.0
+
+
+## Heaving at a dead door with a crowbar (a DoorPanel's hold): a heave every HEAVE seconds, seen
+## (a swing) and heard, by the crew and by anything listening; and felt, in a jolt of the view.
+func _heave(delta: float) -> void:
+	if not (_holding is DoorPanel):
+		return
+	var before := floori((_hold_time - delta) / HEAVE)
+	if floori(_hold_time / HEAVE) != before:
+		swings += 1
+		_wounded = maxf(_wounded, WOUND_TIME * 0.35)
+		(_holding as DoorPanel).heave()
 
 
 ## The usable thing under the crosshair: the nearest Interactable within reach, unless something

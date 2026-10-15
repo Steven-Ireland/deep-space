@@ -29,6 +29,9 @@ var entry: Hatch
 var vented := false
 var _entry_cell := Vector2i.ZERO
 var _nav: DerelictNav
+## Its power (GDD §8.3): sections, breakers, lights; and its secure store's lock, if it has one.
+var power: DerelictPower
+var vault: VaultLock
 
 
 ## A derelict built from `plan`, stocked for `crew`.
@@ -50,6 +53,9 @@ func _ready() -> void:
 	for key: String in doors:
 		doors[key].open = not shut.has(key)
 	_dress()
+	power = DerelictPower.new()
+	add_child(power)
+	_fit_fittings()
 
 
 ## The plan's dressing: furniture and decay, the strobes, the stand-in creatures, and the loot
@@ -61,6 +67,8 @@ func _dress() -> void:
 		placed.append(node)
 		if not prop.get("pose", []).is_empty():
 			_play(node, prop.pose[0], prop.pose[1])
+		if prop.get("lock", false):
+			vault = VaultLock.make(self, doors[RoomLayout.deck_key(layout.vault_door)], node)
 	for strobe: Dictionary in layout.strobes:
 		var light := Strobe.new()
 		light.transform = strobe.at
@@ -75,6 +83,18 @@ func _dress() -> void:
 				rack(find.kind, socket.global_transform)
 		else:
 			stock(find.kind, find.at.origin, rad_to_deg(find.at.basis.get_euler().y))
+
+
+## The fittings that still work once their section has power again: O2 racks, lamp chargers.
+func _fit_fittings() -> void:
+	for child in get_children():
+		var model := String(child.scene_file_path).get_file().get_basename()
+		var gate := func() -> bool: return power.powered_at((child as Node3D).global_position)
+		match model:
+			"rm_o2_rack":
+				TopUp.fit(child, "REFILL", Vector3(0, 1.1, 0.16), Vector2(1.4, 1.4), "o2", gate)
+			"rm_lamp_charger":
+				TopUp.fit(child, "CHARGE", Vector3(0, 1.4, -0.03), Vector2(0.4, 0.6), "lamp", gate)
 
 
 func _prop(model: String, at: Transform3D) -> Node3D:

@@ -35,6 +35,12 @@ func prompt(_player: Player) -> String:
 	return verb
 
 
+## Seconds `player` must hold interact on it to use it (0 for a press): its `hold`, unless it
+## depends on who's using it (a dead door takes a crowbar's heaving).
+func hold_for(_player: Player) -> float:
+	return hold
+
+
 ## Whether `player` can use it now; when not, the visor shows its prompt dimmed, without its key.
 func usable_by(_player: Player) -> bool:
 	return enabled

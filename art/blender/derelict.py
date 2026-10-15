@@ -129,45 +129,171 @@ def strobe():
     return Model(low=low, decals=[], extras=[_socket("light", (0, -0.08, 0))])
 
 
+## The breaker box's knife switch: where its blades hinge (model space), and where the cell sits.
+BREAKER_HINGE = (0.0, -0.075, 1.2)
+BREAKER_CELL = (-0.02, -0.15, 0.735)
+
+
 @asset("dk_breaker", "derelict", texture=128, colors=32, ao=0.55)
 def breaker():
-    """A section breaker box (GDD §8.3): wall-mounted, door hanging open on one hinge, a big
-    two-handed knife switch (`breaker_handle`, separate: thrown to restore a dead section), a row
-    of dead fuse lamps, a hazard stripe and SECTION stencilled. Throwing it brings back lights,
-    doors and gravity, and wakes what was asleep."""
+    """A section breaker box (GDD §8.3): what brings a dead section of a derelict back.
+
+    Purpose: one per power section, on a wall near the way in. Throw its knife switch and, if a
+    charged cell sits in its cradle, the section's lights, doors and fittings come back; cut it
+    again to make the section safe. A dead cradle wants a power cell carried in.
+    Size: a 0.62 x 0.8 m steel box, its lower edge at 1.0 m, a cell cradle bolted under it.
+    Silhouette: the box, its door hanging open on one hinge, the big red-handled switch standing
+    out of it, the cradle's tray, a conduit running up the wall into the ceiling.
+    Details: two lamps (`lamp_power`, `lamp_cell`: separate meshes Godot lights green, red or dark)
+    labelled PWR and CELL, a SECTION header over a blank plate (Godot letters it: SOCKET_letter),
+    the switch's copper clips, the cradle's contact block, hazard stripes on its lip.
+    Parts: the switch (`breaker_handle`: two blades and the handle bar) is split off after baking
+    to swing about SOCKET_hinge (built closed, standing up); a cell is shown at SOCKET_cell.
+    Palette: the derelict kit's dark casing, a cream door, orange header, red handle, bare copper.
+    """
     c = br._materials()
     dk = br._decals()
+    copper = mats.metal("dk_copper", (0.72, 0.42, 0.24), grime=0.5, detail_strength=0.35)
+    handle_red = mats.paint("dk_handle", (0.7, 0.1, 0.07), wear=0.5, grime=0.5)
     m = Mesh("dk_breaker")
     d = Mesh("dk_breaker_decals")
     texts = []
-    m.box((0.6, 0.18, 0.8), c["casing_dark"], at=(0, 0.09, 1.3), bevel=0.015)
-    m.box((0.54, 0.02, 0.74), c["bezel"], at=(0, -0.005, 1.3))
-    m.box((0.58, 0.03, 0.78), c["casing"], at=(-0.58, -0.25, 1.3), rot=(0, 0, -70), bevel=0.01)  # the door, swung open
-    m.box((0.3, 0.06, 0.12), c["steel"], at=(0, -0.03, 1.2), bevel=0.01)
+    # The box: a housing standing off the wall, its inner face recessed, its door swung open.
+    m.box((0.62, 0.18, 0.8), c["casing_dark"], at=(0, 0.09, 1.42), bevel=0.015)
+    m.box((0.56, 0.02, 0.74), c["bezel"], at=(0, -0.005, 1.42))
+    m.box((0.58, 0.03, 0.78), c["casing"], at=(-0.58, -0.25, 1.42), rot=(0, 0, -70), bevel=0.01)
+    m.box((0.04, 0.05, 0.12), c["steel"], at=(-0.31, -0.02, 1.62), bevel=0.006)
+    m.box((0.04, 0.05, 0.12), c["steel"], at=(-0.31, -0.02, 1.22), bevel=0.006)
+    # The header: an orange band with SECTION and a blank plate for its letter.
+    m.box((0.62, 0.03, 0.1), c["orange"], at=(0, -0.01, 1.77), bevel=0.008)
+    texts.append(geo.text("SECTION", 0.035, dk["black"], matrix=frame((-0.07, -0.026, 1.77), FRONT, lift=0.002)))
+    m.box((0.12, 0.012, 0.09), c["keycap"], at=(0.21, -0.03, 1.77), bevel=0.004)
+    # Lamps: bezels baked, lenses split off (Godot lights them).
+    for x in (-0.15, 0.15):
+        m.cylinder(0.034, 0.02, c["bezel"], sides=8, at=(x, -0.012, 1.63), rot=(90, 0, 0))
+    lamps = []
+    for name, x in (("lamp_power", -0.15), ("lamp_cell", 0.15)):
+        lamp = Mesh(name)
+        lamp.cylinder(0.025, 0.03, mats.plain("lk_lamp", (0.2, 0.9, 0.3)), sides=8, at=(x, -0.03, 1.63), rot=(90, 0, 0))
+        lamps.append(lamp.to_object())
+    texts.append(geo.text("PWR", 0.026, dk["cream"], matrix=frame((-0.15, -0.016, 1.57), FRONT, lift=0.002)))
+    texts.append(geo.text("CELL", 0.026, dk["cream"], matrix=frame((0.15, -0.016, 1.57), FRONT, lift=0.002)))
+    # The switch's seat: an insulating block, the lower hinge posts and the upper copper clips the
+    # blades close into.
+    m.box((0.34, 0.04, 0.34), c["bezel"], at=(0, -0.025, 1.31), bevel=0.006)
+    hx, hy, hz = BREAKER_HINGE
+    # The clips stand behind the blades' path (y over -0.06); everything of the switch is in front.
+    for x in (-0.09, 0.09):
+        m.box((0.03, 0.06, 0.04), copper, at=(x, hy + 0.02, hz))
+        m.box((0.036, 0.04, 0.05), copper, at=(x, -0.04, hz + 0.24), bevel=0.004)
+    # The switch itself: two copper blades up from the hinge, closed against the clips, the red
+    # handle bar across their tops on an insulated stem.
+    for x in (-0.09, 0.09):
+        m.box((0.012, 0.016, 0.26), copper, at=(x, hy, hz + 0.13))
+    m.box((0.21, 0.02, 0.02), c["steel"], at=(0, hy, hz + 0.25))
+    m.box((0.03, 0.06, 0.03), c["bezel"], at=(0, hy - 0.03, hz + 0.26))
+    m.box((0.22, 0.045, 0.045), handle_red, at=(0, hy - 0.07, hz + 0.26), bevel=0.014)
     for i in range(5):
-        d.polygon([(-0.02, -0.015), (0.02, -0.015), (0.02, 0.015), (-0.02, 0.015)], dk["unlit"], frame((-0.16 + i * 0.08, -0.016, 1.58), FRONT))
-    _hazard = [(-0.25, -0.03), (0.25, -0.03), (0.25, 0.03), (-0.25, 0.03)]
-    d.polygon(_hazard, dk["orange"], frame((0, -0.016, 1.0), FRONT))
-    for i in range(-4, 4):
-        x = i * 0.07
-        d.polygon(clip([(x, -0.03), (x + 0.03, -0.03), (x + 0.06, 0.03), (x + 0.03, 0.03)], -0.25, 0.25, -0.03, 0.03), dk["black"],
-                  frame((0, -0.016, 1.0), FRONT, lift=0.0015))
-    texts.append(geo.text("SECTION", 0.035, dk["cream"], matrix=frame((0, -0.016, 1.47), FRONT, lift=0.002)))
-    # The knife switch, baked here and split off so it can be thrown.
-    m.box((0.32, 0.03, 0.03), c["steel"], at=(0, -0.09, 1.32), bevel=0.006)
-    for x in (-0.13, 0.13):
-        m.box((0.03, 0.08, 0.03), c["steel"], at=(x, -0.06, 1.32))
-    m.box((0.2, 0.04, 0.04), br.mats.paint("dk_handle", (0.7, 0.1, 0.07), wear=0.5, grime=0.5), at=(0, -0.11, 1.32), bevel=0.012)
+        d.polygon([(-0.02, -0.012), (0.02, -0.012), (0.02, 0.012), (-0.02, 0.012)], dk["unlit"], frame((-0.2 + i * 0.1, -0.016, 1.1), FRONT))
+    # The cell cradle under the box: a tray on two brackets, its contact block on the right, a
+    # heavy lead up into the housing.
+    cx, cy, cz = BREAKER_CELL
+    m.box((0.5, 0.3, 0.02), c["dark_steel"], at=(cx, cy + 0.01, cz - 0.01), bevel=0.004)
+    m.box((0.5, 0.02, 0.07), c["dark_steel"], at=(cx, cy - 0.14, cz + 0.025), bevel=0.004)
+    m.box((0.02, 0.3, 0.07), c["dark_steel"], at=(cx - 0.25, cy + 0.01, cz + 0.025), bevel=0.004)
+    m.box((0.06, 0.26, 0.16), c["bezel"], at=(cx + 0.23, cy + 0.01, cz + 0.08), bevel=0.008)
+    for z in (0.08, 0.16):
+        m.box((0.02, 0.04, 0.04), copper, at=(cx + 0.195, cy, cz + z - 0.005))
+    for x in (cx - 0.2, cx + 0.2):
+        m.box((0.03, 0.03, 0.24), c["dark_steel"], at=(x, -0.09, cz - 0.08), rot=(-50, 0, 0))
+    m.box((0.5, 0.02, 0.3), c["dark_steel"], at=(cx, 0.005, cz + 0.13), bevel=0.004)
+    m.pipe([(cx + 0.26, cy + 0.08, cz + 0.12), (cx + 0.31, cy + 0.12, cz + 0.3), (0.25, 0.02, 1.02)], 0.022, c["cable"], sides=5)
+    _hazard_lip = [(-0.24, -0.025), (0.24, -0.025), (0.24, 0.025), (-0.24, 0.025)]
+    d.polygon(_hazard_lip, dk["orange"], frame((cx, cy - 0.151, cz + 0.025), FRONT))
+    for i in range(-5, 5):
+        x = i * 0.05
+        d.polygon(clip([(x, -0.025), (x + 0.025, -0.025), (x + 0.05, 0.025), (x + 0.025, 0.025)], -0.24, 0.24, -0.025, 0.025), dk["black"],
+                  frame((cx, cy - 0.151, cz + 0.025), FRONT, lift=0.0015))
+    # The conduit up the wall into the ceiling, clamped twice.
+    m.pipe([(0.22, 0.12, 1.82), (0.22, 0.12, 3.0)], 0.035, c["dark_steel"], sides=6)
+    for z in (2.2, 2.7):
+        m.box((0.1, 0.04, 0.03), c["steel"], at=(0.22, 0.1, z))
     low = m.to_object()
 
     def split(model):
-        in_handle = lambda p: abs(p.x) < 0.17 and p.y < -0.075 and 1.29 < p.z < 1.35
+        def in_handle(p):
+            return abs(p.x) < 0.14 and p.y < -0.06 and hz + 0.01 < p.z < hz + 0.3
         box, handle = geo.split_object(model.low, {"dk_breaker": lambda p: not in_handle(p), "breaker_handle": in_handle})
         model.low = box
         model.extras.append(handle)
 
-    collider = br._console_collider("dk_breaker", (0.6, 0.2, 0.8), (0, 0.08, 1.3))
-    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider], after_bake=split)
+    collider = br._console_collider("dk_breaker", (0.62, 0.32, 1.12), (0, -0.04, 1.26))
+    sockets = [_socket("hinge", BREAKER_HINGE), _socket("cell", BREAKER_CELL), _socket("letter", (0.21, -0.037, 1.77))]
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider] + lamps + sockets, after_bake=split)
+
+
+## The lock panel's screen: its middle (model space) and size.
+LOCK_SCREEN = (0.0, -0.035, 1.5)
+LOCK_SCREEN_SIZE = (0.24, 0.18)
+
+
+@asset("dk_lock_panel", "derelict", texture=128, colors=32, ao=0.55)
+def lock_panel():
+    """A secure store's lock panel (GDD §8.3): the wall terminal beside a locked door that guards an
+    earlier wave's armoury. Dead until its section has power; then its screen asks for a code, and
+    keeps a log of the guesses made at it.
+
+    Size: a 0.46 x 0.66 m armoured housing, its screen's middle at 1.5 m, standing off the wall.
+    Silhouette: a squat box with a hooded screen, a keypad under it, a heavy conduit up the wall.
+    Details: the CRT (`screen_lock`, not baked: Godot shows the lock's screen on it) under a sun
+    hood, a 3 x 4 keypad, a card slot, a lock lamp over the screen (`lamp_lock`, split off: Godot
+    lights it red or green), SECURE stencilled on a hazard-striped plate, bolts at the corners.
+    Palette: the derelict kit's dark casing, a cream bezel, orange and black stripes, red lettering.
+    """
+    c = br._materials()
+    dk = br._decals()
+    m = Mesh("dk_lock_panel")
+    d = Mesh("dk_lock_panel_decals")
+    texts = []
+    # The housing and its chamfered front frame.
+    m.box((0.46, 0.12, 0.66), c["casing_dark"], at=(0, 0.06, 1.33), bevel=0.02)
+    m.box((0.42, 0.02, 0.62), c["bezel"], at=(0, -0.005, 1.33))
+    # The screen in its bezel, a hood over it against glare.
+    sx, sy, sz = LOCK_SCREEN
+    sw, sh = LOCK_SCREEN_SIZE
+    m.box((sw + 0.05, 0.03, sh + 0.05), c["casing"], at=(sx, -0.02, sz), bevel=0.008)
+    m.box((sw + 0.07, 0.07, 0.015), c["casing_dark"], at=(sx, -0.05, sz + sh / 2 + 0.035), rot=(-12, 0, 0), bevel=0.004)
+    for x in (-1, 1):
+        m.box((0.012, 0.07, sh * 0.5), c["casing_dark"], at=(sx + x * (sw / 2 + 0.03), -0.05, sz + sh * 0.2))
+    screen = geo.screen("screen_lock", sw, sh, geo.place((sx, sy - 0.002, sz)), bulge=0.006)
+    # The keypad: twelve keys under the screen, a card slot beside them.
+    for r in range(4):
+        for col in range(3):
+            m.box((0.036, 0.016, 0.028), c["keycap"] if r < 3 else c["keycap_dark"], at=(-0.05 + col * 0.045, -0.018, 1.27 - r * 0.036), bevel=0.004)
+    m.box((0.07, 0.02, 0.012), c["bezel"], at=(0.12, -0.018, 1.25))
+    d.polygon([(-0.03, -0.003), (0.03, -0.003), (0.03, 0.003), (-0.03, 0.003)], dk["black"], frame((0.12, -0.0285, 1.25), FRONT, lift=0.001))
+    # The lock lamp over the screen, split off.
+    m.cylinder(0.028, 0.02, c["bezel"], sides=8, at=(0.17, -0.012, 1.62), rot=(90, 0, 0))
+    lamp = Mesh("lamp_lock")
+    lamp.cylinder(0.02, 0.03, mats.plain("lk_lamp", (0.2, 0.9, 0.3)), sides=8, at=(0.17, -0.03, 1.62), rot=(90, 0, 0))
+    # SECURE on a striped plate along the foot.
+    m.box((0.42, 0.015, 0.07), c["orange"], at=(0, -0.012, 1.06), bevel=0.004)
+    for i in range(-5, 5):
+        x = i * 0.045
+        d.polygon(clip([(x, -0.035), (x + 0.02, -0.035), (x + 0.045, 0.035), (x + 0.025, 0.035)], -0.21, 0.21, -0.035, 0.035),
+                  dk["black"], frame((0, -0.0201, 1.06), FRONT, lift=0.001))
+    m.box((0.2, 0.004, 0.05), c["casing_dark"], at=(0, -0.021, 1.06))
+    texts.append(geo.text("SECURE", 0.032, dk["red"], matrix=frame((0, -0.024, 1.06), FRONT, lift=0.002)))
+    for x in (-0.2, 0.2):
+        for z in (1.03, 1.63):
+            m.cylinder(0.012, 0.012, c["steel"], sides=6, at=(x, -0.015, z), rot=(90, 0, 0))
+    # The conduit up the wall into the ceiling.
+    m.pipe([(-0.17, 0.08, 1.66), (-0.17, 0.08, 3.0)], 0.03, c["dark_steel"], sides=6)
+    for z in (2.1, 2.6):
+        m.box((0.09, 0.035, 0.025), c["steel"], at=(-0.17, 0.065, z))
+    low = m.to_object()
+    collider = br._console_collider("dk_lock_panel", (0.46, 0.16, 0.68), (0, 0.04, 1.33))
+    return Model(low=low, decals=[d.to_object()] + texts, extras=[collider, screen, lamp.to_object()])
 
 
 @asset("dk_growth", "derelict", texture=128, colors=32, ao=0.6, angles=((-35, 35), (145, 40), (90, 10), (-20, 70)))

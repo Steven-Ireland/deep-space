@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bpy  # noqa: E402
 
 import lib  # noqa: E402
-from lib import bake, icon, output, preview  # noqa: E402
+from lib import bake, icon, mats, output, preview  # noqa: E402
 
 
 def main():
@@ -40,6 +40,7 @@ def main():
     for spec in specs:
         started = time.time()
         bpy.ops.wm.read_factory_settings(use_empty=True)
+        mats.STAND_INS.clear()
         model = spec.build()
         for extra in model.extras:  # colliders and sockets: exported, never baked or rendered
             extra.hide_render = True
@@ -68,6 +69,9 @@ def main():
         stats = dict(name=spec.name, triangles=triangles, dimensions=dimensions,
                      texture=spec.texture, palette=palette, glow=glow is not None,
                      seconds=round(time.time() - started, 1))
+        if mats.STAND_INS:
+            # Baked over stand-ins for missing photo scans (lib/mats.py): a placeholder texture.
+            stats["stand_ins"] = sorted(mats.STAND_INS)
         print("BUILT " + json.dumps(stats))
 
 

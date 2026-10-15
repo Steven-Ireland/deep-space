@@ -209,7 +209,7 @@ func _pick(rng: RandomNumberGenerator, from: StringName) -> StringName:
 	var total := 0.0
 	for type: StringName in _modules():
 		var spec := module(type)
-		if spec.kind in ["entry", "prize"]:
+		if spec.kind in ["entry", "prize"] or not spec.has("weight"):
 			continue
 		var count := count_of(type)
 		if count >= spec.most:
@@ -290,6 +290,16 @@ func _unjoin(a: int, b: int, cell: Vector3i, side: String) -> void:
 	joins.erase(edge_key(cell, side))
 	links[a].erase(b)
 	links[b].erase(a)
+
+
+## Takes back the last room placed (`index`), joined at `door` ([room, cell, side]) to the room it
+## grew from.
+func _unplace(index: int, door: Array) -> void:
+	_unjoin(door[0], index, door[1], door[2])
+	for cell: Vector3i in rooms[index].cells:
+		room_of.erase(cell)
+	links.erase(index)
+	rooms.remove_at(index)
 
 
 ## A room's door sockets on the grid: [cell, side].
@@ -605,7 +615,7 @@ func problems() -> Array[String]:
 				out.append("room %d overlaps another" % index)
 	if cells != room_of.size():
 		out.append("rooms overlap")
-	var grown := rooms.size() - 2
+	var grown := rooms.size() - 2 - count_of(&"vault")
 	if grown < _size().x or grown > _size().y + sector:
 		out.append("%d rooms grown" % grown)
 	for type: StringName in _modules():

@@ -20,6 +20,73 @@ SCANS = ROOT / "art" / "textures_src"  # CC0 photo scans (tools/fetch_textures.s
 GRIME = (0.09, 0.075, 0.06)
 
 
+## Scans that stood in for missing photo scans in this build (see _stand_in): build.py reports them,
+## so a model baked without the real scans is known, and rebuilt once they're fetched.
+STAND_INS = set()
+
+
+def _stand_in(scan):
+    """A procedural stand-in for a photo scan that isn't on this machine (tools/fetch_textures.sh
+    couldn't reach ambientCG): grain of the same kind (brushed streaks for Metal009, blotches and
+    chips for PaintedMetal013, mottled rust for Metal021, seams for MetalPlates013, a diamond tread
+    for DiamondPlate008A, a fine mottle for Concrete034), centred on mid grey so the overlay it
+    feeds stays neutral. A placeholder: rebuild the model with the real scans."""
+    import numpy as np
+    name = f"stand_in_{scan}"
+    if name in bpy.data.images:
+        return bpy.data.images[name]
+    STAND_INS.add(scan)
+    size = 256
+    import zlib
+    rng = np.random.default_rng(zlib.crc32(scan.encode()))
+
+    def octave(cells, stretch=(1, 1)):
+        grid = rng.random((cells * stretch[1] + 1, cells * stretch[0] + 1))
+        ys = np.linspace(0, cells * stretch[1], size, endpoint=False)
+        xs = np.linspace(0, cells * stretch[0], size, endpoint=False)
+        y0, x0 = ys.astype(int), xs.astype(int)
+        fy, fx = (ys - y0)[:, None], (xs - x0)[None, :]
+        fy, fx = fy * fy * (3 - 2 * fy), fx * fx * (3 - 2 * fx)
+        a = grid[y0][:, x0]
+        b = grid[y0][:, x0 + 1]
+        c = grid[y0 + 1][:, x0]
+        d = grid[y0 + 1][:, x0 + 1]
+        return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy
+
+    def fbm(cells, stretch=(1, 1), octaves=4):
+        out = np.zeros((size, size))
+        weight = 0.5
+        for i in range(octaves):
+            out += octave(cells * 2 ** i, stretch) * weight
+            weight *= 0.5
+        return out / (1 - 0.5 ** octaves)
+
+    if scan == "Metal009":
+        grain = fbm(4, (1, 24), 3) * 0.6 + fbm(16) * 0.4
+    elif scan == "PaintedMetal013":
+        grain = fbm(6) * 0.7 + (fbm(24) > 0.68) * 0.3
+    elif scan == "Metal021":
+        grain = fbm(5) * 0.5 + fbm(20) * 0.5
+    elif scan == "MetalPlates013":
+        u = np.arange(size)
+        seams = ((u % 64) < 2)[None, :] | ((u % 64) < 2)[:, None]
+        grain = fbm(8) * 0.8 + 0.2 - seams * 0.35
+    elif scan == "DiamondPlate008A":
+        u = np.arange(size)
+        x, y = np.meshgrid(u, u)
+        tread = ((np.abs((x + y) % 32 - 16) < 3) & (np.abs((x - y) % 32 - 16) < 9)) * 0.35
+        grain = fbm(10) * 0.6 + 0.2 + tread
+    else:
+        grain = fbm(10) * 0.6 + fbm(40) * 0.4
+    grain = 0.5 + (grain - grain.mean()) * 0.9
+    pixels = np.clip(np.repeat(grain[:, :, None], 4, axis=2), 0, 1)
+    pixels[:, :, 3] = 1.0
+    image = bpy.data.images.new(name, size, size)
+    image.pixels.foreach_set(pixels.astype(np.float32).ravel())
+    print(f"  (stand-in for the {scan} scan: rebuild with tools/fetch_textures.sh's scans)")
+    return image
+
+
 def srgb(c):
     """An sRGB colour as Blender's linear RGBA."""
     def lin(x):
@@ -159,6 +226,8 @@ class Graph:
         path = SCANS / f"{scan}_Color.jpg"
         if lib.KEEP_TEXTURE and not path.exists():
             image = bpy.data.images.get("scan_stand_in") or bpy.data.images.new("scan_stand_in", 4, 4)
+        elif not path.exists():
+            image = _stand_in(scan)
         else:
             image = bpy.data.images.load(str(path), check_existing=True)
         mapping = self.node("ShaderNodeMapping")

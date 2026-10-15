@@ -476,6 +476,27 @@ func cell_seated(bay: Node3D) -> void:
 	_play_at(CELL_SEATED, bay, 20.0)
 
 
+## A breaker's knife switch thrown (`on`) or cut, from the box. (Stand-in: the fuel cell's seating
+## clunk, deeper; a switch of its own to come.)
+func breaker(box: Node3D, on: bool) -> void:
+	_play_at(CELL_SEATED, box, 26.0, 3.0, 0.72 if on else 0.6, Vector3.UP * 1.4)
+
+
+## An alarm sounding from `source` for `seconds` (a locked-out lock panel, a derelict's security).
+## (Stand-in: the undock siren, again and again.)
+func alarm(source: Node3D, seconds: float) -> void:
+	var siren: AudioStream = load("res://assets/audio/ambient/dock_siren.wav")
+	for i in ceili(seconds / 2.0):
+		get_tree().create_timer(i * 2.0).timeout.connect(func():
+			if is_instance_valid(source):
+				_play_at(siren, source, 40.0, 0.0, 0.92, Vector3.UP * 1.6))
+
+
+## A crowbar heaving at a dead door, from the door. (Stand-in: a tool's strike, low.)
+func pry(door: Node3D) -> void:
+	_play_at(TOOL_STRIKE.pick_random(), door, 24.0, 0.0, randf_range(0.6, 0.72), Vector3.UP * 1.15)
+
+
 ## A console (`what`: a CONSOLE sound) from its screen.
 func console(terminal: Terminal, what: StringName) -> void:
 	_play_at(CONSOLE[what], terminal, 12.0, 0.0, 1.0, terminal.to_local(terminal.screen_centre()))

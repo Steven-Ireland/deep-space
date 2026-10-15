@@ -18,10 +18,14 @@ const CRT := preload("res://game/terminals/crt.gdshader")
 @export var interactive := true
 ## Properties set on the screen after it's made, e.g. {"slot": 2} for a vitals tile.
 @export var screen_settings := {}
+## Whether it has power now (a Callable answering it): a derelict's terminals are dark and dead
+## until their section's back. Unset, it always has.
+var powered: Callable
 
 var viewport: SubViewport
 var screen: CrtScreen
 var mesh: MeshInstance3D
+var _glow: OmniLight3D
 
 # The screen's plane in the mesh's space: P = _origin + u * _u + v * _v for its UV (u, v).
 var _origin: Vector3
@@ -56,6 +60,16 @@ func _ready() -> void:
 	if interactive:
 		_add_panel()
 		_add_glow()
+
+
+## Whether it's live: powered, if it depends on power.
+func live() -> bool:
+	return not powered.is_valid() or powered.call()
+
+
+func _process(_delta: float) -> void:
+	if _glow != null:
+		_glow.visible = live()
 
 
 ## The camera pose for operating this terminal: square on to the screen, as close as the view
@@ -185,6 +199,7 @@ func _add_glow() -> void:
 	light.layers = Deck.INTERIOR_LAYER
 	add_child(light)
 	light.global_position = screen_centre() + _normal() * 0.35
+	_glow = light
 
 
 ## The interactable over a terminal's screen: using it is local (the player's camera moves to the
@@ -193,6 +208,12 @@ class TerminalPanel:
 	extends Interactable
 
 	var terminal: Terminal
+
+	func prompt(_player: Player) -> String:
+		return verb if terminal.live() else "NO POWER"
+
+	func usable_by(_player: Player) -> bool:
+		return enabled and terminal.live()
 
 	func request_use() -> void:
 		var player := get_tree().get_first_node_in_group(&"local_player") as Player

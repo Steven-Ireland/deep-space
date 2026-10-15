@@ -26,6 +26,10 @@ const REACH := {
 	&"zap": 14.0, # a shock prod's jolt
 	&"flare": 10.0, # a burning flare's hiss, every second
 	&"bang": 16.0, # a creature beating on a door
+	&"breaker": 18.0, # a breaker's switch thrown, or cut
+	&"pry": 14.0, # a crowbar forcing a dead door, every heave
+	&"buzz": 10.0, # a lock panel refusing a code
+	&"alarm": 26.0, # an alarm sounding (a locked-out panel, security waking)
 }
 
 

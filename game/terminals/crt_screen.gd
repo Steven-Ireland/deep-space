@@ -29,6 +29,8 @@ func _process(delta: float) -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color.BLACK)
+	if terminal is Terminal and not terminal.live():
+		return
 	_draw_screen()
 	if cursor.x >= 0:
 		draw_rect(Rect2(cursor - Vector2(1, 1), Vector2(3, 3)), WHITE)
