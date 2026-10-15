@@ -56,6 +56,9 @@ func _run() -> void:
 	_check(jumps.all(func(node: Vector2i) -> bool: return node in run.charted), "the survey core didn't identify the next row")
 	run._read_core(Transform3D())
 	_check(run.core_seated and not run.scanning(), "a second core was read in the same system")
+	var data: int = run.survey_data
+	run._upload(30)
+	_check(run.survey_data == data + 30, "a data core's upload didn't add its Survey Data")
 	run.plot(jumps[0])
 	await _frames(2)
 	_check(run.route == jumps[0], "the route wasn't plotted")

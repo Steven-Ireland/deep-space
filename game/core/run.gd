@@ -335,6 +335,21 @@ func _survey(planet: int) -> void:
 	_broadcast()
 
 
+## Science: a data core's memory uploaded at the Survey Console (GDD §7, §8.2): `data` more Survey
+## Data. (Its credits buy nothing yet: the Workshop and upgrades come with the slice's wrap-up.)
+func upload(data: int) -> void:
+	_upload.rpc_id(1, data)
+
+
+@rpc("any_peer", "call_local", "reliable")
+func _upload(data: int) -> void:
+	if not multiplayer.is_server() or not started:
+		return
+	survey_data += clampi(data, 0, 100)
+	print("Run: a data core uploaded, +%d Survey Data (%d)." % [data, survey_data])
+	_broadcast()
+
+
 func _finish_survey() -> void:
 	if survey_target < system.planets.size():
 		surveyed.append(survey_target)

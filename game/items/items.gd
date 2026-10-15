@@ -31,11 +31,11 @@ const KINDS := {
 	&"o2_canister": {"name": "O2 CANISTER", "model": "res://assets/models/items/it_o2_canister.glb", "hold": "tool", "tilt": 165.0, "glove": 0.0, "use": "refill", "mass": 3.0, "desc": "Bottled breathing gas. Use it to top the suit up by three minutes."},
 	&"sealant": {"name": "SEALANT", "model": "res://assets/models/items/it_sealant.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "use": "patch", "mass": 0.5, "desc": "A can of quick-set suit sealant. Use it on a breach to stop the leak."},
 	&"power_cell": {"name": "POWER CELL", "model": "res://assets/models/items/it_power_cell.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 6.0, "desc": "A charged cell from an earlier wave's stores. Seat it in a breaker box to power a section."},
-	&"data_core": {"name": "DATA CORE", "model": "res://assets/models/items/it_data_core.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "use": "read", "mass": 0.8, "desc": "A ship's memory, sealed in a shock case. Read it from the suit; upload it at the Survey Console."},
+	&"data_core": {"name": "DATA CORE", "model": "res://assets/models/items/it_data_core.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "use": "read", "mass": 0.8, "data": 30, "desc": "A ship's memory, sealed in a shock case. Read it from the suit; upload it at the Survey Console."},
 	&"cartridge": {"name": "CARTRIDGE", "model": "res://assets/models/items/it_cartridge.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 0.3, "desc": "An energy cartridge: the one round every weapon takes. Rare."},
-	&"salvage_pipes": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_pipes.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 2.5, "desc": "Copper and steel pipe runs, torn out whole. Feed it to the recycler."},
-	&"salvage_board": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_board.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 1.0, "desc": "A circuit board, its chips still socketed. Feed it to the recycler."},
-	&"salvage_plates": {"name": "SALVAGE", "model": "res://assets/models/items/it_salvage_plates.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 3.0, "desc": "Alloy plate, stripped from a bulkhead. Feed it to the recycler."},
+	&"salvage_pipes": {"name": "SALVAGE", "value": 12, "model": "res://assets/models/items/it_salvage_pipes.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 2.5, "desc": "Copper and steel pipe runs, torn out whole. Feed it to the recycler."},
+	&"salvage_board": {"name": "SALVAGE", "value": 18, "model": "res://assets/models/items/it_salvage_board.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 1.0, "desc": "A circuit board, its chips still socketed. Feed it to the recycler."},
+	&"salvage_plates": {"name": "SALVAGE", "value": 10, "model": "res://assets/models/items/it_salvage_plates.glb", "hold": "tool", "tilt": 0.0, "glove": 0.0, "mass": 3.0, "desc": "Alloy plate, stripped from a bulkhead. Feed it to the recycler."},
 	# Big things, carried in both hands. A dead crew member's body (GDD §11) is a Ragdoll, lying
 	# loose as a LooseBody; its record says whose it is ({kind, peer, crew}).
 	&"survey_core": {"name": "SURVEY CORE", "model": "res://assets/models/items/it_survey_core.glb", "hold": "carry", "tilt": 0.0, "glove": 0.0, "mass": 32.0, "desc": "An earlier wave's astrogation memory: the charts they made. Seat it in the core reader on the bridge to see where the next jumps lead."},
@@ -55,6 +55,11 @@ static func make(kind: StringName) -> Dictionary:
 	var record := {"kind": kind}
 	if KINDS[kind].has("charges"):
 		record.charge = KINDS[kind].charges
+	# Salvage is worth its scrap, a data core its Survey Data: each piece a little more or less.
+	if KINDS[kind].has("value"):
+		record.value = roundi(KINDS[kind].value * randf_range(0.75, 1.25))
+	if KINDS[kind].has("data"):
+		record.data = roundi(KINDS[kind].data * randf_range(0.7, 1.3))
 	return record
 
 

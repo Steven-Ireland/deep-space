@@ -2,7 +2,8 @@ extends CrtScreen
 ## SCIENCE: the Survey Console (GDD §7). Lists the system's planets; click one to select it, then
 ## SURVEY to scan it. A few seconds later its readout fills in (atmosphere, temperature, gravity,
 ## water, biosignatures) and it yields Survey Data, more for water and more again for signs of life.
-## Everyone at the console sees the same survey; the selection is the operator's own.
+## Everyone at the console sees the same survey; the selection is the operator's own. An operator
+## with a data core in hand can UPLOAD it for its Survey Data (the core's spent).
 
 const LIST_ROW := 3
 const TRAIT_ROW := 9
@@ -11,6 +12,9 @@ const TRAITS := [["ATMOSPHERE", "atmosphere"], ["TEMPERATURE", "temperature"], [
 		["WATER", "water"], ["BIOSIGNS", "biosigns"]]
 
 var selected := 0
+## The last upload's Survey Data, shown for a moment (seconds left).
+var _uploaded := 0
+var _uploaded_left := 0.0
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -24,7 +28,15 @@ func _gui_input(event: InputEvent) -> void:
 	if row >= 0 and row < system.planets.size():
 		selected = row
 	elif BUTTON.grow(4).has_point(event.position) and run != null:
-		if _can_survey(run, system):
+		var core := _core_in_hand()
+		if not core.is_empty() and run.started:
+			var player := Player.local(get_tree())
+			player.take_from_hands()
+			run.upload(int(core.get("data", Items.KINDS[&"data_core"].data)))
+			_uploaded = int(core.get("data", 0))
+			_uploaded_left = 3.0
+			confirm()
+		elif _can_survey(run, system):
 			run.survey(selected)
 			confirm()
 		elif run.jumping() and selected < system.planets.size() and run.survey_target < 0 and selected not in run.surveyed:
@@ -68,7 +80,14 @@ func _draw_screen() -> void:
 			text(15, row, "UNKNOWN", DIM)
 	if run == null or not run.started:
 		return
-	if busy:
+	_uploaded_left = maxf(0.0, _uploaded_left - get_process_delta_time())
+	var core := _core_in_hand()
+	if _uploaded_left > 0.0:
+		text(1, 14.5, "UPLOADED  +%d DATA" % _uploaded, AMBER if blink(0.3) else GREEN)
+	elif not core.is_empty():
+		draw_rect(BUTTON, GREEN if blink() else DIM, false, 1.0)
+		text(2, 14.5, "UPLOAD DATA CORE  +%d" % int(core.get("data", 0)), GREEN)
+	elif busy:
 		var done := 1.0 - run.survey_left / Run.SURVEY_TIME
 		text(1, 14.5, "SURVEYING %s" % String(target.name).right(1).to_upper(), AMBER)
 		var bar := Rect2(Vector2(17 * CELL.x, 14.5 * CELL.y + 6), Vector2(size.x - 19 * CELL.x, 8))
@@ -81,6 +100,14 @@ func _draw_screen() -> void:
 	else:
 		draw_rect(BUTTON, GREEN if blink() else DIM, false, 1.0)
 		text(2, 14.5, "SURVEY PLANET %s" % String(target.name).right(1).to_upper(), GREEN)
+
+
+## The data core in the local operator's hand, or {}.
+func _core_in_hand() -> Dictionary:
+	var player := Player.local(get_tree())
+	if player == null or player.operating == null or player.operating != terminal or Items.kind_of(player.in_hands()) != &"data_core":
+		return {}
+	return player.in_hands()
 
 
 func _can_survey(run: Run, system: StarSystem) -> bool:
