@@ -8,7 +8,7 @@ extends Node3D
 ## In a derelict a door needs its section's power (DerelictPower sets `powered`): dead, it's stuck
 ## as it is, and a shut one can only be forced open with a crowbar (`forced`: its leaves jammed most
 ## of the way apart, for good). Sealed, it says why (`seal_text`): SEALED, LOCKED (a vault),
-## LOCKDOWN, BUCKLED.
+## LOCKDOWN (a crowbar forces it), VENTING, BUCKLED (PrizeEvent).
 
 const OPEN_GAP := 0.9 # how far each leaf slides, metres
 const SPEED := 1.8 # metres per second: heavy, not instant
@@ -20,6 +20,8 @@ const LAMP_OPEN := preload("res://assets/materials/lk_lamp_open.tres")
 const LAMP_SHUT := preload("res://assets/materials/lk_lamp_shut.tres")
 const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 const LAMP_DEAD := preload("res://assets/materials/lk_lamp_dead.tres")
+## What a door locked down by a derelict's security says (PrizeEvent): a crowbar forces it.
+const LOCKDOWN := "LOCKDOWN"
 
 @export var open := false:
 	set(value):
@@ -77,12 +79,17 @@ func _process(delta: float) -> void:
 ## Host: a panel's been used by `peer`: with power, the door opens or shuts; without, a crew member
 ## heaving at it with a crowbar forces it open, for good.
 func _on_used(peer: int) -> void:
+	var player := Player.of_peer(get_tree(), peer)
 	if sealed:
+		if seal_text == LOCKDOWN and player != null and player.held == &"crowbar":
+			sealed = false
+			forced = true
+			open = true
+			print("Door %s: forced out of its lockdown." % name)
 		return
 	if powered:
 		open = not open
 		return
-	var player := Player.of_peer(get_tree(), peer)
 	if not open and player != null and player.held == &"crowbar":
 		forced = true
 		open = true

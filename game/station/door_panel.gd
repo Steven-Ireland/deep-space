@@ -3,10 +3,13 @@ extends Interactable
 ## A door's panel, one each side (Door): OPEN or CLOSE while the door has power; with none (a dead
 ## derelict section, GDD §8.3) it's stuck as it is: NO POWER, unless it's shut and the crew member
 ## has a crowbar in hand, when they can PRY it open, heaving at it for PRY_TIME (loud: every heave
-## is heard, Noises). Sealed, it says why (SEALED, LOCKED, LOCKDOWN, BUCKLED).
+## is heard, Noises). Sealed, it says why (SEALED, LOCKED, LOCKDOWN, VENTING, BUCKLED); a crowbar
+## can FORCE a locked-down one, heaving for FORCE_TIME.
 
-## Seconds of heaving with a crowbar to force a dead door open.
+## Seconds of heaving with a crowbar to force a dead door open, and a locked-down one (GDD §8.3:
+## its bolts sheared, not just its leaves).
 const PRY_TIME := 2.4
+const FORCE_TIME := 5.0
 
 var door: Door
 
@@ -19,7 +22,14 @@ func _prying(player: Player) -> bool:
 	return not door.powered and not door.open and not door.sealed and player.held == &"crowbar"
 
 
+## Whether `player` can force it out of a lockdown: a crowbar in hand.
+func _forcing(player: Player) -> bool:
+	return door.sealed and door.seal_text == Door.LOCKDOWN and player.held == &"crowbar"
+
+
 func prompt(player: Player) -> String:
+	if _forcing(player):
+		return "FORCE"
 	if door.sealed:
 		return door.seal_text
 	if door.powered:
@@ -28,11 +38,11 @@ func prompt(player: Player) -> String:
 
 
 func usable_by(player: Player) -> bool:
-	return enabled and not door.sealed and (door.powered or _prying(player))
+	return enabled and ((not door.sealed and (door.powered or _prying(player))) or _forcing(player))
 
 
 func hold_for(player: Player) -> float:
-	return PRY_TIME if _prying(player) else 0.0
+	return FORCE_TIME if _forcing(player) else (PRY_TIME if _prying(player) else 0.0)
 
 
 ## On the prier's machine: a heave of the crowbar at the door, heard by everyone.

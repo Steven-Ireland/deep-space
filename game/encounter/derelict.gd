@@ -32,9 +32,13 @@ var _nav: DerelictNav
 ## Its power (GDD §8.3): sections, breakers, lights; and its secure store's lock, if it has one.
 var power: DerelictPower
 var vault: VaultLock
-## Whether its Prize has been taken from its cradle (host), and the signal that it has.
+## Whether its Prize has been taken from its cradle (host), and the signal that it has; what that
+## sets off (PrizeEvent).
 var prize_gone := false
 signal prize_event(by: Player)
+var event: PrizeEvent
+## Its fittings with a part to play, by role (the plan's props' `role`: "sentry", "nest").
+var fixtures := {}
 
 
 ## A derelict built from `plan`, stocked for `crew`.
@@ -59,6 +63,9 @@ func _ready() -> void:
 	power = DerelictPower.new()
 	add_child(power)
 	_fit_fittings()
+	event = PrizeEvent.new()
+	add_child(event)
+	prize_event.connect(event.begin)
 
 
 ## The plan's dressing: furniture and decay, the strobes, the stand-in creatures, and the loot
@@ -72,6 +79,8 @@ func _dress() -> void:
 			_play(node, prop.pose[0], prop.pose[1])
 		if prop.get("lock", false):
 			vault = VaultLock.make(self, doors[RoomLayout.deck_key(layout.vault_door)], node)
+		if prop.has("role"):
+			fixtures[prop.role] = fixtures.get(prop.role, []) + [node]
 	for strobe: Dictionary in layout.strobes:
 		var light := Strobe.new()
 		light.transform = strobe.at
@@ -91,6 +100,8 @@ func _dress() -> void:
 
 ## Host: the Prize has been taken from its cradle by `by` (GDD §8.3): it may set something off.
 func prize_taken(by: Player) -> void:
+	if prize_gone:
+		return
 	prize_gone = true
 	print("Derelict: the Prize taken by %s." % (by.crew_name() if by != null else "someone"))
 	prize_event.emit(by)

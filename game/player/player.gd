@@ -599,8 +599,9 @@ func _used_up(kind: StringName) -> void:
 	uses += 1
 
 
-## The swing lands on whatever's in front within reach (GDD §12, §13): a creature is struck (a shock
-## prod with charge left jolts it, and spends a charge); a loose thing gets knocked away; anything
+## The swing lands on whatever's in front within reach (GDD §12, §13): a creature (or a derelict's
+## sentry) is struck (a shock prod with charge left jolts it, and spends a charge); a loose thing
+## gets knocked away; anything
 ## else solid takes the blow, heard by everyone. The host applies it all, and hears it (Noises).
 ## Hatches come later.
 func _land_swing() -> void:
@@ -612,12 +613,16 @@ func _land_swing() -> void:
 	if hit.is_empty():
 		return
 	var creature := Creature.of(hit.collider)
-	if creature != null:
+	var sentry := Sentry.of(hit.collider)
+	if creature != null or sentry != null:
 		var record := in_hands()
 		var jolt := Items.charge(record) > 0
 		if jolt:
 			record.charge -= 1
-		creature.strike(Items.kind_of(record), jolt)
+		if creature != null:
+			creature.strike(Items.kind_of(record), jolt)
+		else:
+			sentry.strike(Items.kind_of(record), jolt)
 	elif hit.collider is Pickup:
 		LooseItems.of(self).whack(hit.collider, (forward + Vector3.UP * 0.3).normalized() * SWING_IMPULSE, hit.position)
 	else:
@@ -949,6 +954,8 @@ func _walk(delta: float, input: Vector2, weight: float) -> void:
 	if harness:
 		speed = minf(speed, HARNESS_SPEED)
 	var wish := (Basis(Vector3.UP, look.x) * Vector3(input.x, 0, input.y)).limit_length(1.0) * speed
+	# A derelict's air rushing out through a blown wall carries them with it (PrizeEvent).
+	wish += PrizeEvent.gale_on(self)
 
 	var horizontal := Vector3(velocity.x, 0, velocity.z)
 	var rate := (ACCELERATION if wish.length() > 0.01 else BRAKING) * (1.0 if is_on_floor() else AIR_CONTROL)
@@ -1080,6 +1087,8 @@ func _ride() -> void:
 ## sprint, faster still through a breach; with none left, health runs out.
 func _breathe(delta: float) -> void:
 	in_vacuum = not Zone.has_air(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
+	if not dead:
+		PrizeEvent.buffet(self, delta)
 	if not in_vacuum:
 		return
 	o2 = maxf(0.0, o2 - delta * o2_rate())
@@ -1177,6 +1186,7 @@ func _head_bob(delta: float) -> void:
 	var collar := Collar.of(self)
 	var shake := maxf(run.shake() if run != null else 0.0, collar.shake() if collar != null else 0.0)
 	shake = maxf(shake, _wounded / WOUND_TIME * WOUND_SHAKE)
+	shake = maxf(shake, PrizeEvent.shake_for(self))
 	if shake > 0.0:
 		var t := Time.get_ticks_msec() / 1000.0
 		var jolt := Vector3(sin(t * 37.0) + sin(t * 23.0 + 1.3), sin(t * 29.0 + 2.1) + sin(t * 41.0), sin(t * 19.0 + 0.7)) * 0.5

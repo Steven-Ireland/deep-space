@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the headless tests (TECH §8): sector map rules, derelict and satellite layouts, generation determinism, audio,
-# what lives in a derelict (the creatures),
+# what lives in a derelict (the creatures), its power, what taking its Prize sets off (the events),
 # the scene smoke test.
 # Imports first, so new classes and built assets are known. Exits non-zero if any fails.
 #   tools/test.sh            all of them

@@ -16,6 +16,10 @@ extends Node
 ##                         jumping along it a second in (Run)
 ##   --derelict            dock a derelict at the departure too, grown from its seed (Run);
 ##                         =away, have it waiting out for the collar instead
+##   --event=<kind>        its Prize's event, whatever it rolled: security, vent, collapse, nest, or
+##                         none (DerelictLayout)
+##   --prize-taken[=<s>]   (host) that many seconds in, the derelict's Prize is taken, by them
+##                         (PrizeEvent)
 ##   --fuel=<n>            start the run with n cells loaded (Run)
 ##   --cuff                the local crew member holds their wrist cuff up (Player)
 ##   --at=<x>,<y>,<z>      the local crew member starts here (Player)

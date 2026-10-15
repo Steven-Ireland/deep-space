@@ -492,6 +492,41 @@ func alarm(source: Node3D, seconds: float) -> void:
 				_play_at(siren, source, 40.0, 0.0, 0.92, Vector3.UP * 1.6))
 
 
+## What a Prize event makes heard (`what`) from `source` (`offset` from it, in its space): a
+## sentry waking, locking on, firing, struck, knocked out; the structure groaning and creaking, debris
+## falling, a heap of ceiling coming down; a wall blowing out; a nest stirring and bursting.
+## (Stand-ins, all of them: other sounds pitched and stacked, till they have their own: TODO.md.)
+func event(what: StringName, source: Node3D, offset := Vector3.ZERO) -> void:
+	match what:
+		&"sentry_wake":
+			_play_at(CELL_SEATED, source, 26.0, 2.0, 0.55, offset)
+		&"sentry_lock":
+			_play_at(CONSOLE[&"confirm"], source, 18.0, 4.0, 1.7, offset)
+		&"sentry_fire":
+			_play_at(TOOL_STRIKE.pick_random(), source, 40.0, 6.0, randf_range(1.7, 1.9), offset)
+		&"sentry_hit":
+			_play_at(TOOL_STRIKE.pick_random(), source, 20.0, 2.0, randf_range(1.1, 1.2), offset)
+		&"sentry_down":
+			_play_at(CONSOLE[&"refuse"], source, 20.0, 2.0, 0.7, offset)
+		&"groan":
+			_play_at(CLATTER_HEAVY, source, 60.0, 6.0, 0.32, offset)
+		&"creak":
+			_play_at(DOOR_CLOSE, source, 24.0, 0.0, 0.45, offset)
+		&"fall":
+			_play_at(CLATTER_HEAVY, source, 30.0, 4.0, randf_range(0.7, 0.85), offset)
+		&"collapse":
+			_play_at(CLATTER_HEAVY, source, 50.0, 8.0, 0.5, offset)
+			_play_at(CLATTER_HEAVY, source, 50.0, 6.0, 0.38, offset)
+		&"blowout":
+			_play_at(AIRLOCK_VENT, source, 60.0, 8.0, 0.6, offset)
+			_play_at(CLATTER_HEAVY, source, 60.0, 6.0, 0.4, offset)
+		&"stir":
+			_play_at(FLESH_HIT.pick_random(), source, 16.0, -4.0, 0.5, offset)
+		&"burst":
+			_play_at(FLESH_HIT.pick_random(), source, 30.0, 6.0, 0.6, offset)
+			_play_at(AIRLOCK_VENT, source, 20.0, -2.0, 1.6, offset)
+
+
 ## A crowbar heaving at a dead door, from the door. (Stand-in: a tool's strike, low.)
 func pry(door: Node3D) -> void:
 	_play_at(TOOL_STRIKE.pick_random(), door, 24.0, 0.0, randf_range(0.6, 0.72), Vector3.UP * 1.15)

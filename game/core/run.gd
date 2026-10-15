@@ -532,7 +532,7 @@ func _show_world() -> void:
 func _bring_derelict(node: Vector2i, chart: SectorMap, docked: bool) -> void:
 	if encounter == null:
 		return
-	var layout := DerelictLayout.generate(system_seed(node, chart), chart.sector)
+	var layout := DerelictLayout.generate(system_seed(node, chart), chart.sector, StringName(Args.value("--event", "")))
 	var derelict := Derelict.make(layout, maxi(1, get_tree().get_nodes_in_group(&"crew").size()))
 	derelict.name = "Derelict"
 	encounter.add_child(derelict)

@@ -48,6 +48,19 @@ const LOCK_ALONG := 1.45
 const LOCK_OUT := 1.73
 const LOCK_CLEAR := 0.8
 
+## The Prize's event (GDD §8.3), rolled with the plan: what taking the Prize sets off. The odds by
+## sector, for nothing, a security system, depressurization, a structural breach and an
+## infestation: the quiet is common, and commonest early.
+const EVENTS: Array[StringName] = [&"", &"security", &"vent", &"collapse", &"nest"]
+const EVENT_ODDS := {1: [40.0, 15.0, 15.0, 15.0, 15.0], 2: [32.0, 17.0, 17.0, 17.0, 17.0], 3: [24.0, 19.0, 19.0, 19.0, 19.0]}
+## A sentry hangs this far out from its cell's middle (each way), and this clear of anything else
+## up there; a nest, a fall of debris, this clear of the furniture, the finds and the doorways.
+const SENTRY_OUT := 1.1
+const SENTRY_CLEAR := 0.9
+const FLOOR_CLEAR := 1.1
+## How many falls of debris on the way back from the Prize, in a structural breach.
+const FALLS := 4
+
 ## The emergency strobes ({at, failing, room}) and what lives here ({kind, at}), in the derelict's
 ## space.
 var strobes: Array[Dictionary] = []
@@ -62,13 +75,31 @@ var breakers: Array[Dictionary] = []
 var vault := -1
 var vault_door := ""
 var lock_at := Transform3D()
+## The Prize's event (one of EVENTS; &"" for nothing) and its makings, in the derelict's space: the
+## doors a lockdown seals round the Prize's section (edge keys) and where its sentries hang
+## (security); the rooms that still hold air and the outer wall that blows out (vent); the door on
+## the way back that buckles, the heap that falls against it, and where debris comes down
+## (collapse); the nest (infestation; a prop, with its role).
+var event := &""
+var forced := &""
+var lockdown: Array[String] = []
+var sentries: Array[Transform3D] = []
+var sealed: Array[int] = []
+var vent_doors: Array[String] = []
+var blowout := ""
+var buckle := ""
+var heap := Transform3D()
+var falls: Array[Transform3D] = []
+var nest := Transform3D()
 
 
-## The layout for `seed` (a derelict node's own), in `sector`.
-static func generate(derelict_seed: int, in_sector := 1) -> DerelictLayout:
+## The layout for `seed` (a derelict node's own), in `sector`; `event` forces its Prize's event
+## (for trying one out: Run's `--event`).
+static func generate(derelict_seed: int, in_sector := 1, event_wanted := &"") -> DerelictLayout:
 	var layout: DerelictLayout
 	for n in 50:
 		layout = DerelictLayout.new()
+		layout.forced = event_wanted
 		if layout.grow(derelict_seed, in_sector, n):
 			break
 	return layout
@@ -135,6 +166,7 @@ func _dress(rng: RandomNumberGenerator) -> void:
 	_creatures(rng)
 	_vault(Seeds.rng(seed, "vault/%d" % attempt))
 	_power(Seeds.rng(seed, "power/%d" % attempt))
+	_event(Seeds.rng(seed, "event/%d" % attempt))
 
 
 ## What lives here: in rooms at least two in from the entry (never the Prize room), on open floor.
@@ -438,6 +470,238 @@ static func _flat_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
+# --- The Prize's event --------------------------------------------------------------------------
+
+## Rolls the Prize's event (EVENT_ODDS) and lays out what it needs, last of all (so nothing else
+## about the derelict changes for it). One that can't be laid out here is nothing.
+func _event(rng: RandomNumberGenerator) -> void:
+	if prize < 0:
+		return
+	var kind: StringName = EVENTS[_weighted(rng, EVENT_ODDS[clampi(sector, 1, 3)])]
+	if forced != &"":
+		kind = forced if forced in EVENTS else &""
+	var ready := false
+	match kind:
+		&"security":
+			ready = _security(rng)
+		&"vent":
+			ready = _vent()
+		&"collapse":
+			ready = _collapse(rng)
+		&"nest":
+			ready = _nest(rng)
+	event = kind if ready else &""
+
+
+## A security system: the doors out of the Prize's section lock down, and those on the way out
+## through it (all but the Prize room's own), or if that's none, the first door on the way out
+## beyond it; and sentries hang on the way out, in the room outside the Prize's and the last in
+## the section (or, if the Prize's room opens straight out of the section, in its own).
+func _security(rng: RandomNumberGenerator) -> bool:
+	var section := section_of[prize]
+	var out := path(prize, 0)
+	for key: String in joins:
+		var join: Dictionary = joins[key]
+		var beyond: int = room_of.get(join.cell + SIDES[join.side], -1)
+		if join.kind == "door" and key != vault_door and beyond >= 0 \
+				and (section_of[room_of[join.cell]] == section) != (section_of[beyond] == section):
+			lockdown.append(key)
+	for i in range(2, out.size()):
+		var key := join_of(out[i - 1], out[i])
+		var inside: bool = section_of[out[i - 1]] == section
+		if joins[key].kind == "door" and key != vault_door and not key in lockdown and (inside or lockdown.is_empty()):
+			lockdown.append(key)
+			if not inside:
+				break
+	var way := out.slice(1).filter(func(index: int) -> bool: return section_of[index] == section)
+	var posts: Array = [prize] if way.is_empty() else ([way[0], way[-1]] if way.size() > 2 else [way[0]])
+	for index: int in posts:
+		var spot: Variant = _ceiling_spot(index, rng)
+		if spot != null:
+			sentries.append(spot)
+			props.append({"model": "derelict/dk_sentry", "at": spot, "rack": [], "room": index, "pose": [], "role": "sentry"})
+	return not sentries.is_empty() or not lockdown.is_empty()
+
+
+## Depressurization: the Prize's cradle was part of a seal. The rooms round it still hold air: its
+## section, if every way out of the section is a door (all start shut), or else the Prize's room
+## alone. Pulling the Prize blows out the outer wall nearest its cradle.
+func _vent() -> bool:
+	var section := section_of[prize]
+	var held := {prize: true}
+	var queue := [prize]
+	while not queue.is_empty():
+		var at: int = queue.pop_front()
+		for next: int in links[at]:
+			if section_of[next] == section and not held.has(next):
+				held[next] = true
+				queue.append(next)
+	if held.has(0) or not _ways_out(held).all(func(key: String) -> bool: return joins[key].kind == "door"):
+		held = {prize: true}
+	var doors := _ways_out(held)
+	if not doors.all(func(key: String) -> bool: return joins[key].kind == "door"):
+		return false
+	var cradle := _prop_of(prize, module(&"prize").get("core", -1))
+	var near: Vector3 = props[cradle].at.origin if cradle >= 0 else centre_of(rooms[prize].cells[0])
+	var best := INF
+	for cell: Vector3i in rooms[prize].cells:
+		for side in AROUND:
+			var key := edge_key(cell, side)
+			if room_of.has(cell + SIDES[side]) or joins.has(key) or windows.has(key) or breaches.has(key):
+				continue
+			var middle := centre_of(cell) + Vector3(SIDES[side]) * Deck.CELL / 2.0
+			if _flat_distance(middle, near) < best:
+				best = _flat_distance(middle, near)
+				blowout = key
+	if blowout == "":
+		return false
+	sealed.assign(held.keys())
+	sealed.sort()
+	vent_doors = doors
+	for key in doors:
+		shut[key] = true
+	return true
+
+
+## The joins out of the rooms `held` to rooms that aren't.
+func _ways_out(held: Dictionary) -> Array[String]:
+	var out: Array[String] = []
+	for key: String in joins:
+		var join: Dictionary = joins[key]
+		var beyond: int = room_of.get(join.cell + SIDES[join.side], -1)
+		if beyond >= 0 and held.has(room_of[join.cell]) != held.has(beyond):
+			out.append(key)
+	return out
+
+
+## A structural breach: a door on the way back from the Prize buckles shut, a heap of the ceiling
+## against it (on the Prize's side), where there's another way round (preferring one at least two
+## rooms out, and in the nearer half of the way); and debris comes down on the way back, FALLS
+## times.
+func _collapse(rng: RandomNumberGenerator) -> bool:
+	var way := path(prize, 0)
+	var options := []
+	for i in range(1, way.size()):
+		var key := join_of(way[i - 1], way[i])
+		if joins[key].kind == "door" and key != vault_door and not path(prize, 0, key).is_empty():
+			options.append([i, key])
+	var far := options.filter(func(option: Array) -> bool: return option[0] >= 2 and option[0] <= maxi(2, floori(way.size() / 2.0)))
+	if not far.is_empty():
+		options = far
+	if not options.is_empty():
+		var pick: Array = options[rng.randi() % options.size()]
+		buckle = pick[1]
+		var join: Dictionary = joins[buckle]
+		var inward := Vector3(SIDES[join.side])
+		var door_at := centre_of(join.cell) + inward * Deck.CELL / 2.0
+		# The heap stands in the room on the Prize's side of the door, facing it.
+		if room_of[join.cell] != way[pick[0] - 1]:
+			inward = -inward
+		heap = Transform3D(Basis(Vector3.UP, atan2(inward.x, inward.z)), door_at - inward * 0.75)
+	var rooms_back := way.slice(0, maxi(1, way.size() - 1))
+	for i in FALLS:
+		var index: int = rooms_back[mini(floori(float(i * rooms_back.size()) / FALLS), rooms_back.size() - 1)]
+		var spot: Variant = _floor_spot(index, rng, 0.6)
+		if spot != null:
+			falls.append(spot)
+	return buckle != "" or not falls.is_empty()
+
+
+## An infestation: a nest in the room outside the Prize's (or in it, if it's the way in), that
+## bursts when the Prize is taken.
+func _nest(rng: RandomNumberGenerator) -> bool:
+	var way := path(prize, 0)
+	var index: int = way[1] if way.size() > 2 else prize
+	var spot: Variant = _floor_spot(index, rng, 1.2)
+	if spot == null:
+		return false
+	nest = spot
+	props.append({"model": "derelict/dk_nest", "at": nest, "rack": [], "room": index, "pose": [], "role": "nest"})
+	return true
+
+
+## A spot in room `index`'s ceiling for a sentry, clear of what else is up there (and of anything
+## tall, breakers, strobes, a Hanger); or null.
+func _ceiling_spot(index: int, rng: RandomNumberGenerator) -> Variant:
+	var spots := []
+	for cell: Vector3i in rooms[index].cells:
+		for corner in [Vector3(1, 0, 1), Vector3(-1, 0, 1), Vector3(1, 0, -1), Vector3(-1, 0, -1)]:
+			spots.append(centre_of(cell) + corner * SENTRY_OUT + Vector3.UP * Deck.ROOM_HEIGHT)
+	while not spots.is_empty():
+		var at: Vector3 = spots.pop_at(rng.randi() % spots.size())
+		if _clear_of_all(at, SENTRY_CLEAR):
+			var middle := centre_of(rooms[index].cells[0])
+			return Transform3D(Basis(Vector3.UP, atan2(middle.x - at.x, middle.z - at.z)), at)
+	return null
+
+
+## A spot on room `index`'s open floor, `reach` or less from a cell's middle each way, clear of the
+## furniture, the finds, breakers, strobes and what lives here; or null.
+func _floor_spot(index: int, rng: RandomNumberGenerator, reach: float) -> Variant:
+	var spots := []
+	for cell: Vector3i in rooms[index].cells:
+		for x in [-1, 0, 1]:
+			for z in [-1, 0, 1]:
+				if x != 0 or z != 0:
+					spots.append(centre_of(cell) + Vector3(x, 0, z) * reach)
+	var frame := frame_of(index)
+	var finds: Array = module(rooms[index].type).get("spots", []).map(func(spot: Vector3) -> Vector3: return frame * spot)
+	finds.append_array(module(rooms[index].type).get("big", []).map(func(big: Array) -> Vector3: return frame * big[0]))
+	while not spots.is_empty():
+		var at: Vector3 = spots.pop_at(rng.randi() % spots.size())
+		if _clear_of_all(at, FLOOR_CLEAR) and finds.all(func(find: Vector3) -> bool: return _flat_distance(find, at) >= FLOOR_CLEAR):
+			return Transform3D(Basis(Vector3.UP, rng.randf() * TAU), at)
+	return null
+
+
+func _clear_of_all(at: Vector3, clear: float) -> bool:
+	for prop: Dictionary in props:
+		if _flat_distance(prop.at.origin, at) < clear:
+			return false
+	for strobe: Dictionary in strobes:
+		if _flat_distance(strobe.at.origin, at) < clear:
+			return false
+	for box: Dictionary in breakers:
+		if _flat_distance(box.at.origin, at) < clear:
+			return false
+	for creature: Dictionary in creatures:
+		if _flat_distance(creature.at.origin, at) < clear + 0.6:
+			return false
+	return vault < 0 or _flat_distance(lock_at.origin, at) >= clear
+
+
+## The rooms from `from` to `to` (both included) the fewest joins apart, not through the join
+## `without` (an edge key); empty if there's no way.
+func path(from: int, to: int, without := "") -> Array[int]:
+	var came := {from: -1}
+	var queue := [from]
+	while not queue.is_empty() and not came.has(to):
+		var at: int = queue.pop_front()
+		for next: int in links[at]:
+			if not came.has(next) and (without == "" or join_of(at, next) != without):
+				came[next] = at
+				queue.append(next)
+	var out: Array[int] = []
+	if not came.has(to):
+		return out
+	var at := to
+	while at >= 0:
+		out.push_front(at)
+		at = came[at]
+	return out
+
+
+## The edge key of the join between rooms `a` and `b` ("" if they aren't joined).
+func join_of(a: int, b: int) -> String:
+	for key: String in joins:
+		var join: Dictionary = joins[key]
+		var here: int = room_of[join.cell]
+		var there: int = room_of.get(join.cell + SIDES[join.side], -1)
+		if (here == a and there == b) or (here == b and there == a):
+			return key
+	return ""
+
+
 ## The section a grid cell's room is in (-1 outside every room).
 func section_at(cell: Vector3i) -> int:
 	var index: int = room_of.get(cell, -1)
@@ -453,13 +717,29 @@ static func letter(section: int) -> String:
 
 func checksum() -> int:
 	var boxes := breakers.map(func(box: Dictionary) -> Array: return [box.section, box.room, box.at.origin.snapped(Vector3.ONE * 0.01), box.cell])
-	return hash([super.checksum(), creatures.size(), section_of, boxes, vault, vault_door])
+	return hash([super.checksum(), creatures.size(), section_of, boxes, vault, vault_door, event, lockdown, sentries.size(),
+			blowout, buckle, falls.size()])
 
 
 ## The plan as text for the host's log: each room's centre where it lies docked (the entry's cell
 ## at (20, 0, 0)) and what lives in it.
 func describe_docked() -> String:
-	return describe("Derelict", Transform3D(Basis(), Vector3(20, 0, 0)))
+	var text := describe("Derelict", Transform3D(Basis(), Vector3(20, 0, 0)))
+	match event:
+		&"security":
+			text += "\nPrize event: security, %d doors locked down, sentries at %s" % [lockdown.size(),
+					", ".join(sentries.map(func(at: Transform3D) -> String: return str((at.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1))))]
+		&"vent":
+			text += "\nPrize event: depressurization, %d rooms hold air, blowout at %s" % [sealed.size(), blowout]
+		&"collapse":
+			text += "\nPrize event: structural breach, %s buckles (heap at %s), falls at %s" % [buckle if buckle != "" else "no door",
+					(heap.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1),
+					", ".join(falls.map(func(at: Transform3D) -> String: return str((at.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1))))]
+		&"nest":
+			text += "\nPrize event: infestation, a nest at %s" % (nest.origin + Vector3(20, 0, 0)).snapped(Vector3.ONE * 0.1)
+		_:
+			text += "\nPrize event: none"
+	return text
 
 
 func _who(index: int) -> String:
