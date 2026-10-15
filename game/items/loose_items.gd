@@ -62,6 +62,9 @@ func put(record: Dictionary, where: Transform3D, velocity := Vector3.ZERO, racke
 		return
 	spawn({"id": _next_id, "record": record, "at": where, "velocity": velocity, "racked": racked})
 	_next_id += 1
+	if Items.kind_of(record) == &"body":
+		# A body coming down is heard (its bones aren't the host's to watch, as a Pickup's are).
+		Noises.make(self, where.origin, &"clatter", null, 14.0)
 
 
 ## On a crew member's machine: they let go of `record` at `where`, moving at `velocity`.
@@ -113,6 +116,23 @@ func _whack(item: String, impulse: Vector3, offset: Vector3) -> void:
 	var pickup := get_node(spawn_path).get_node_or_null(item) as Pickup
 	if multiplayer.is_server() and pickup != null:
 		pickup.apply_impulse(impulse, offset)
+		Noises.make(self, pickup.global_position, &"hit")
+
+
+## Host: `pickup` struck something, losing `speed` m/s: everyone hears it clatter, and so does
+## anything listening, farther the harder and heavier (GDD §9.4).
+func clatter(pickup: Pickup, speed: float) -> void:
+	var heft := sqrt(Items.mass(Items.kind_of(pickup.record)))
+	var reach := clampf(speed * heft * 1.2, 2.0, 18.0)
+	Noises.make(pickup, pickup.global_position, &"clatter", null, reach)
+	_clatter.rpc(pickup.name, clampf(speed / 6.0, 0.15, 1.0))
+
+
+@rpc("authority", "call_local", "unreliable")
+func _clatter(item: String, strength: float) -> void:
+	var thing := get_node(spawn_path).get_node_or_null(item) as Node3D
+	if thing != null and thing.get("record") != null:
+		Sound.clatter(thing, Items.mass(Items.kind_of(thing.record)), strength)
 
 
 func _make(data: Dictionary) -> Node:

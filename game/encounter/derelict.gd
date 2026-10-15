@@ -10,8 +10,9 @@ extends Deck
 ## day one has sealed sections.
 ##
 ## It's built from its plan (DerelictLayout, grown from the node's seed on every peer): the rooms'
-## walls, floors and ceilings in the derelict kit, its hull, and each room's dressing. The Crawler
-## and the Hanger stand in posed where the plan puts them, until they come alive (M4).
+## walls, floors and ceilings in the derelict kit, its hull, and each room's dressing. What lives
+## here (a Crawler, a Hanger: Creature) is made where the plan puts it, on every peer; the host
+## runs it once the derelict's docked, with the ways through its rooms (`nav`) worked out then.
 
 const MODELS := "res://assets/models/%s.glb"
 
@@ -27,6 +28,7 @@ var entry_opening := ""
 var entry: Hatch
 var vented := false
 var _entry_cell := Vector2i.ZERO
+var _nav: DerelictNav
 
 
 ## A derelict built from `plan`, stocked for `crew`.
@@ -64,8 +66,8 @@ func _dress() -> void:
 		light.transform = strobe.at
 		light.failing = strobe.failing
 		add_child(light)
-	for creature: Dictionary in layout.creatures:
-		_play(_prop("creatures/cr_%s" % creature.kind, creature.at), "idle")
+	for i in layout.creatures.size():
+		add_child(Creature.make(layout.creatures[i].kind, layout.creatures[i].at, i))
 	for find: Dictionary in layout.loot(crew):
 		if find.has("rack"):
 			var socket := placed[find.rack].find_child("SOCKET_rack_%s" % find.kind, true, false) as Node3D
@@ -92,6 +94,34 @@ func _play(node: Node, clip: String, at := -1.0) -> void:
 	if at >= 0.0:
 		player.seek(at, true)
 		player.pause()
+
+
+## Whether what lives here is stirring: from the time it's first held still against the LANTERN
+## (docked, or counting down to undock; or with no collar to answer to), and from then on, even
+## cast off with crew still aboard.
+func awake() -> bool:
+	if _nav != null:
+		return true
+	var collar := Collar.of(self)
+	return collar == null or collar.derelict != self or collar.stage in [&"docked", &"countdown"]
+
+
+## The ways through its rooms for what lives here (host), worked out the first time they're needed,
+## its doorways brought up to date with its doors.
+func nav() -> DerelictNav:
+	if _nav == null:
+		_nav = DerelictNav.build(self)
+	_nav.refresh()
+	return _nav
+
+
+## What lives here: its creatures, alive or not.
+func creatures() -> Array[Creature]:
+	var out: Array[Creature] = []
+	for child in get_children():
+		if child is Creature:
+			out.append(child)
+	return out
 
 
 ## The derelict a world point is inside (in one of its rooms), or null.

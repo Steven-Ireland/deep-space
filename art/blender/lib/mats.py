@@ -12,6 +12,7 @@ Recipes return their material's name, for geo.Mesh parts. Colours are sRGB tuple
 
 import bpy
 
+import lib
 from . import ROOT
 
 PASS_NODE = "PASS"
@@ -153,8 +154,13 @@ class Graph:
 
     def photo(self, scan, scale=1.0, colour=False):
         """A CC0 photo scan box-projected over the object at `scale` repeats per metre: its
-        luminance (or colour), for real scratches and mottling under the authored colour."""
-        image = bpy.data.images.load(str(SCANS / f"{scan}_Color.jpg"), check_existing=True)
+        luminance (or colour), for real scratches and mottling under the authored colour. Not
+        baking (--keep-texture), a missing scan stands in as plain grey: nothing reads it."""
+        path = SCANS / f"{scan}_Color.jpg"
+        if lib.KEEP_TEXTURE and not path.exists():
+            image = bpy.data.images.get("scan_stand_in") or bpy.data.images.new("scan_stand_in", 4, 4)
+        else:
+            image = bpy.data.images.load(str(path), check_existing=True)
         mapping = self.node("ShaderNodeMapping")
         self.link(self.coords(), mapping, "Vector")
         self.set(mapping, "Scale", (scale, scale, scale))
@@ -287,6 +293,16 @@ def glowing(name, color, base=None, flicker=0.15, streaks=0.0):
         uneven = g.mix(g.math("MULTIPLY", streak, streaks), uneven,
                        tuple(min(1.0, c * 1.25 + 0.08) for c in glow[:3]) + (1.0,))
     g.finish(albedo, glow=uneven)
+    return name
+
+
+def membrane(name, color):
+    """A thin, even membrane (a Hanger's tendrils): one flat colour, no grain and no glow, so it's
+    seen only where light falls on it."""
+    g = _material(name)
+    if g is None:
+        return name
+    g.finish(srgb(color))
     return name
 
 

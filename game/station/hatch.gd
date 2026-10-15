@@ -27,6 +27,7 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 	set(value):
 		if value != open and _live:
 			Sound.hatch(self, value)
+			Noises.make(self, centre(), &"hatch")
 		open = value
 @export var locked := false
 

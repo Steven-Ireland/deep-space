@@ -15,12 +15,13 @@ class_name Items
 ##
 ## `mass` is in kilograms: heavy things don't fly far when thrown. `use` is what LMB does with it
 ## in hand (GDD §9.5): "swing" a tool, "refill" the suit's O2 (used up), "strike" a flare (it
-## burns, its record's `burn` the seconds left).
+## burns, its record's `burn` the seconds left). A thing with `charges` (the shock prod) is made
+## full, its record's `charge` the jolts left; the lamp charger in the suit room fills it again.
 
 const KINDS := {
 	# Tier 0 kit and Tier 1 weapons.
 	&"crowbar": {"name": "CROWBAR", "model": "res://assets/models/items/it_crowbar.glb", "hold": "tool", "tilt": 70.0, "glove": 5.0, "use": "swing", "mass": 2.5},
-	&"shock_prod": {"name": "SHOCK PROD", "model": "res://assets/models/weapons/wp_shock_prod.glb", "hold": "tool", "tilt": 70.0, "glove": -20.0, "use": "swing", "mass": 1.5},
+	&"shock_prod": {"name": "SHOCK PROD", "model": "res://assets/models/weapons/wp_shock_prod.glb", "hold": "tool", "tilt": 70.0, "glove": -20.0, "use": "swing", "mass": 1.5, "charges": 3},
 	&"flare": {"name": "FLARE", "model": "res://assets/models/items/it_flare.glb", "hold": "tool", "tilt": 80.0, "glove": -10.0, "use": "strike", "mass": 0.3},
 	&"plasma_cutter": {"name": "PLASMA CUTTER", "model": "res://assets/models/weapons/wp_plasma_cutter.glb", "hold": "tool", "tilt": -60.0, "glove": 0.0, "mass": 3.0},
 	&"rivet_driver": {"name": "RIVET DRIVER", "model": "res://assets/models/weapons/wp_rivet_driver.glb", "hold": "tool", "tilt": -60.0, "glove": 0.0, "mass": 3.5},
@@ -44,9 +45,23 @@ const KINDS := {
 const BELT_SLOTS := 4
 
 
-## A new record of `kind` (or nothing, for &"").
+## A new record of `kind` (or nothing, for &""): full, if it holds a charge.
 static func make(kind: StringName) -> Dictionary:
-	return {"kind": kind} if KINDS.has(kind) else {}
+	if not KINDS.has(kind):
+		return {}
+	var record := {"kind": kind}
+	if KINDS[kind].has("charges"):
+		record.charge = KINDS[kind].charges
+	return record
+
+
+## The charges `kind` holds full (0 for none), and those left in `record`.
+static func charges(kind: StringName) -> int:
+	return KINDS[kind].get("charges", 0) if KINDS.has(kind) else 0
+
+
+static func charge(record: Dictionary) -> int:
+	return record.get("charge", 0)
 
 
 static func kind_of(record: Dictionary) -> StringName:

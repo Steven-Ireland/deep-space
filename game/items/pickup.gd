@@ -24,6 +24,11 @@ var turn := Quaternion.IDENTITY
 
 var handle: Handle
 var _flame: Flame
+## Host: how it was moving last step, and seconds since it last struck something hard enough to
+## be heard (a bounce isn't a second clatter).
+var _was_moving := Vector3.ZERO
+var _since_clatter := 1.0
+var _since_hiss := 0.0
 
 
 func _ready() -> void:
@@ -36,6 +41,8 @@ func _ready() -> void:
 	var model: Node3D = Items.model(kind).instantiate()
 	add_child(model)
 	Deck._mark_interior(model)
+	if Items.charges(kind) > 0:
+		ChargeLamps.fit(model, Items.charge(record), Items.charges(kind))
 	var box := Items.bounds(model)
 	var shape := BoxShape3D.new()
 	shape.size = box.size.max(Vector3.ONE * 0.02)
@@ -60,6 +67,7 @@ func _ready() -> void:
 		_flame.rise = 0.3
 	if multiplayer.is_server():
 		linear_velocity = launch
+		_was_moving = launch
 		at = position
 		turn = quaternion
 		if racked:
@@ -75,9 +83,13 @@ func _ready() -> void:
 
 ## Below this, a thing's fallen off whatever it was on, out into space: gone.
 const LOST_BELOW := -40.0
+## A thing that loses this much speed (m/s) in a step has struck something, and is heard (GDD
+## §9.4: dropped and thrown things make noise): no more than once in CLATTER_GAP seconds.
+const IMPACT := 1.2
+const CLATTER_GAP := 0.2
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if multiplayer.is_server():
 		# It weighs what the zone it's in gives it (GDD §9.1): nothing in a satellite or out in
 		# space, where it hangs, or drifts on as it was knocked.
@@ -86,12 +98,25 @@ func _physics_process(_delta: float) -> void:
 		turn = quaternion
 		if position.y < LOST_BELOW:
 			queue_free()
+		_since_clatter += delta
+		var lost := (_was_moving - linear_velocity).length()
+		if lost > IMPACT and _since_clatter > CLATTER_GAP and not freeze:
+			_since_clatter = 0.0
+			LooseItems.of(self).clatter(self, lost)
+		_was_moving = linear_velocity
+		if _flame != null:
+			# A burning flare hisses: a lure to anything listening (GDD §12).
+			_since_hiss += delta
+			if _since_hiss >= 1.0:
+				_since_hiss = 0.0
+				Noises.make(self, global_position, &"flare")
 
 
 ## Host: what it lies on has moved by `moved` (a derelict drifting): it goes along.
 func carry(moved: Transform3D) -> void:
 	global_transform = moved * global_transform
 	linear_velocity = moved.basis * linear_velocity
+	_was_moving = linear_velocity
 	at = position
 	turn = quaternion
 

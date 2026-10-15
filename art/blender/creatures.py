@@ -6,7 +6,7 @@ Face -Y in Blender (+Z in Godot).
 
 import math
 
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 import bridge as br
 from lib import Model, asset, geo, mats, rig
@@ -197,12 +197,47 @@ def _crawler_clips(skeleton):
                 "neck": (25 * e, 20 * e, 0), "head": (15 * e, 0, 20 * e), "jaw": (30 * e, 0, 0),
                 "root_location": (0, 0, -0.3 * e), "chest": (0, 0, 10 * e)}
 
+    def stunned(t):
+        """Jolted by a shock prod (game/creatures/crawler.gd): dropped on its belly most of the way
+        to dead, limbs splayed and locked, every part jerking in its own rhythm, the jaw chattering."""
+        down = death(1.0)
+        pose = {bone: tuple(a * 0.75 for a in angles) for bone, angles in down.items() if bone != "root_location"}
+        pose["root_location"] = (0, 0, -0.22)
+
+        def jerk(cycles, phase):
+            return 1.0 if rig.wave(t, cycles, phase) > 0.55 else 0.0
+        for side, s, phase in (("L", 1, 0.0), ("R", -1, 0.37)):
+            x, y, z = pose[f"upper_arm.{side}"]
+            pose[f"upper_arm.{side}"] = (x - 18 * jerk(5, phase), y, z + s * 12 * jerk(3, phase + 0.2))
+            x, y, z = pose[f"forearm.{side}"]
+            pose[f"forearm.{side}"] = (x + 30 * jerk(7, phase + 0.5), y, z)
+            x, y, z = pose[f"thigh.{side}"]
+            pose[f"thigh.{side}"] = (x + 14 * jerk(4, phase + 0.7), y, z)
+            pose[f"shin.{side}"] = (pose[f"shin.{side}"][0] - 20 * jerk(6, phase + 0.1), 0, 0)
+        x, y, z = pose["neck"]
+        pose["neck"] = (x - 20 * jerk(3, 0.15), y + 25 * rig.wave(t, 2, 0.1), z)
+        pose["head"] = (pose["head"][0] - 15 * jerk(5, 0.6), 0, pose["head"][2])
+        pose["jaw"] = (15 + 25 * jerk(9, 0.3), 0, 0)
+        pose["chest"] = (8 * jerk(4, 0.8), 0, pose["chest"][2])
+        pose["spine"] = (-10 * jerk(5, 0.45), 0, 0)
+        return pose
+
+    def hurt(t):
+        """Struck (a blow landing as it winds up a strike): it recoils, head and chest thrown back and
+        aside, forelegs flung out, and comes back."""
+        j = math.sin(min(t / 0.85, 1.0) * math.pi)
+        return {"chest": (-18 * j, 10 * j, 0), "neck": (-25 * j, -15 * j, 0), "head": (-15 * j, 0, 10 * j), "jaw": (30 * j, 0, 0),
+                "spine": (-8 * j, 0, 0), "upper_arm.L": (15 * j, 0, 15 * j), "upper_arm.R": (15 * j, 0, -15 * j),
+                "root_location": (0, 0.12 * j, 0)}
+
     rig.clip(skeleton, "idle", 2.4, idle)
     rig.clip(skeleton, "crawl", 1.0, crawl)
     rig.clip(skeleton, "investigate", 2.0, investigate)
     rig.clip(skeleton, "lunge", 0.7, lunge, loop=False)
     rig.clip(skeleton, "attack", 0.5, attack, loop=False)
     rig.clip(skeleton, "death", 1.2, death, loop=False)
+    rig.clip(skeleton, "stunned", 1.0, stunned)
+    rig.clip(skeleton, "hurt", 0.35, hurt, loop=False)
 
 
 TENDRILS = 7
@@ -228,10 +263,11 @@ def _hanger_bones():
 def hanger():
     """THE HANGER (GDD §12): the ceiling trap. A bulbous sac of wet flesh gripping the ceiling with
     six hooked legs, a puckered maw underneath, and seven long translucent tendrils hanging nearly
-    to the floor, each ending in a faintly glowing bead. They're only visible in a lamp beam.
-    Touch one and it snaps up. Built hanging from z = 0 (the ceiling)."""
+    to the floor, each ending in a faintly glowing bead. The tendrils don't glow: they're only
+    visible in a lamp beam, and in the dark only the beads show, low over the deck. Touch one and
+    it snaps up. Built hanging from z = 0 (the ceiling)."""
     k = _flesh()
-    tendril = mats.glowing("cr_tendril", (0.85, 0.75, 0.78), base=(0.55, 0.45, 0.48), flicker=0.2)
+    tendril = mats.membrane("cr_tendril", (0.55, 0.45, 0.48))
     bead = mats.glowing("cr_bead", (0.4, 0.95, 1.0), base=(0.2, 0.4, 0.45), flicker=0.5)
     m = Mesh("cr_hanger")
     m.bone("root")
@@ -266,6 +302,36 @@ def hanger():
 
 
 def _hanger_clips(skeleton):
+    """Each tendril bends in its own radial plane (about the tangent to the ring it hangs from), so
+    they open and close round the middle together: SPLAY is a bend outward from the middle, per
+    segment, top to bottom (negative bends back in)."""
+    def bend(i, degrees):
+        """A tendril `i`'s segment bent `degrees` outward, as the bone's own Euler turns."""
+        a = i / TENDRILS * math.tau
+        tangent = Vector((-math.sin(a), 0.0, math.cos(a)))  # in the bone's axes: X is world X, Z world Y
+        e = Quaternion(tangent, -math.radians(degrees)).to_euler("XYZ")
+        return tuple(math.degrees(v) for v in e)
+
+    def shape(per_segment, sway=0.0, phase=0.0):
+        """Every tendril's segments bent outward by `per_segment` (degrees, top to bottom), and
+        swaying a few degrees by `sway`."""
+        pose = {}
+        for i in range(TENDRILS):
+            for j in range(TENDRIL_SEGMENTS):
+                wobble = sway * 3 * rig.wave(phase, 1, i / TENDRILS + j * 0.15)
+                pose[f"tendril_{i}_{j}"] = bend(i, per_segment[j] + wobble)
+        return pose
+
+    def mix(a, b, e):
+        return [x + (y - x) * e for x, y in zip(a, b)]
+
+    hanging = [0.0] * TENDRIL_SEGMENTS
+    # Closed round someone held under it: out from the body, down, and back in under them.
+    cage = [26.0, 6.0, -32.0, -42.0]
+    # Drawn up out of reach: each tendril looped up against the ceiling beside the body, out
+    # sideways, up, back in and down to its root (each segment turned a quarter more).
+    curled = [80.0, 90.0, 90.0, 80.0]
+
     def idle(t):
         pose = {"body": (0, 0, 4 * rig.wave(t))}
         for i in range(TENDRILS):
@@ -274,12 +340,53 @@ def _hanger_clips(skeleton):
         return pose
 
     def grab(t):
-        e = min(1.0, t * 3)
-        pose = {"body": (0, 0, 20 * e)}
+        """Someone walked into it: its tendrils snap shut round them."""
+        e = rig.smoothstep(t * 3.0)
+        pose = shape(mix(hanging, cage, e))
+        pose["body"] = (0, 0, 14 * e)
+        return pose
+
+    def hold(t):
+        """Someone caught in its tendrils (game/creatures/hanger.gd): closed round them, the sac
+        squeezing in slow pulses and the cage tightening with it."""
+        squeeze = rig.wave(t)
+        pose = shape([c - 6.0 * squeeze for c in cage], sway=0.5, phase=t)
+        pose["body"] = (4 * squeeze, 0, 14 + 5 * squeeze)
+        return pose
+
+    def hurt(t):
+        """Struck: the sac jerks, the tendrils fling open and curl up out of reach, and stay."""
+        fling = math.sin(min(t / 0.35, 1.0) * math.pi)
+        e = rig.smoothstep((t - 0.15) / 0.6)
+        wide = [70.0, 20.0, 10.0, 0.0]
+        pose = shape(mix(mix(cage, wide, fling), curled, e))
+        pose["body"] = (18 * fling, 0, 14 - 25 * fling)
+        return pose
+
+    def draw(t):
+        """Fed: its tendrils draw slowly up out of reach."""
+        return shape(mix(hanging, curled, rig.smoothstep(t)))
+
+    def lower(t):
+        """Its tendrils let down again, uncurling to hang."""
+        return shape(mix(curled, hanging, rig.smoothstep(t)), sway=0.3, phase=t)
+
+    def death(t):
+        """Killed: half its legs let go of the ceiling, so it hangs askew and sags, its tendrils limp
+        and still."""
+        e = rig.smoothstep(t * 1.4)
+        pose = shape([0.0, 4.0 * e, 3.0 * e, 2.0 * e])
         for i in range(TENDRILS):
-            for j in range(TENDRIL_SEGMENTS):
-                pose[f"tendril_{i}_{j}"] = (35 * e * (1 + j * 0.3), 0, 15 * e * rig.wave(0.2, 1, i / TENDRILS))
+            # The body's tilt taken back out at the top of each tendril, so they hang plumb.
+            x, y, z = pose[f"tendril_{i}_0"]
+            pose[f"tendril_{i}_0"] = (x - 50 * e, y, z + 4 * e)
+        pose.update({"root": (32 * e, 0, 8 * e), "body": (20 * e, 0, -12 * e), "root_location": (0, 0, -0.12 * e)})
         return pose
 
     rig.clip(skeleton, "idle", 3.0, idle)
     rig.clip(skeleton, "grab", 0.6, grab, loop=False)
+    rig.clip(skeleton, "hold", 1.2, hold)
+    rig.clip(skeleton, "hurt", 0.8, hurt, loop=False)
+    rig.clip(skeleton, "draw", 1.2, draw, loop=False)
+    rig.clip(skeleton, "lower", 1.5, lower, loop=False)
+    rig.clip(skeleton, "death", 2.0, death, loop=False)

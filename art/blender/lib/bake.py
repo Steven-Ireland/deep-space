@@ -106,6 +106,22 @@ def bake_model(obj, decals, size, colors=32, ao_strength=0.55, dither=0.6, out_d
     return albedo_path, glow_path, palette
 
 
+def keep_baked(obj, out_dir, name):
+    """For a rebuild that keeps the bake already made (build.py --keep-texture): `obj` unwrapped as
+    bake_model would (the same geometry unwraps the same), wearing `<name>_albedo.png` (and the
+    glow, if there is one) from `out_dir`. Returns what bake_model does; the palette as unknown."""
+    albedo_path = f"{out_dir}/{name}_albedo.png"
+    glow_path = f"{out_dir}/{name}_glow.png"
+    if not os.path.exists(albedo_path):
+        raise RuntimeError(f"--keep-texture: no bake to keep at {albedo_path}")
+    if not os.path.exists(glow_path):
+        glow_path = None
+    if not obj.data.uv_layers:
+        unwrap(obj)
+    _use_baked_material(obj, name, albedo_path, glow_path)
+    return albedo_path, glow_path, None
+
+
 def bake_vertex_ao(obj, strength=0.45):
     """Bakes ambient occlusion into `obj`'s vertex colours (for kit pieces whose texture tiles)."""
     setup_cycles(samples=64)

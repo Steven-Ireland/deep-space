@@ -16,6 +16,7 @@ const LAMP_SEALED := preload("res://assets/materials/lk_lamp_sealed.tres")
 	set(value):
 		if value != open and _live:
 			Sound.door(self, value)
+			Noises.make(self, global_position, &"door")
 		open = value
 		_update_state()
 @export var sealed := false:

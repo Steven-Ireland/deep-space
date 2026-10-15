@@ -84,6 +84,14 @@ const SUIT_MASS := 120.0
 ## The camera's shake at full strength in a jump: metres, and radians.
 const SHAKE_MOVE := 0.012
 const SHAKE_TURN := 0.012
+## Held by a Hanger (GDD §12): seconds until it's the end of them, and how fast they're drawn up
+## (m/s) and made to look up into it (radians a second).
+const HELD := 3.0
+const DRAWN_UP := 2.2
+const LOOK_UP := 4.0
+## Struck by a creature: how long the jolt to the view lasts, and how hard (as a jump's shake).
+const WOUND_TIME := 0.45
+const WOUND_SHAKE := 2.5
 
 ## Emitted on the owner's machine when the belt, the slot drawn or what's carried changes (the
 ## visor shows it).
@@ -124,11 +132,14 @@ var harness := false
 var rcs := RCS_FUEL
 var thrust := Vector3.ZERO
 var bumps := 0
-## Dead (GDD §11), and why: &"suffocated", or &"lost" (left behind when the station jumped: no body
-## to bring home). Their body lies where they fell (a LooseBody); they watch through the station's
-## cameras (Spectator) until the med bay brings them back (revive).
+## Dead (GDD §11), and why: &"suffocated"; &"lost" (left behind when the station jumped: no body to
+## bring home); &"crawler" (its second blow), &"grabbed" (by the Crawler, from behind); &"hanger"
+## (drawn up into its tendrils). Their body lies where they fell (a LooseBody); they watch through
+## the station's cameras (Spectator) until the med bay brings them back (revive).
 var dead := false
 var cause := &""
+## Held in a Hanger's tendrils (GDD §12): drawn up off the deck, dying, until it's struck.
+var seized := false
 
 ## The belt (GDD §9.4) on the owner's machine: four slots of item records ({} is empty), `slot` the
 ## one drawn into the hand.
@@ -188,6 +199,12 @@ var _jets: Array[Node3D] = [] # a puff at each of its thruster blocks, on a pivo
 var _jet_sound: Node # the jets' hiss: in the owner's helmet, or from the suit for everyone else
 var _riding: Derelict # the derelict they're aboard, and where it was at their last tick
 var _ride_from := Transform3D()
+var _hiss := 0.0 # seconds since a flare in hand last hissed (Noises)
+var _seizer: NodePath # the Hanger holding them (owner)
+var _wounded := 0.0 # seconds left of a wound's jolt (owner)
+## Seconds since they were last hurt (owner): the visor's red flash reads it.
+var since_hurt := 99.0
+var _charge_lamps: ChargeLamps
 
 
 func _init() -> void:
@@ -252,6 +269,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		if seized:
+			return
 		look.x -= event.relative.x * MOUSE_SENSITIVITY
 		look.y = clampf(look.y - event.relative.y * MOUSE_SENSITIVITY, -PITCH_LIMIT, PITCH_LIMIT)
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -324,6 +343,9 @@ func die(why: StringName) -> void:
 	cuff_up = false
 	harness = false
 	thrust = Vector3.ZERO
+	seized = false
+	_seizer = NodePath()
+	Sound.died(self, why)
 	if why != &"lost":
 		var body := {"kind": &"body", "peer": int(str(name)), "crew": crew_name()}
 		LooseItems.of(self).fall(body, had, Transform3D(Basis(Vector3.UP, look.x), global_position), velocity)
@@ -353,7 +375,46 @@ func revive(at: Transform3D) -> void:
 		_spectator.queue_free()
 		_spectator = null
 	camera.make_current()
+	seized = false
+	_seizer = NodePath()
 	print("Crew %s: brought back." % crew_name())
+
+
+## The host tells their machine a creature struck them (GDD §11, §12): `amount` of their health
+## gone, and if that's the last of it, dead of `why`.
+@rpc("any_peer", "call_local", "reliable")
+func hurt(amount: float, why: StringName) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority() or dead:
+		return
+	health = maxf(0.0, health - amount)
+	since_hurt = 0.0
+	_wounded = WOUND_TIME
+	Sound.wounded(self)
+	print("Crew %s: hurt by %s (%.2f left)." % [crew_name(), why, health])
+	if health <= 0.0:
+		die(why)
+
+
+## The host tells their machine a Hanger (at `by`, the same path everywhere) has them: drawn up
+## into its tendrils, unable to move or look away, dying within HELD seconds unless it lets go.
+@rpc("any_peer", "call_local", "reliable")
+func seize(by: NodePath) -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority() or dead:
+		return
+	seized = true
+	_seizer = by
+	if operating != null:
+		leave_terminal()
+	print("Crew %s: seized." % crew_name())
+
+
+## The host tells their machine the Hanger's let go of them: they drop back to the deck.
+@rpc("any_peer", "call_local", "reliable")
+func release() -> void:
+	if multiplayer.get_remote_sender_id() > 1 or not is_multiplayer_authority():
+		return
+	seized = false
+	_seizer = NodePath()
 
 
 ## Beats a minute (the cuff, the Vitals board): resting, up with effort, racing as the air runs
@@ -395,15 +456,37 @@ func use_held() -> void:
 				_update_held()
 
 
-## The swing lands on whatever's in front within reach: a loose thing gets knocked away (the host
-## applies it). Creatures, hatches and the rest come later.
+## The swing lands on whatever's in front within reach (GDD §12, §13): a creature is struck (a shock
+## prod with charge left jolts it, and spends a charge); a loose thing gets knocked away; anything
+## else solid takes the blow, heard by everyone. The host applies it all, and hears it (Noises).
+## Hatches come later.
 func _land_swing() -> void:
 	var view := _view()
 	var forward := -view.basis.z
+	var mask := 1 | Pickup.LAYER | Creature.LAYER | Creature.HITBOX
 	var hit := get_world_3d().direct_space_state.intersect_ray(
-			PhysicsRayQueryParameters3D.create(view.origin, view.origin + forward * SWING_REACH, 1 | Pickup.LAYER, [get_rid()]))
-	if hit.get("collider") is Pickup:
+			PhysicsRayQueryParameters3D.create(view.origin, view.origin + forward * SWING_REACH, mask, [get_rid()]))
+	if hit.is_empty():
+		return
+	var creature := Creature.of(hit.collider)
+	if creature != null:
+		var record := in_hands()
+		var jolt := Items.charge(record) > 0
+		if jolt:
+			record.charge -= 1
+		creature.strike(Items.kind_of(record), jolt)
+	elif hit.collider is Pickup:
 		LooseItems.of(self).whack(hit.collider, (forward + Vector3.UP * 0.3).normalized() * SWING_IMPULSE, hit.position)
+	else:
+		_struck_solid.rpc(hit.position)
+
+
+## A crew member's swing struck something solid at `at`: everyone hears it, and the host's
+## creatures (Noises).
+@rpc("any_peer", "call_local", "reliable")
+func _struck_solid(at: Vector3) -> void:
+	Sound.tool_strike(self, at)
+	Noises.make(self, at, &"hit", self)
 
 
 ## The host tells this crew member's machine they've topped up at the station: "o2" at the O2
@@ -416,7 +499,12 @@ func top_up(what: String) -> void:
 		"o2":
 			refill()
 		"lamp":
+			# The charger fills the helmet lamp, and anything on the belt that holds a charge.
 			battery = 1.0
+			for record in belt:
+				if Items.charges(Items.kind_of(record)) > 0:
+					record.charge = Items.charges(Items.kind_of(record))
+			belt_changed.emit()
 
 
 ## The host tells this crew member's machine they've put the EVA harness on at the suit room's rack
@@ -582,6 +670,10 @@ func _process(delta: float) -> void:
 		cuff_up = (Input.is_action_pressed("cuff") or Args.flag("--cuff")) and operating == null and carrying.is_empty() and not dead
 		if _winding >= 0.0:
 			_winding += delta
+		since_hurt += delta
+		_wounded = maxf(0.0, _wounded - delta)
+		if seized:
+			_look_up(delta)
 		_jump_wanted = maxf(0.0, _jump_wanted - delta)
 		_swing_left = maxf(0.0, _swing_left - delta)
 		_burn_flares(delta)
@@ -596,6 +688,8 @@ func _process(delta: float) -> void:
 		head.rotation.x = lerp_angle(head.rotation.x, look.y, follow)
 	if held != _shown or held_lit != _shown_lit:
 		_show_held()
+	if _charge_lamps != null and _charge_lamps.lit != Items.charge(in_hands()):
+		_charge_lamps.lit = Items.charge(in_hands())
 	_animate(delta)
 	_make_sounds()
 	_place_lamp()
@@ -613,6 +707,9 @@ func _tick(delta: float, _tick_number: int) -> void:
 	if dead:
 		velocity = Vector3.ZERO
 		thrust = Vector3.ZERO
+		return
+	if seized:
+		_held(delta)
 		return
 	var weight := Zone.weight_at(get_world_3d(), global_position + Vector3.UP * CHEST_HEIGHT)
 	if floating and weight > 0.0 and not _fits_standing():
@@ -737,6 +834,41 @@ func _fits_standing() -> bool:
 	return get_world_3d().direct_space_state.intersect_shape(query, 1).is_empty()
 
 
+## Held by a Hanger (GDD §12): drawn up under it and held there, unable to move, their health
+## running out (HELD seconds from whole) until it lets go, or dies.
+func _held(delta: float) -> void:
+	var hanger := get_node_or_null(_seizer) as Hanger
+	if hanger == null or not hanger.alive():
+		seized = false
+		_seizer = NodePath()
+		return
+	floating = false
+	crouching = false
+	sprinting = false
+	thrust = Vector3.ZERO
+	velocity = Vector3.ZERO
+	grounded = false
+	_fit_shape()
+	global_position = global_position.move_toward(hanger.hold_point(), DRAWN_UP * delta)
+	_breathe(delta)
+	health = maxf(0.0, health - delta / HELD)
+	if health <= 0.0:
+		die(&"hanger")
+
+
+## Held by a Hanger, they're made to look up into it: no looking away.
+func _look_up(delta: float) -> void:
+	var hanger := get_node_or_null(_seizer) as Hanger
+	if hanger == null:
+		return
+	var to := hanger.maw() - head.global_position
+	var across := Vector2(to.x, to.z).length()
+	var pitch := clampf(atan2(to.y, across), -PITCH_LIMIT, PITCH_LIMIT)
+	look.y = move_toward(look.y, pitch, LOOK_UP * delta)
+	if across > 0.08:
+		look.x = lerp_angle(look.x, atan2(-to.x, -to.z), 1.0 - exp(-delta * LOOK_UP))
+
+
 ## Off the station as it goes into the tunnel (GDD §8.3): left behind, and lost.
 func _left_behind() -> void:
 	var run := Run.of(self)
@@ -831,6 +963,7 @@ func _head_bob(delta: float) -> void:
 	var run := Run.of(self)
 	var collar := Collar.of(self)
 	var shake := maxf(run.shake() if run != null else 0.0, collar.shake() if collar != null else 0.0)
+	shake = maxf(shake, _wounded / WOUND_TIME * WOUND_SHAKE)
 	if shake > 0.0:
 		var t := Time.get_ticks_msec() / 1000.0
 		var jolt := Vector3(sin(t * 37.0) + sin(t * 23.0 + 1.3), sin(t * 29.0 + 2.1) + sin(t * 41.0), sin(t * 19.0 + 0.7)) * 0.5
@@ -1025,6 +1158,10 @@ func _show_held() -> void:
 	_held_item = Items.hold(held, rig, not own)
 	_shown_lit = held_lit
 	_flame = Flame.light(_held_item) if held_lit and _held_item != null else null
+	# A prod in their own hand shows the charge left in it (only their machine knows it).
+	_charge_lamps = null
+	if own and _held_item != null and Items.charges(held) > 0:
+		_charge_lamps = ChargeLamps.fit(_held_item, Items.charge(in_hands()), Items.charges(held))
 
 
 ## The helmet lamp shines from its lens on the left of the helmet, aimed to cross the line of sight
@@ -1156,8 +1293,9 @@ func _animate(delta: float) -> void:
 		_cuff_screen.visible = _cuff > 0.3
 	if _animation == null:
 		return
-	_animation.move = 0.0 if floating else clampf(speed / (CROUCH_SPEED if crouching else WALK_SPEED), 0.0, 1.0)
-	_animation.drift = 1.0 if floating else 0.0
+	_animation.move = 0.0 if floating or seized else clampf(speed / (CROUCH_SPEED if crouching else WALK_SPEED), 0.0, 1.0)
+	# Held up in a Hanger's tendrils, the body hangs loose, as weightless.
+	_animation.drift = 1.0 if floating or seized else 0.0
 	_animation.run = clampf((speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED), 0.0, 1.0)
 	_animation.crouch = _crouch
 	_animation.cuff = _cuff
@@ -1167,6 +1305,7 @@ func _animate(delta: float) -> void:
 	if swings != _swings_seen:
 		_swings_seen = swings
 		_animation.swing()
+		Noises.make(self, global_position, &"swing", self)
 	if _pose != null:
 		# The legs face the way they're going (backwards: the way they're backing), the body the
 		# way it looks.
@@ -1181,15 +1320,25 @@ func _animate(delta: float) -> void:
 
 ## What a crew member sounds like (GDD §15), on every peer: a footfall at each heel strike of the
 ## stride while on the ground, a thump coming down from a jump or a fall, and the helmet lamp's
-## switch (not when it goes out flat).
+## switch (not when it goes out flat). Footfalls and landings are noise to what lives in a
+## derelict (Noises: heard on the host).
 func _make_sounds() -> void:
 	var footfalls := floori(_stride * 2.0)
 	if footfalls != _footfalls:
 		_footfalls = footfalls
-		if grounded:
+		if grounded and not dead:
 			Sound.footstep(self)
+			Noises.make(self, global_position, Noises.step_of(self), self)
 	if grounded and not _was_grounded and _fall >= LAND_SPEED:
 		Sound.landing(self)
+		Noises.make(self, global_position, &"land", self)
+	if held_lit and not dead:
+		# A flare burning in their hand hisses, every second: a lure with no one behind it (Noises),
+		# until whatever comes to it finds who's holding it.
+		_hiss += get_process_delta_time()
+		if _hiss >= 1.0:
+			_hiss = 0.0
+			Noises.make(self, global_position + Vector3.UP, &"flare")
 	_was_grounded = grounded
 	_fall = 0.0 if grounded else -velocity.y
 	if lamp_on != _lamp_heard:

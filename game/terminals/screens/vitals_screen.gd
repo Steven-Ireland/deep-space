@@ -5,6 +5,7 @@ extends CrtScreen
 @export var slot := 0
 
 var _trace: PackedFloat32Array = []
+var _alive := -1 # whether its crew member was alive at the last look (-1 not looked yet)
 
 
 func _draw_screen() -> void:
@@ -19,6 +20,11 @@ func _draw_screen() -> void:
 		return
 	var player: Player = crew[slot]
 	var bpm := player.heart_rate()
+	# A crew member dying: the board flatlines aloud (not for one dead already when first seen).
+	var alive := 1 if not player.dead else 0
+	if _alive == 1 and alive == 0 and terminal != null:
+		Sound.flatline(terminal)
+	_alive = alive
 	# ECG: a scrolling trace with a spike each beat; flat, dead.
 	var beat := fmod(time * bpm / 60.0, 1.0)
 	var spike := 0.0

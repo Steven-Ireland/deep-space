@@ -10,6 +10,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 ASSETS = {}
+## Set by build.py --keep-texture: models are rebuilt and exported (mesh, rig, clips) without
+## baking, keeping the textures and material already in assets/; the recipes' photo scans aren't
+## needed then.
+KEEP_TEXTURE = False
 
 
 @dataclass

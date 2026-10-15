@@ -1365,6 +1365,362 @@ def generate_suit_bump():
     save_wav("foley/suit_bump.wav", samples, normalize_to=0.8, saturate=False)
 
 
+# =============================================================================
+# THINGS LANDING, TOOLS STRIKING (GDD §9.4, §12)
+# =============================================================================
+
+def _retune(bp, fc, q):
+    """`bp` (a band-pass) moved to `fc`, keeping what it's ringing with."""
+    f = Biquad.bandpass(fc, q=q)
+    f.x1, f.x2, f.y1, f.y2 = bp.x1, bp.x2, bp.y1, bp.y2
+    return f
+
+
+def _burst(samples, start, length, seed, fc, q=1.0, gain=1.0, decay=40.0, attack=0.001, fc_end=None):
+    """Noise through a band-pass at `fc` (sliding to `fc_end`), for `length` seconds from `start`,
+    rising over `attack` and dying away at `decay` per second (and faded out over its last 20 ms,
+    so it never stops on a click): a scrape, a hiss, a slap."""
+    rng = random.Random(seed)
+    first = int(SAMPLE_RATE * start)
+    n = int(SAMPLE_RATE * length)
+    bp = Biquad.bandpass(fc, q=q)
+    for k in range(n):
+        i = first + k
+        if i >= len(samples):
+            break
+        t = k / SAMPLE_RATE
+        if fc_end is not None and k % 64 == 0:
+            bp = _retune(bp, fc + (fc_end - fc) * k / n, q)
+        env = min(1.0, t / attack) * math.exp(-t * decay) * min(1.0, (length - t) / 0.02)
+        samples[i] += bp.process(rng.random() * 2.0 - 1.0) * env * gain
+
+
+def _click(samples, at, seed, fc=3200.0, body=1300.0, gain=1.0):
+    """A dry click at `at` seconds: a millisecond's snap, hollowed by a short resonance at `body`."""
+    rng = random.Random(seed)
+    first = int(SAMPLE_RATE * at)
+    bright = Biquad.bandpass(fc, q=1.4)
+    hollow = Biquad.bandpass(body, q=7.0)
+    for k in range(int(SAMPLE_RATE * 0.02)):
+        i = first + k
+        if i >= len(samples):
+            break
+        x = (rng.random() * 2.0 - 1.0) * math.exp(-k / SAMPLE_RATE * 1100.0)
+        samples[i] += (bright.process(x) * 0.7 + hollow.process(x) * 3.2) * gain
+
+
+def generate_clatters():
+    """
+    Something loose landing on the deck (game/items/pickup.gd), heard by everyone:
+    - item_clatter_01..03 (0.4 s): a small thing (a crowbar, a canister, salvage) striking the
+      deck and skittering: a knock, a bright scrape of edges, two or three smaller bounces.
+    - item_clatter_heavy (0.7 s): something big (a fuel cell, a body) coming down: a heavy thud,
+      a bounce, a low shudder through the deck.
+    """
+    for v in range(3):
+        n = int(SAMPLE_RATE * 0.4)
+        samples = [0.0] * n
+        rng = random.Random(1801 + v)
+        at = 0.004
+        gain = 1.0
+        for bounce in range(3 + v % 2):
+            _thunk(samples, at, 1810 + v * 10 + bounce, weight=0.45, gain=1.2 * gain)
+            _burst(samples, at, 0.06, 1830 + v * 10 + bounce, rng.uniform(2200, 3400), q=1.6, gain=0.9 * gain, decay=70.0)
+            _burst(samples, at + 0.002, 0.04, 1850 + v * 10 + bounce, rng.uniform(5200, 6800), q=2.0, gain=0.35 * gain, decay=110.0)
+            at += rng.uniform(0.06, 0.11) * (0.8 ** bounce)
+            gain *= 0.45
+        samples = Biquad.highpass(90, q=0.7).process_all(samples)
+        samples = apply_corridor_echo(samples, echo_delay_ms=38, feedback=0.2, lp_cutoff=2400, wet=0.35)
+        save_wav(f"foley/item_clatter_{v + 1:02d}.wav", samples, normalize_to=0.85)
+
+    n = int(SAMPLE_RATE * 0.7)
+    samples = [0.0] * n
+    _thunk(samples, 0.004, 1890, weight=1.7, gain=2.6)
+    _thunk(samples, 0.16, 1891, weight=1.4, gain=0.9)
+    _burst(samples, 0.004, 0.25, 1892, 140.0, q=0.9, gain=1.2, decay=12.0)
+    _burst(samples, 0.006, 0.08, 1893, 1900.0, q=1.2, gain=0.4, decay=60.0)
+    samples = Biquad.highpass(30, q=0.7).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=50, feedback=0.3, lp_cutoff=1400, wet=0.45)
+    save_wav("foley/item_clatter_heavy.wav", samples, normalize_to=0.92)
+
+
+def generate_tool_strikes():
+    """
+    A tool in a crew member's hand striking something solid (a bulkhead, a locker), and striking
+    flesh; a shock prod's jolt:
+    - tool_strike_01, 02 (0.4 s): the snap of steel on plate, a dull knock behind it and a short
+      gritty bite of the edge, no ring.
+    - flesh_hit_01, 02 (0.35 s): a blow landing on something alive: a deep thud, a wet slap, and a
+      crack under it.
+    - prod_zap (0.6 s): the prod's arc jumping into flesh: a dense crackle, a harsh electric buzz
+      stuttering on and off, and the snap it starts with.
+    """
+    for v in range(2):
+        n = int(SAMPLE_RATE * 0.4)
+        samples = [0.0] * n
+        _burst(samples, 0.003, 0.012, 1901 + v, 6000.0, q=0.8, gain=2.2, decay=500.0)
+        _thunk(samples, 0.003, 1903 + v, weight=0.6 + 0.15 * v, gain=2.0)
+        _burst(samples, 0.004, 0.09, 1905 + v, 1700.0 + 500 * v, q=2.2, gain=1.1, decay=55.0)
+        _burst(samples, 0.004, 0.07, 1907 + v, 3100.0 + 300 * v, q=2.5, gain=0.6, decay=70.0)
+        samples = Biquad.highpass(70, q=0.7).process_all(samples)
+        samples = apply_corridor_echo(samples, echo_delay_ms=44, feedback=0.3, lp_cutoff=2000, wet=0.5)
+        save_wav(f"foley/tool_strike_{v + 1:02d}.wav", samples, normalize_to=0.9)
+
+    for v in range(2):
+        n = int(SAMPLE_RATE * 0.35)
+        samples = [0.0] * n
+        _burst(samples, 0.002, 0.18, 1911 + v, 95.0 + 15 * v, q=1.2, gain=5.0, decay=26.0, attack=0.003)
+        _burst(samples, 0.004, 0.12, 1913 + v, 650.0, q=1.1, gain=1.6, decay=32.0, attack=0.004, fc_end=380.0)
+        _burst(samples, 0.003, 0.02, 1915 + v, 2600.0, q=1.0, gain=0.9, decay=220.0)
+        for k in range(5):
+            _click(samples, 0.03 + k * 0.017 + v * 0.004, 1917 + v * 7 + k, fc=1400.0, body=700.0 - k * 40, gain=0.25)
+        samples = Biquad.highpass(45, q=0.7).process_all(samples)
+        save_wav(f"foley/flesh_hit_{v + 1:02d}.wav", samples, normalize_to=0.9)
+
+    n = int(SAMPLE_RATE * 0.6)
+    samples = [0.0] * n
+    rng = random.Random(1931)
+    crackle = Biquad.bandpass(3600, q=0.9)
+    buzz_bp = Biquad.bandpass(900, q=0.7)
+    phase = 0.0
+    gate = 1.0
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = math.exp(-t * 4.5) * min(1.0, t / 0.002) * min(1.0, (0.6 - t) / 0.04)
+        spark = (rng.random() * 2.0 - 1.0) if rng.random() < 0.18 else 0.0
+        if rng.random() < 30.0 / SAMPLE_RATE:
+            gate = 0.15 if gate > 0.5 else 1.0
+        phase += 2.0 * math.pi * 120.0 / SAMPLE_RATE
+        buzz = math.tanh(math.sin(phase) * 6.0) * 0.6 + math.tanh(math.sin(phase * 3.0 + 0.3) * 4.0) * 0.3
+        samples[i] = (crackle.process(spark) * 3.0 + buzz_bp.process(buzz) * 1.4 * gate) * env
+    _burst(samples, 0.0, 0.01, 1932, 5000.0, q=0.7, gain=2.0, decay=600.0)
+    samples = Biquad.highpass(100, q=0.7).process_all(samples)
+    save_wav("foley/prod_zap.wav", samples, normalize_to=0.88)
+
+
+# =============================================================================
+# THE CREATURES (GDD §12, §15: mostly heard before they're seen)
+# =============================================================================
+
+def _voice(samples, start, length, pitch, env, seed, gain=1.0, rasp=0.5, breath=0.3, detune=0.012,
+           formants=((800.0, 3.0, 1.0), (1500.0, 4.0, 0.6), (2800.0, 5.0, 0.3))):
+    """Something with a throat: a buzzing source at `pitch(u)` Hz (two voices a little apart, so
+    they beat), roughened by `rasp` (its loudness shaken by slow noise) and `breath` (noise), through
+    formant band-passes; loudness `env(u)`, u from 0 to 1 over `length` seconds."""
+    rng = random.Random(seed)
+    first = int(SAMPLE_RATE * start)
+    n = int(SAMPLE_RATE * length)
+    bands = [(Biquad.bandpass(f, q=q), w) for f, q, w in formants]
+    shake = Biquad.lowpass(70.0, q=0.7)
+    phase = phase2 = 0.0
+    for k in range(n):
+        i = first + k
+        if i >= len(samples):
+            break
+        u = k / n
+        f = pitch(u)
+        phase += 2.0 * math.pi * f / SAMPLE_RATE
+        phase2 += 2.0 * math.pi * f * (1.0 + detune) / SAMPLE_RATE
+        src = math.tanh(2.6 * math.sin(phase)) + 0.6 * math.tanh(2.6 * math.sin(phase2))
+        rough = 1.0 + rasp * shake.process(rng.random() * 2.0 - 1.0) * 9.0
+        x = src * rough + (rng.random() * 2.0 - 1.0) * breath
+        samples[i] += sum(bp.process(x) * w for bp, w in bands) * env(u) * gain
+
+
+def _gurgle(samples, start, length, seed, rate=40.0, low=180.0, high=520.0, gain=1.0):
+    """Wet bubbling: little pops (a rising chirp each, as a bubble bursts) at about `rate` a second,
+    pitched between `low` and `high`, through something thick."""
+    rng = random.Random(seed)
+    first = int(SAMPLE_RATE * start)
+    n = int(SAMPLE_RATE * length)
+    for k in range(n):
+        if rng.random() < rate / SAMPLE_RATE:
+            f0 = rng.uniform(low, high)
+            amp = rng.uniform(0.3, 1.0) * gain
+            phase = 0.0
+            for j in range(int(SAMPLE_RATE * 0.025)):
+                i = first + k + j
+                if i >= len(samples) or k + j >= n:
+                    break
+                dt = j / SAMPLE_RATE
+                phase += 2.0 * math.pi * f0 * (1.0 + dt * 28.0) / SAMPLE_RATE
+                samples[i] += math.sin(phase) * math.exp(-dt * 160.0) * amp
+
+
+def _finish_creature(name, samples, normalize_to=0.9, low=60.0, high=7000.0):
+    samples = Biquad.highpass(low, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(high, q=0.7).process_all(samples)
+    samples = apply_corridor_echo(samples, echo_delay_ms=48, feedback=0.32, lp_cutoff=1600, wet=0.4)
+    save_wav(f"creatures/{name}.wav", samples, normalize_to=normalize_to)
+
+
+def generate_crawler_sounds():
+    """
+    The Crawler (game/creatures/crawler.gd): eyeless, so it clicks; wet, so it slaps and gurgles.
+    - crawler_click_01..03 (0.35 s): a burst of dry tongue clicks, hollow and irregular, what it
+      makes waiting in the dark: the first sign it's there.
+    - crawler_step_01..03 (0.18 s): a long hand slapping down on the deck, claws ticking.
+    - crawler_shriek (1.6 s): what it makes as it starts to hunt: a rasping, rising screech in two
+      throats a little apart, breath tearing through it.
+    - crawler_lunge (0.7 s): a hissing snarl as it springs.
+    - crawler_snarl (0.5 s): a short barking snarl as it strikes (and claws dragging).
+    - crawler_hurt (0.6 s): a wet squeal, falling.
+    - crawler_death (1.8 s): a long gurgling moan sinking away, and its body coming down.
+    - crawler_stunned (1.3 s): the jolt locking it up: stuttering chatter and a choked buzzing moan.
+    - crawler_bang (0.5 s): it beating at a shut door: a heavy blow and claws scraping the plate.
+    """
+    for v in range(3):
+        n = int(SAMPLE_RATE * 0.35)
+        samples = [0.0] * n
+        rng = random.Random(2001 + v)
+        at = 0.005
+        for k in range(rng.randint(3, 5)):
+            _click(samples, at, 2010 + v * 10 + k, fc=rng.uniform(2600, 3600), body=rng.uniform(1050, 1450), gain=rng.uniform(0.6, 1.0))
+            at += rng.uniform(0.035, 0.085)
+        _finish_creature(f"crawler_click_{v + 1:02d}", samples, normalize_to=0.75, low=300.0)
+
+    for v in range(3):
+        n = int(SAMPLE_RATE * 0.18)
+        samples = [0.0] * n
+        _burst(samples, 0.002, 0.08, 2041 + v, 160.0, q=1.0, gain=3.0, decay=45.0, attack=0.002)
+        _burst(samples, 0.003, 0.07, 2044 + v, 520.0 + 60 * v, q=1.2, gain=1.4, decay=60.0, attack=0.002)
+        _click(samples, 0.012 + v * 0.006, 2047 + v, fc=4200.0, body=2300.0, gain=0.5)
+        _click(samples, 0.03 + v * 0.008, 2050 + v, fc=3900.0, body=2100.0, gain=0.35)
+        _finish_creature(f"crawler_step_{v + 1:02d}", samples, normalize_to=0.7)
+
+    n = int(SAMPLE_RATE * 1.8)
+    samples = [0.0] * n
+    _voice(samples, 0.02, 1.55, lambda u: 380.0 + 420.0 * math.sin(min(u, 0.6) / 0.6 * math.pi / 2) - 180.0 * max(0.0, u - 0.6) + 25.0 * math.sin(u * 60.0),
+           lambda u: min(1.0, u / 0.06) * (1.0 - max(0.0, u - 0.7) / 0.3), 2061, gain=1.0, rasp=0.9, breath=0.6, detune=0.035,
+           formants=((900.0, 2.5, 1.0), (1700.0, 3.5, 0.8), (3100.0, 4.0, 0.5)))
+    _burst(samples, 0.0, 1.5, 2062, 2400.0, q=0.8, gain=0.5, decay=1.6, attack=0.05)
+    _finish_creature("crawler_shriek", samples, normalize_to=0.95)
+
+    n = int(SAMPLE_RATE * 0.8)
+    samples = [0.0] * n
+    _burst(samples, 0.0, 0.6, 2071, 1800.0, q=1.1, gain=2.2, decay=4.5, attack=0.03, fc_end=900.0)
+    _voice(samples, 0.08, 0.5, lambda u: 95.0 + 30.0 * math.sin(u * 9.0), lambda u: math.sin(u * math.pi) ** 0.7, 2072,
+           gain=1.3, rasp=1.2, breath=0.4, formants=((420.0, 2.0, 1.0), (950.0, 3.0, 0.6)))
+    _finish_creature("crawler_lunge", samples)
+
+    n = int(SAMPLE_RATE * 0.55)
+    samples = [0.0] * n
+    _voice(samples, 0.0, 0.42, lambda u: 120.0 + 90.0 * (1.0 - u), lambda u: min(1.0, u / 0.04) * (1.0 - u) ** 0.8, 2081,
+           gain=1.5, rasp=1.3, breath=0.5, formants=((520.0, 2.0, 1.0), (1150.0, 3.0, 0.7), (2400.0, 4.0, 0.3)))
+    _burst(samples, 0.18, 0.2, 2082, 2600.0, q=1.6, gain=0.6, decay=14.0, attack=0.01, fc_end=1700.0)
+    _finish_creature("crawler_snarl", samples)
+
+    n = int(SAMPLE_RATE * 0.7)
+    samples = [0.0] * n
+    _voice(samples, 0.0, 0.55, lambda u: 980.0 - 520.0 * u + 40.0 * math.sin(u * 50.0), lambda u: min(1.0, u / 0.03) * (1.0 - u) ** 1.3, 2091,
+           gain=1.0, rasp=0.8, breath=0.35, detune=0.05, formants=((1300.0, 3.0, 1.0), (2300.0, 4.0, 0.6)))
+    _gurgle(samples, 0.15, 0.4, 2092, rate=60.0, gain=0.35)
+    _finish_creature("crawler_hurt", samples)
+
+    n = int(SAMPLE_RATE * 2.0)
+    samples = [0.0] * n
+    _voice(samples, 0.0, 1.5, lambda u: 420.0 * (1.0 - u) ** 1.4 + 70.0, lambda u: min(1.0, u / 0.05) * (1.0 - u) ** 0.9, 2101,
+           gain=0.9, rasp=1.0, breath=0.5, detune=0.03, formants=((700.0, 2.5, 1.0), (1300.0, 3.5, 0.5)))
+    _gurgle(samples, 0.2, 1.4, 2102, rate=45.0, low=140.0, high=380.0, gain=0.5)
+    _thunk(samples, 1.45, 2103, weight=1.5, gain=2.0)
+    _burst(samples, 1.45, 0.12, 2104, 600.0, q=1.0, gain=0.9, decay=30.0)
+    _finish_creature("crawler_death", samples)
+
+    n = int(SAMPLE_RATE * 1.4)
+    samples = [0.0] * n
+    rng = random.Random(2111)
+    at = 0.0
+    while at < 1.2:
+        _click(samples, at, 2120 + int(at * 1000), fc=rng.uniform(2000, 3600), body=rng.uniform(800, 1500), gain=rng.uniform(0.4, 0.9))
+        at += rng.uniform(0.02, 0.07)
+    _voice(samples, 0.05, 1.2, lambda u: 150.0 + 20.0 * math.sin(u * 70.0), lambda u: (0.5 + 0.5 * math.sin(u * 2.0 * math.pi * 11.0)) * (1.0 - u) ** 0.6, 2112,
+           gain=0.8, rasp=1.4, breath=0.3, formants=((600.0, 2.0, 1.0), (1400.0, 3.0, 0.5)))
+    _finish_creature("crawler_stunned", samples)
+
+    n = int(SAMPLE_RATE * 0.55)
+    samples = [0.0] * n
+    _thunk(samples, 0.004, 2131, weight=1.3, gain=3.0)
+    _burst(samples, 0.004, 0.02, 2132, 4500.0, q=0.8, gain=1.0, decay=300.0)
+    _burst(samples, 0.07, 0.25, 2133, 2400.0, q=2.4, gain=0.8, decay=9.0, attack=0.02, fc_end=1500.0)
+    _burst(samples, 0.09, 0.22, 2134, 3600.0, q=3.0, gain=0.4, decay=10.0, attack=0.02, fc_end=2600.0)
+    _finish_creature("crawler_bang", samples, normalize_to=0.95)
+
+
+def generate_hanger_sounds():
+    """
+    The Hanger (game/creatures/hanger.gd): hanging still, it only creaks; it moves fast.
+    - hanger_creak (1.6 s): sinew stretching under its weight, a low wet groan, and a drip.
+    - hanger_grab (0.9 s): its tendrils snapping up like a whip, and cinching tight, wet.
+    - hanger_hurt (0.8 s): struck: a bubbling, piping squeal and its tendrils whipping up.
+    - hanger_death (2.2 s): the sac letting go: a long deflating hiss and a sagging groan, drips.
+    """
+    n = int(SAMPLE_RATE * 1.7)
+    samples = [0.0] * n
+    noise = pink_noise(n, seed=2201)
+    _creak(samples, 0.05, 1.2, noise, 2202, low=92.0, high=74.0, gain=0.7)
+    _burst(samples, 0.1, 1.1, 2203, 420.0, q=1.3, gain=0.5, decay=1.5, attack=0.3)
+    _gurgle(samples, 1.3, 0.12, 2204, rate=25.0, low=700.0, high=1100.0, gain=0.5)
+    _finish_creature("hanger_creak", samples, normalize_to=0.7, low=50.0)
+
+    n = int(SAMPLE_RATE * 1.0)
+    samples = [0.0] * n
+    _burst(samples, 0.0, 0.02, 2211, 4200.0, q=0.6, gain=3.0, decay=280.0)
+    _burst(samples, 0.0, 0.12, 2212, 2600.0, q=1.0, gain=1.2, decay=26.0, attack=0.005, fc_end=900.0)
+    _burst(samples, 0.05, 0.6, 2213, 520.0, q=1.4, gain=1.6, decay=4.0, attack=0.04, fc_end=280.0)
+    _gurgle(samples, 0.1, 0.6, 2214, rate=70.0, low=220.0, high=600.0, gain=0.45)
+    noise = pink_noise(n, seed=2215)
+    _creak(samples, 0.12, 0.6, noise, 2216, low=110.0, high=140.0, gain=0.6)
+    _finish_creature("hanger_grab", samples, normalize_to=0.95)
+
+    n = int(SAMPLE_RATE * 0.9)
+    samples = [0.0] * n
+    _voice(samples, 0.0, 0.6, lambda u: 1450.0 - 600.0 * u + 90.0 * math.sin(u * 80.0), lambda u: min(1.0, u / 0.03) * (1.0 - u) ** 1.2, 2221,
+           gain=0.8, rasp=0.9, breath=0.5, detune=0.06, formants=((1800.0, 4.0, 1.0), (3000.0, 5.0, 0.5)))
+    _gurgle(samples, 0.05, 0.5, 2222, rate=90.0, gain=0.5)
+    for k in range(3):
+        _burst(samples, 0.08 + k * 0.11, 0.12, 2223 + k, 1500.0, q=0.9, gain=0.6, decay=18.0, attack=0.03, fc_end=3200.0)
+    _finish_creature("hanger_hurt", samples)
+
+    n = int(SAMPLE_RATE * 2.3)
+    samples = [0.0] * n
+    _burst(samples, 0.0, 1.8, 2231, 1700.0, q=0.9, gain=1.0, decay=1.5, attack=0.02, fc_end=500.0)
+    noise = pink_noise(n, seed=2232)
+    _creak(samples, 0.2, 1.6, noise, 2233, low=80.0, high=52.0, gain=0.8)
+    _gurgle(samples, 0.3, 1.7, 2234, rate=20.0, low=500.0, high=1000.0, gain=0.4)
+    _finish_creature("hanger_death", samples)
+
+
+def generate_suit_alarms():
+    """
+    The suit's own, in its wearer's helmet (and the Vitals board's flatline):
+    - suit_wound (0.75 s): a blow landing on the suit, felt through it, and its vitals alarm: two
+      short falling beeps.
+    - flatline (3 s): the monitor's long unbroken tone as the heart stops.
+    """
+    n = int(SAMPLE_RATE * 0.75)
+    samples = [0.0] * n
+    _thunk(samples, 0.003, 2301, weight=1.4, gain=2.2)
+    _burst(samples, 0.003, 0.1, 2302, 900.0, q=1.0, gain=0.6, decay=40.0)
+    for k, (at, f) in enumerate(((0.2, 1480.0), (0.36, 1110.0))):
+        first = int(SAMPLE_RATE * at)
+        for j in range(int(SAMPLE_RATE * 0.11)):
+            dt = j / SAMPLE_RATE
+            env = min(1.0, dt / 0.004) * min(1.0, (0.11 - dt) / 0.01)
+            samples[first + j] += math.tanh(math.sin(2.0 * math.pi * f * dt) * 3.0) * env * 0.35
+    samples = Biquad.highpass(60, q=0.7).process_all(samples)
+    samples = Biquad.lowpass(5000, q=0.7).process_all(samples)
+    save_wav("player/suit_wound.wav", samples, normalize_to=0.85, saturate=False)
+
+    n = int(SAMPLE_RATE * 3.0)
+    samples = [0.0] * n
+    for i in range(n):
+        t = i / SAMPLE_RATE
+        env = min(1.0, t / 0.01) * min(1.0, (3.0 - t) / 0.4)
+        samples[i] = math.tanh(math.sin(2.0 * math.pi * 1000.0 * t) * 2.0) * env
+    samples = Biquad.lowpass(3500, q=0.7).process_all(samples)
+    save_wav("player/flatline.wav", samples, normalize_to=0.5, saturate=False)
+
+
 def main():
     generate_flashlight_clicks()
     generate_all_footsteps()
@@ -1386,7 +1742,19 @@ def main():
     generate_rcs_jet()
     generate_harness_clip()
     generate_suit_bump()
+    generate_clatters()
+    generate_tool_strikes()
+    generate_crawler_sounds()
+    generate_hanger_sounds()
+    generate_suit_alarms()
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    if len(sys.argv) > 1:
+        # Only the named groups: e.g. `crawler_sounds clatters` runs generate_crawler_sounds and
+        # generate_clatters.
+        for group in sys.argv[1:]:
+            globals()["generate_" + group]()
+    else:
+        main()

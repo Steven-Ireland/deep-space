@@ -87,6 +87,48 @@ const JETS := preload("res://assets/audio/foley/rcs_jet.wav")
 const HARNESS := preload("res://assets/audio/foley/harness_clip.wav")
 const BUMP := preload("res://assets/audio/foley/suit_bump.wav")
 const JETS_DB := -7.0
+## Something loose landing (GDD §9.4): small things, and big ones (a fuel cell, a body).
+const CLATTER := [
+	preload("res://assets/audio/foley/item_clatter_01.wav"),
+	preload("res://assets/audio/foley/item_clatter_02.wav"),
+	preload("res://assets/audio/foley/item_clatter_03.wav"),
+]
+const CLATTER_HEAVY := preload("res://assets/audio/foley/item_clatter_heavy.wav")
+## A tool striking something solid; striking flesh; a shock prod's jolt.
+const TOOL_STRIKE := [
+	preload("res://assets/audio/foley/tool_strike_01.wav"),
+	preload("res://assets/audio/foley/tool_strike_02.wav"),
+]
+const FLESH_HIT := [
+	preload("res://assets/audio/foley/flesh_hit_01.wav"),
+	preload("res://assets/audio/foley/flesh_hit_02.wav"),
+]
+const ZAP := preload("res://assets/audio/foley/prod_zap.wav")
+## What the creatures sound like (GDD §15: mostly heard before they're seen): each sound, how far
+## it carries (metres) and its level (dB). Some have several takes, picked at random.
+const CREATURE := {
+	&"crawler_click": [[preload("res://assets/audio/creatures/crawler_click_01.wav"),
+			preload("res://assets/audio/creatures/crawler_click_02.wav"),
+			preload("res://assets/audio/creatures/crawler_click_03.wav")], 22.0, -4.0],
+	&"crawler_step": [[preload("res://assets/audio/creatures/crawler_step_01.wav"),
+			preload("res://assets/audio/creatures/crawler_step_02.wav"),
+			preload("res://assets/audio/creatures/crawler_step_03.wav")], 16.0, -8.0],
+	&"crawler_shriek": [[preload("res://assets/audio/creatures/crawler_shriek.wav")], 40.0, 2.0],
+	&"crawler_lunge": [[preload("res://assets/audio/creatures/crawler_lunge.wav")], 24.0, 0.0],
+	&"crawler_snarl": [[preload("res://assets/audio/creatures/crawler_snarl.wav")], 20.0, 0.0],
+	&"crawler_hurt": [[preload("res://assets/audio/creatures/crawler_hurt.wav")], 24.0, 0.0],
+	&"crawler_death": [[preload("res://assets/audio/creatures/crawler_death.wav")], 30.0, 0.0],
+	&"crawler_stunned": [[preload("res://assets/audio/creatures/crawler_stunned.wav")], 20.0, -2.0],
+	&"crawler_bang": [[preload("res://assets/audio/creatures/crawler_bang.wav")], 36.0, 2.0],
+	&"hanger_creak": [[preload("res://assets/audio/creatures/hanger_creak.wav")], 12.0, -6.0],
+	&"hanger_grab": [[preload("res://assets/audio/creatures/hanger_grab.wav")], 24.0, 2.0],
+	&"hanger_hurt": [[preload("res://assets/audio/creatures/hanger_hurt.wav")], 24.0, 0.0],
+	&"hanger_death": [[preload("res://assets/audio/creatures/hanger_death.wav")], 24.0, 0.0],
+}
+## The suit's alarm when its wearer's struck, and its monitor flatlining when they die (in their
+## helmet; the Vitals board flatlines too).
+const SUIT_WOUND := preload("res://assets/audio/player/suit_wound.wav")
+const FLATLINE := preload("res://assets/audio/player/flatline.wav")
 
 var _vacuum: AudioEffectLowPassFilter
 var _ambience := {} # ambience: its AudioStreamPlayer, always playing, faded in and out
@@ -234,6 +276,55 @@ func jets(crew: Player) -> Node:
 ## How hard the jets are firing, 0..1: their hiss follows it at once (valves, not a fade).
 static func jets_level(player: Node, level: float) -> void:
 	player.set("volume_db", JETS_DB + linear_to_db(level) if level > 0.02 else SILENT_DB)
+
+
+## Something loose (`thing`, `mass` kg) landing, `strength` hard (0..1): heavier, deeper and farther.
+func clatter(thing: Node3D, mass: float, strength: float) -> void:
+	var heavy := mass >= 20.0
+	var stream: AudioStream = CLATTER_HEAVY if heavy else CLATTER.pick_random()
+	var volume := linear_to_db(clampf(strength, 0.1, 1.0)) + (2.0 if heavy else -2.0)
+	_play_at(stream, thing, 22.0 if heavy else 16.0, volume, randf_range(0.92, 1.08) * (1.0 if mass > 1.0 else 1.2))
+
+
+## A crew member's tool striking something solid at `at` (world space).
+func tool_strike(crew: Player, at: Vector3) -> void:
+	_play_at(TOOL_STRIKE.pick_random(), crew, 20.0, 0.0, randf_range(0.94, 1.06), crew.to_local(at))
+
+
+## A blow landing on a creature.
+func flesh_hit(creature: Creature) -> void:
+	_play_at(FLESH_HIT.pick_random(), creature, 18.0, 0.0, randf_range(0.92, 1.08), Vector3.UP * 0.5)
+
+
+## A shock prod's jolt, at the creature it struck.
+func zap(creature: Creature) -> void:
+	_play_at(ZAP, creature, 24.0, 2.0, randf_range(0.96, 1.04), Vector3.UP * 0.5)
+
+
+## A creature's sound (`what`, a CREATURE key), from where it is.
+func creature(source: Creature, what: StringName) -> void:
+	var entry: Array = CREATURE[what]
+	var offset := Vector3.UP * (0.5 if source is Crawler else -0.6)
+	_play_at((entry[0] as Array).pick_random(), source, entry[1], entry[2], randf_range(0.95, 1.05), offset)
+
+
+## A crew member struck by a creature: the blow on their suit, and its alarm (in their helmet).
+func wounded(crew: Player) -> void:
+	if crew.is_multiplayer_authority():
+		_play(SUIT_WOUND, &"Suit", 0.0)
+	else:
+		_play_at(SUIT_WOUND, crew, 14.0, -4.0, 1.0, Vector3.UP * Player.CHEST_HEIGHT)
+
+
+## A crew member dying (`why`, Player.cause): their suit's monitor flatlining in their helmet.
+func died(crew: Player, _why: StringName) -> void:
+	if crew.is_multiplayer_authority():
+		_play(FLATLINE, &"Suit", -6.0)
+
+
+## The Vitals board flatlining (`terminal`), as a crew member dies.
+func flatline(terminal: Terminal) -> void:
+	_play_at(FLATLINE, terminal, 14.0, -4.0, 1.0, terminal.to_local(terminal.screen_centre()))
 
 
 ## A fuel cell seating in a bay of the fuel rack (`bay`, where it sits).
