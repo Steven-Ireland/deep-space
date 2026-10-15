@@ -1,7 +1,8 @@
 """What the earlier waves left behind (GDD §3, §8): pieces that only appear in derelicts. Decay and
 damage over the LANTERN's own tech language (the kit's dk_* variants are in station_kit.py):
 breached walls, debris, hanging cable spills, emergency strobes, the breaker boxes that bring a
-dead section back, alien growth, and the Prize.
+dead section back, alien growth, and a secure store's lock panel. (The Prize, a survey core, is
+items.py's, its cradle rooms.py's; what taking it sets off, and the hazards, events.py's.)
 """
 
 import math
@@ -322,40 +323,3 @@ def growth():
                 (math.cos(a + 0.1) * 1.5, math.sin(a + 0.1) * 1.3, 0.005)], 0.015, k["wet"], sides=3)
     low = m.to_object()
     return Model(low=low, decals=[], extras=[])
-
-
-@asset("dk_prize_core", "derelict", texture=256, colors=32, ao=0.5)
-def prize_core():
-    """THE PRIZE (GDD §8.3): a recovered jump core, the earlier wave's own drive heart, worth more
-    than two fuel cells. A heavy capsule twice a fuel cell's size cradled on a wheeled sled with a
-    tow bar, its radium core showing through a ring of windows, cables trailing where it was torn
-    out. Two-handed and slow to drag; taking it may set something off."""
-    k = br._materials()
-    dk = br._decals()
-    core = mats.glowing("rm_core", (0.72, 1.0, 0.32), base=(0.2, 0.3, 0.1), flicker=0.35, streaks=0.6)
-    m = Mesh("dk_prize_core")
-    d = Mesh("dk_prize_core_decals")
-    texts = []
-    # Sled: a low frame on four small wheels, a tow bar.
-    m.box((0.9, 1.4, 0.08), k["dark_steel"], at=(0, 0, 0.18), bevel=0.01)
-    for x in (-0.38, 0.38):
-        for y in (-0.55, 0.55):
-            m.cylinder(0.09, 0.06, k["rubber"], sides=8, at=(x, y, 0.09), rot=(0, 90, 0))
-    m.pipe([(0, -0.7, 0.22), (0, -1.1, 0.45), (0.15, -1.15, 0.47), (-0.15, -1.15, 0.47)], 0.02, k["steel"], sides=5)
-    # The capsule lying in two cradles.
-    for y in (-0.4, 0.4):
-        m.box((0.7, 0.12, 0.3), k["orange"], at=(0, y, 0.35), bevel=0.02)
-    m.lathe([(0.0, -0.75), (0.25, -0.72), (0.32, -0.6), (0.32, 0.6), (0.25, 0.72), (0.0, 0.75)], k["casing"], sides=8,
-            at=(0, 0, 0.62), rot=(90, 0, 0))
-    for y in (-0.25, 0.0, 0.25):
-        m.lathe([(0.327, -0.07), (0.327, 0.07)], core, sides=8, at=(0, y, 0.62), rot=(90, 0, 0), cap_start=False, cap_end=False)
-    for y in (-0.5, 0.5):
-        m.lathe([(0.34, -0.04), (0.34, 0.04)], k["dark_steel"], sides=8, at=(0, y, 0.62), rot=(90, 0, 0), cap_start=False, cap_end=False)
-    # Torn cables trailing from its far end.
-    for i, col in enumerate(("cable", "cable_red", "cable")):
-        m.pipe([(-0.1 + i * 0.1, 0.76, 0.62), (-0.15 + i * 0.12, 0.95, 0.4), (-0.2 + i * 0.15, 1.1, 0.12)], 0.02, k[col], sides=4)
-    texts.append(geo.text("JUMP CORE", 0.07, dk["black"], matrix=frame((0, -0.46, 0.4), FRONT, lift=0.003)))
-    low = m.to_object()
-    collider = br._console_collider("dk_prize_core", (0.9, 1.5, 0.95), (0, 0, 0.47))
-    return Model(low=low, decals=[d.to_object()] + texts,
-                 extras=[collider, _socket("grip_l", (-0.15, -1.15, 0.47)), _socket("grip_r", (0.15, -1.15, 0.47))])

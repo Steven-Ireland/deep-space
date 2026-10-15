@@ -52,8 +52,8 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
 - **The run:** a seed per run, host-owned run state sent to everyone. Sectors are charted from the
   seed: a departure point, 7 rows of 2–4 systems, the boss; routes branch and merge, never cross;
   the GDD's rules hold on every route (tested).
-- **The bridge works:** the long-range scan names the system's oddity and charts the next row;
-  the Nav Chart shows the sector and plots a route; the Survey Console reads a planet's traits and
+- **The bridge works:** the scope names the system's oddity (the next row is charted by a survey
+  core since M4, below); the Nav Chart shows the sector and plots a route; the Survey Console reads a planet's traits and
   adds Survey Data; Engineering shows the drive and the fuel, and skims a cell at a gas giant.
 - **The jump:** hold the Jump Lever 2 s (route, a loaded cell, everyone aboard). The station
   shakes, the lights go red, the viewport flashes into a hyperspace tunnel, and 10–20 s later
@@ -189,28 +189,63 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   `--provoke`, `--wound`, `--debug-creatures`.
 - **Tests:** `test_creatures` plays it all through headless.
 
+**The derelict, the rest of M4 (2026-10-15):**
+
+- **The suit's HUD and panel** (diegetic-first rescinded, GDD §10): `Tab` opens the suit panel
+  (GEAR: drag, drop, draw and use the belt, item details, a doll of the suit; SUIT: vitals, O2,
+  integrity, battery, propellant, dose, and the crew with their whereabouts and causes of death;
+  LOGS: lore read from data cores). The visor HUD was rewritten: gauges that come and go, notices
+  typed out at the top, frost on a breach, fog near the end of the O2, radiation static.
+- **The communicator:** hold `V` to raise the cuff and key the radio; the cuff shows a scrolling
+  spectrogram of the channel. The voice itself is still to come.
+- **Suit integrity:** blows wear the suit, a hard one or any once it's frail breaches it, a breach
+  leaks O2 (hiss, frost) until sealed with sealant.
+- **Power:** every derelict is 3–5 sections, each with a breaker box (some charged, some wanting a
+  power cell carried in). Power brings back its lights (with a stutter, some failing or broken),
+  its doors and its fittings; dead doors can be pried with a crowbar (loud).
+- **Secure stores:** most derelicts lock one off a corridor; its lock panel's cipher (three wheels,
+  Mastermind-style answers, six tries, then a lock-out and an alarm) opens it to weapons and
+  supplies.
+- **The Prize is a survey core:** carried back and seated in the bridge's new core reader, it
+  identifies the next row of jumps; without one the next row shows `?` and the crew jumps blind.
+  Relays rack one too. (Replaces the long-range scan.)
+- **Prize events:** security (lockdown, beacons, ceiling sentries that sweep and shoot, a crowbar
+  forces a door, 75 s), depressurization (air round the Prize, seal failure, the wall blows out, a
+  gale to the hole, VENTING doors), structural breach (shaking, falls of debris warned by dust, a
+  door buckled under a heap of ceiling), infestation (a nest bursts, a Crawler after the carrier).
+  Or, often, nothing.
+- **Hazards:** live coolant spills once their section has power (electrocuted; Crawlers stunned),
+  a leaking drive core (radiation: Geiger, RAD, irradiated), faulty doors slamming on a dying
+  circuit (crushed). The dead see what killed them, and so does the Vitals board.
+- **Creatures:** Hangers only where it stays dark, shy of a burning flare; a Crawler on the crew's
+  heels follows them out through the collar and aboard the LANTERN, and stays (through jumps).
+- **Loot uses:** data cores upload at the Survey Console for Survey Data; salvage carries a scrap
+  value. (Neither buys anything yet.)
+- **New models:** `it_survey_core`, `rm_core_reader`, `dk_core_cradle`, `dk_breaker`,
+  `dk_lock_panel`, `dk_sentry`, `dk_beacon`, `dk_wall_blowout`, `dk_nest`, `dk_heap`, `dk_puddle`.
+  The old jump-core Prize (`dk_prize_core`) is gone.
+- **Fixed:** the visor's prompt box flew off on slow frames; floor and ceiling decals were lost in
+  the Blender builds; the carried survey core rode below the view.
+- **Tests:** `test_power`, `test_events`, `test_hazards`; following aboard in `test_creatures`;
+  the survey core and data core uploads in `test_smoke`. Dev flags `--event`, `--prize-taken`,
+  `--powered`.
+
 ## Next: the gameplay loop (proposed order)
 
 1. **Rest of M1, the crew:**
-   - the Prize and a body as two-handed carries (with M4; the fuel cell's done)
-   - what a swing does to hatches (with M4), sealant (with suit integrity), weapons in use
-     (slice wrap-up: the plasma cutter on creatures and sealed hatches)
-   - suit integrity and breaches (with hazards)
+   - weapons in use (slice wrap-up: the plasma cutter on creatures and sealed hatches)
+   - in-game voice on the communicator (the cuff's spectrogram is ready for it)
 2. **Rest of M3, navigation:**
    - the boss node is only a name and a way on to the next sector (its greybox is M5); saving
      between jumps
    - Signal, Anomaly, Colony, Relay and Depot nodes are names only (slice wrap-up, M5); a Depot
      gives a cell like a gas giant until salvage can be spent
-3. **M4, the derelict:**
-   - power zones and breakers (the drive room has a breaker box already)
-   - loot: fuel, salvage, O2, power cells, data cores, sealant
-   - the Prize and Prize events
-   - hazards, and the ways to die of them, each specific
-   - creatures, the rest: something following the crew aboard through an open hatch (GDD §5;
-     the Airlock Turret upgrade), the Infestation Prize event's creature, Hangers only in dark
-     rooms (they're placed anywhere now)
+3. **M4, the derelict:** done (above), but for:
+   - the Airlock Turret upgrade (stops anything following the crew aboard), with the upgrades
+   - the real sounds for everything new (stand-ins now, below) and the real photo scans for the
+     new models (below)
 4. **Slice wrap-up:**
-   - upgrades: O2 Capacity I, Med Bay
+   - upgrades: O2 Capacity I, Med Bay; what Survey Data and scrap buy
    - the Workshop's recycler and Fabricator
    - Tier 1 weapons in use, with energy cartridges
    - placeholder Signal and Anomaly nodes
@@ -276,11 +311,53 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
   a revive and a clone cost (a revive cheaper).
   - The chart table's hologram: its size and height over the table, how readable its marks are
     from across the bridge, how often it drops out.
-- **What Survey Data is for (GDD §7).** This can wait until after the slice.
+- **What Survey Data and salvage's scrap are for (GDD §7).** This can wait until after the slice.
+- **To judge in play (2026-10-15), M4:**
+  - Prize event odds (sector 1: nothing 40%, each event 15%; the quiet thins 8% a sector).
+  - Security: 75 s of lockdown; sentries 14 m reach, 0.9 s to lock on, bursts of three at 0.1 of
+    health each with 1.1 s between; a crowbar forces a door in 5 s; three blows or one jolt
+    knock a sentry out. Is it fair to be caught in the Prize room by one?
+  - Depressurization: 3 s of warning, a 10 s gale (2.6 m/s at the hole, reaching 10 m), 6 s of O2
+    a second stripped at its height, BLOWN OUT within 1.2 m of the hole. The cradle stands in
+    front of the hole, which catches whoever's dragged there.
+  - Structural breach: four falls 1.7 s apart (1.3 s of dust first), 0.6 of health under one, the
+    heap's 1.8 s of warning and certain death under it; shaking.
+  - Infestation: 2.6 s of swelling; the hatchling hunts the carrier at once.
+  - Hazards: a spill's jolt (0.3 every 0.6 s), a leaking core's dose (about a minute and a half
+    beside it to a full dose, a few minutes across the room), a faulty door's cycle (open 2.4 s, lurch, 0.7 s,
+    slam at three times a door's speed, 0.5 of health in the doorway, shut 1.8 s); half of drive
+    cores leak, about two thirds of derelicts have a spill, half a faulty door.
+  - The survey core: one a system, next row only; reading takes the old scan's 8 s. Data cores
+    21–39 Survey Data each.
+  - Following aboard: a Crawler heard within 8 s follows; it beats on a shut outer hatch for 5 s.
+    Should the airlock's inner hatch also stop it, as a door does?
+  - The suit: wear 0.7 of each blow, a breach at 0.3 or under 35%, sealant back to 60%.
 - **The beam in the air:** teammates' beams show everywhere, faintly. GDD §14 says haze makes beams
   visible in derelicts. It could be made stronger there and fainter aboard the station.
 
 ## Known issues and polish
+
+- **Placeholders to replace (2026-10-15):**
+  - **Photo scans:** ambientCG couldn't be reached from the session, so every model built this
+    session baked over procedural stand-ins for its scans (`mats._stand_in`: Concrete034,
+    Metal009, Metal021, PaintedMetal013; `build.py` prints them as `stand_ins`). Fetch the scans
+    (`tools/fetch_textures.sh`) and rebuild these: `it_survey_core`, `rm_core_reader`,
+    `dk_core_cradle`, `dk_breaker`, `dk_lock_panel`, `dk_sentry`, `dk_beacon`, `dk_wall_blowout`,
+    `dk_nest`, `dk_heap`, `dk_puddle`:
+    `xvfb-run -a /opt/bpyenv/bin/python art/blender/build.py -- <names>`.
+  - **Sounds** (left for the audio redo): the Prize events' and hazards' cues are stand-ins
+    pitched from other sounds (`Sound.event`: a sentry waking, locking on, firing, struck, down;
+    groan, creak, fall, collapse, blowout, a nest stirring and bursting, a spill arcing and
+    jolting); so are the breaker's switch (the cell's seating), the alarm (the undock siren, again
+    and again), prying (a tool's strike, low) and the Geiger's click. The radio has no voice.
+- **M4, first take (2026-10-15):**
+  - A Crawler following the crew aboard is moved under the LANTERN on every peer at once; that's
+    untested with a client (netfox's synchronizer across a reparent). Sentries and a Prize event
+    joined partway are caught up only roughly (the event's steps replay at once).
+  - Sentries are lit only by their own red beam and eye: in a dark section they're hard to read
+    until they wake. The beam might want a little fill.
+  - The gale has no sound of its own beyond the blowout; spills' arcs are subtle at 270 lines.
+  - A heap drops through the ceiling's light fixture if one's above it.
 
 - **The collar tube is 1,328 triangles**, over the kit pieces' 50–400; it's a one-off, closer to the
   exterior's budget.
@@ -325,8 +402,9 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
 
 - **Docs:** GDD.md is design, look and feel only; TECH.md is technical. Keep them separate. Record
   decisions in TECH §11, and update both docs as things change.
-- **Git:** local only, never pushed. Claude commits at each meaningful step, ending each message
-  with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+- **Git:** Claude commits at each meaningful step on its working branch and pushes it and `main`
+  at each major checkpoint, ending each message with
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - **Networking:** keep it simple. Clients are trusted, the host applies their actions, and each
   crew member owns their own state.
 - **Art:**
@@ -334,7 +412,8 @@ The **gameplay loop's crew half (most of M1, 2026-10-14)**:
     placeholder.
   - Textures are CC0 scans from ambientCG.
   - The look is PSX with a little modern light (GDD §14).
-- **Interface:** diegetic, with a grounded, minimal visor HUD.
+- **Interface:** the suit's visor HUD (only what matters now) and its panel (`Tab`), grounded in
+  what a suit would know (diegetic-first was rescinded, 2026-10-15).
 - **Verify by eye in the real game** before calling anything done, using the tools below.
 
 ## How to build and check

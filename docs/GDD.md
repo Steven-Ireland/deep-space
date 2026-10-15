@@ -14,7 +14,7 @@ A 1–4 player co-op, first-person PSX horror roguelike. You are the last skelet
 
 1. **Light is life.** Darkness is the default state of every derelict. Light is a resource (batteries, flares, power), a tool (seeing hazards, reading rooms) and a lure (some things are drawn to it).
 2. **Deliberate bodies.** Movement is slow and weighty, and every action commits you. Noise matters. Sprinting is a real decision because it burns oxygen and draws attention.
-3. **Grounded information.** Most of what you know comes from the world: your suit, the station's screens, your friends' spine lights and voices. A minimal visor HUD fills the gaps. It shows only what a suit would plausibly tell you, and only when it matters.
+3. **Grounded information.** What you know comes from your suit and your station: the visor HUD and the suit panel, the station's screens, your friends' spine lights and voices. The suit tells you what a suit would plausibly know, and the HUD shows it only when it matters. (Diegetic-first was rescinded on 2026-10-15: a world-only interface couldn't carry everything the game needs to say, so the suit has a full panel, §10.)
 4. **Brutal but legible.** Deaths are sudden and nasty, but always have a readable cause. Players should say "we shouldn't have opened that hatch," not "what killed me?"
 5. **The route is the strategy.** Between encounters, the run is a resource puzzle: fuel, air, light, salvage, and how much risk the crew will take for a better path.
 
@@ -33,9 +33,9 @@ A 1–4 player co-op, first-person PSX horror roguelike. You are the last skelet
           └────────────────────────────────────────────────────────────────┘
 SECTOR:   Nav chart ─► pick next node ─► JUMP (spend fuel) ─► arrive in system
                                                                  │
-SYSTEM:   long-range scan (oddity + next jumps) ─► survey planets ─► approach oddity
+SYSTEM:   read a survey core (next jumps) ─► survey planets ─► approach oddity
                                                                  │
-ENCOUNTER: explore in the dark ─► find fuel / salvage / tools / data ─► survive
+ENCOUNTER: explore in the dark ─► find fuel / salvage / tools / data, the Prize ─► survive
                                                                  │
           extract (everyone back aboard) ─► undock ─► spend salvage on upgrades ─► next node
 ```
@@ -72,7 +72,7 @@ The home base is a jump-capable station on a single deck. It is warm, lit and hu
 | Station | Function | Interfaces |
 |---|---|---|
 | **Helm** | Navigation and jumping | **Nav Chart** CRT (the sector chart, route selection); **Jump Lever** (hold to engage) |
-| **Science** | Scanning | **Long-range scanner** (reveals this system's oddity and the next jumpable systems, §6); **Survey Console** (planet scans, §7) |
+| **Science** | Charting and surveying | **Scope** (names this system's oddity; shows the next jumps, identified once a core's read, §6); **core reader** beside it (a survey core seated and read, §6); **Survey Console** (planet scans and data core uploads, §7) |
 | **Ops** | Crew status and comms | **Vitals board** (each crew member's heartbeat, O2 and last-known location); station cameras; PA |
 | **Engineering** | Power and drive status | Fuel and drive gauges; power distribution; breaker panel |
 
@@ -102,9 +102,10 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 - **Structure:** each sector has 7 rows of nodes plus a boss row, with 2–4 nodes per row. Paths branch and merge without crossing, as in Slay the Spire. The station starts each sector at a **departure point** below the first row, with nothing to explore; every first-row node can be reached from it. Past a sector's boss, the next jump leads to the next sector's departure point.
 - **Charting:**
   - The sector starts uncharted. Only its exit, the boss, is known.
-  - The route is discovered jump by jump: on arrival, the crew runs the **long-range scan** from the Science station (a few seconds of the scope's beam racing round).
-  - The scan names the **oddity** in this system (a derelict's hull and name, an outpost, a relay's code) and reveals the **next jumpable systems** with their node types. Signals show only as unidentified signals.
-  - The Nav Chart draws the sector from the departure point (bottom) to the boss (top). It shows everything charted so far, with the way the station came drawn bright. The crew plots the next jump by clicking one of the systems the scan revealed.
+  - The route is discovered jump by jump. The station's own sensors name the **oddity** in this system on arrival (a derelict's hull and name, an outpost, a relay's code).
+  - The **next jumpable systems** are always shown, but as unknown (`?`) until a **survey core** is read. A survey core is an earlier wave's astrogation memory: the Prize of every derelict, and racked in every relay (§8.3, §8.4). Carried back and seated in the **core reader** on the bridge, beside the Science station, it's read for a few seconds and identifies the next row's node types. One a system; the spent core stays seated until the next jump. Signals show only as unidentified signals.
+  - Without a core the crew **jumps blind**: any next system can still be plotted, its type unknown until arrival. This is what makes going all the way into a derelict worth it.
+  - The Nav Chart draws the sector from the departure point (bottom) to the boss (top). It shows everything charted so far, with the way the station came drawn bright. The crew plots the next jump by clicking one of the next systems, known or not.
 - **Fuel:** each jump costs one fuel cell. The run starts with 3 cells, loaded in the Drive Room's three-bay fuel rack. Cells found on the way are carried back and loaded into an empty bay; a full rack means a spare cell waits loose aboard. A Gas Giant tops up one bay (see §5). Until salvage can be spent, a Depot does the same.
 - **Stranding:** with no fuel the station is adrift. A "drift" event offers desperate options, such as re-entering a picked-over oddity or answering an unknown signal.
 
@@ -123,17 +124,17 @@ The forward viewport looks out onto the system. At the bridge's centre stands th
 - The first row is always a Derelict.
 - Every path passes at least one Gas Giant or Depot before the boss.
 - No more than two EVA nodes in a row.
-- The Long-Range Scanner II upgrade scans two jumps ahead and identifies Signals.
+- The Long-Range Scanner II upgrade lets a survey core chart two rows ahead and identify Signals.
 
 **Systems:** every node is a star system made from a seed:
 - Star type and colour, which set the skybox tint.
 - 1–5 planets with traits: atmosphere, temperature, gravity, water, biosignatures.
 - An optional asteroid field or debris.
-- The oddity itself, visible through the viewport and identified by the long-range scan.
+- The oddity itself, visible through the viewport and named by the station's sensors.
 
 ## 7. Survey
 
-Every system has planets to scan from the Science station's **Survey Console**. The crew selects a planet and surveys it; a few seconds later its trait readout fills in (atmosphere, temperature, gravity, water, biosignatures) and it yields **Survey Data**: one for any planet, one more for water, and two or four more for ambiguous or detected biosignatures. **Data cores** recovered from derelicts yield more.
+Every system has planets to scan from the Science station's **Survey Console**. The crew selects a planet and surveys it; a few seconds later its trait readout fills in (atmosphere, temperature, gravity, water, biosignatures) and it yields **Survey Data**: one for any planet, one more for water, and two or four more for ambiguous or detected biosignatures. **Data cores** recovered from derelicts yield far more: a crew member holding one at the Survey Console uploads it (about 30 Survey Data, the core spent). The credits are kept; what they buy is decided after the slice.
 
 > **TODO: what Survey Data is used for.** It should tie into the goal of finding a habitable world. Candidates include unlocking information on the map and shaping the end of the run. Decide after the slice.
 
@@ -177,18 +178,18 @@ Every system has planets to scan from the Science station's **Survey Console**. 
   - **Stillness is the baseline.** Derelicts are dead and quiet, so anything that moves is a shock.
   - Ambient movement (a body drifting in zero-g, a door cycling on a dying circuit) is used sparingly, so it stays unsettling.
   - Noise and light draw the creatures that are already there. They never summon more.
-- **The Prize.** A big, two-handed objective worth carrying out: a jump core (2+ fuel), a cryo pod or an intact module.
-  - Taking it **may** trigger an event, but often nothing happens.
-  - The quiet is part of the design: it keeps the tension up and gives the crew real relief.
-  - The odds depend on the oddity type and the sector.
+- **The Prize: a survey core.** Every derelict's Prize is its **survey core** (§6), standing in its astrogation cradle at the far end of the Prize room, its feeds torn out of the ceiling. It's two-handed (as heavy as a fuel cell), and it's the only way to see where the next jumps lead, so the crew has to go all the way in.
+  - Taking it **may** trigger an event, but often nothing happens. The quiet is part of the design: it keeps the tension up and gives the crew real relief.
+  - The odds depend on the sector (later, the oddity type too): nothing 40%, each event 15% in sector 1; the quiet thins by about 8% a sector after that. The event is rolled with the derelict's layout, so its makings can be there to notice beforehand: sentries folded on the ceiling, beacons by the section's doors, air in the rooms round the Prize, a nest by the way in.
 
-  | Prize event | What happens |
+  | Prize event | What happens (as built, 2026-10-15) |
   |---|---|
   | **Nothing** | The quiet holds. Common, and it should be |
-  | **Security system** | The derelict's automated security wakes. Bulkheads lock down sections, alarms sound (and draw anything listening), and sentry systems come online. The crew needs an override, a cutter, or another way out |
-  | **Depressurization** | The Prize was part of a seal. Sections start venting, pressure doors slam, and O2 drains on the way out |
-  | **Structural breach** | The structure gives way. Corridors buckle, a section tears loose, and the route back changes |
-  | **Infestation** | Something was nesting in or near it, and now it's awake. One creature, not a horde |
+  | **Security system** | An alarm, and beacons by the doors out of the Prize's section turn red. Those doors (and those on the way out through the section) lock down: LOCKDOWN. Ceiling sentries swing down, sweep the rooms with red beams, paint whoever they see with a sight line and fire bursts. The alarm draws anything listening. A crowbar FORCEs a locked-down door (5 s of loud heaving); crowbar blows or a prod's jolt knock a sentry out; the system stands down after 75 s |
+  | **Depressurization** | The Prize was part of a seal: the rooms round it still hold air behind shut doors (the suit's O2 stops draining there, a tell). SEAL FAILURE, three seconds of hissing, then the wall by the cradle blows out to space. The air goes after it: a gale drags crew and loose things to the hole, strips O2 from suits and wears them, and the hole itself means BLOWN OUT. The doors round those rooms slam and seal (VENTING) until it's spent |
+  | **Structural breach** | STRUCTURAL FAILURE: the deck shakes, debris comes down on the way back (a trickle of dust warns first; under it, CRUSHED), and a door on the way back buckles shut under a heap of fallen ceiling (BUCKLED), always leaving another way round. The route back changes |
+  | **Infestation** | A nest lies just outside the Prize room. When the Prize leaves its cradle the sac swells and bursts, and a Crawler comes out after whoever took it. One creature, not a horde |
+- **Secure stores.** Most derelicts have a locked store off a corridor short of the Prize: its door opens only to a code. The code is worked out at the lock panel beside it (it needs its section's power), a small cipher on the panel's screen: three wheels of six symbols, none twice, each guess answered by how many are right and in place and how many right but out of place. Every wrong guess buzzes, loud enough to carry; six wrong and the panel locks out for 40 s, sounding an alarm anything listening hears, and keys itself afresh. Inside are the better finds: weapons, supplies.
 - **Extraction.** The crew undocks from the Docking Port once everyone is aboard, and the Vitals board shows who is still outside.
   - Holding the COLLAR lever again sounds a siren for a ten-second countdown (hold it again to abort) while the airlock cycles in.
   - Then the collar lets go and the tractor beam pushes the derelict back out, its hatch left open so its air vents.
@@ -201,7 +202,7 @@ The relays the earlier waves left behind (§3) are still at work: a relay satell
 
 - **Outside:** a compact bus of white insulation blankets and gold foil with yellow handrails, two solar wings (red and green lamps blinking at their tips), a dish, a mast with a strobe, thruster clusters at its corners. Floodlights and an amber beacon over its EVA hatch light the way across.
 - **The way in** is a round hatch, opened by hand from either side. There's no airlock: the relay holds no air, and no weight.
-- **Inside, weightless:** an entry, nodes and shafts with ways out of every face, passages, and rooms: equipment bays of electronics, power bays of batteries, the telemetry room under its windows, stowage (with an **O2 rack that still works**), propellant tanks, the antenna's feed, a maintenance crew's shelter, and at the far end the **relay core** (its Prize: data, tools, cartridges). Things left loose hang where they were left, and drift when knocked.
+- **Inside, weightless:** an entry, nodes and shafts with ways out of every face, passages, and rooms: equipment bays of electronics, power bays of batteries, the telemetry room under its windows, stowage (with an **O2 rack that still works**), propellant tanks, the antenna's feed, a maintenance crew's shelter, and at the far end the **relay core** (its Prize: a racked survey core, §6, beside data, tools, cartridges). A relay's Prize sets nothing off. Things left loose hang where they were left, and drift when knocked.
 - **Loot:** quick and light: salvage (circuit boards above all), supplies, data cores, power cells; a fuel cell aboard half the time (in the propellant bay, or the core's vault). Carrying a fuel cell back across the void is slow on the jets.
 - Smaller than a derelict (12 to 17 rooms, the core about 5 rooms in), so a crew can get round it on one tank of O2, if they don't waste it.
 
@@ -238,7 +239,8 @@ The relays the earlier waves left behind (§3) are still at work: a relay satell
   - About 6 minutes in vacuum at base capacity.
   - Drains only in unpressurized zones (any derelict, and the collar's airlock from the moment it starts cycling out), and faster when sprinting or when the suit is breached.
   - Refilled at O2 racks on the station or on derelicts, or from canisters: using one (`LMB`) adds about 3 minutes and uses it up.
-- **Integrity:** damage can breach the suit, which leaks O2 (audible hiss, frost on the visor) until it is patched with sealant.
+- **Integrity:** every blow wears the suit (shown as SUIT %), and a hard one, or any once it's frail (under 35%), breaches it. A breach leaks O2 in vacuum (an audible hiss, frost creeping in from the visor's edges) until it's patched with sealant, which seals the breach and brings the suit back up to 60%. A suit worn to nothing leaks three times as fast.
+- **Radiation:** near a leaking reactor the suit's dosimeter climbs (RAD), the Geiger counter chattering faster and static flecking the visor; a full dose is fatal. Only the Med Bay clears it.
 
 ### 9.3 Light
 - **Helmet lamp:** the main light, on every suit from the start. `F` turns it on and off.
@@ -257,35 +259,36 @@ The relays the earlier waves left behind (§3) are still at work: a relay satell
   - Heavy carries slow you down and stop you sprinting. The helmet lamp keeps shining.
 - **Drop and throw:** `Q` sets down what's in your hands. Hold `Q` to throw it: the longer you hold, the farther it goes. A heavy carry only goes a short way. Dropped and thrown things make noise.
 - **Starting kit (Tier 0):** the helmet lamp on every suit, and an empty belt. The whole crew shares one crowbar and one flare, racked in the Docking Port on the way out. Shock prods, more flares and everything else are found.
+- **The suit panel:** `Tab` opens the suit's full panel over the view (§10), with tabs: GEAR (the belt and hands as slots to drag between, drop or use, each item's details: mass, charge, scrap value, a data core's log read or not; a doll of the suit holding what's in hand), SUIT (the heart's trace, O2, integrity, battery, propellant and dose, where you are; and the crew: each one's condition, O2 and whereabouts, who's transmitting, and what killed the dead) and LOGS (what's been read from data cores).
 - **Everyone can see it:** what's in each crew member's hands, their lamp's beam, and when they raise their cuff.
 - **On death:** everything drops on the body.
 
 ### 9.5 Controls (KB+M first)
-`WASD` move · mouse look · `Shift` sprint · `Ctrl` crouch · `Space` jump/mantle · `E` interact/pick up · `F` helmet lamp · `LMB` use · `RMB` alt-use/aim · `Q` drop (hold to throw) · `1–4`/wheel belt slots · `Tab` raise wrist cuff.
+`WASD` move · mouse look · `Shift` sprint · `Ctrl` crouch · `Space` jump/mantle · `E` interact/pick up · `F` helmet lamp · `LMB` use · `RMB` alt-use/aim · `Q` drop (hold to throw) · `1–4`/wheel belt slots · `Tab` suit panel · `V` (hold) talk: raises the wrist cuff, the communicator.
 
-## 10. Interface: Diegetic First, Minimal HUD
+## 10. Interface: the Suit's HUD and Panel
 
-Most information lives in the world. A small **visor HUD** fills the gaps, and it stays grounded:
-- **Few elements, mostly hidden.** An element appears when it matters (O2 in vacuum or when low, integrity after a hit) and fades out afterwards.
-- **It's on the glass.** Readouts are low-resolution, single-colour and sit at the visor's edges with a slight curve, as if projected onto the helmet.
-- **It breaks with the suit.** Readouts flicker when the suit is damaged and distort behind visor cracks.
-- **It only knows what a suit would know.** No enemy markers, minimap, objective markers or teammate outlines through walls.
+**Diegetic-first is rescinded (2026-10-15).** A world-only interface couldn't express everything the game needs to say, so the suit speaks for itself: a **visor HUD** for what matters now, and a full **suit panel** (`Tab`) for everything else. Both stay grounded in the suit: they know only what a suit would know (no enemy markers, minimap, objective markers or teammate outlines through walls), and they're on the glass, low-resolution and single-colour.
+- **The visor HUD: few elements, mostly hidden.** An element appears when it matters (O2 in vacuum or when low, integrity after a hit, RAD near a leak) and fades out afterwards. Notices type themselves out at the top (POWER RESTORED, LOCKDOWN, HULL BREACH), amber or red for warnings. The interaction prompt floats beside the thing it's for.
+- **It breaks with the suit.** Readouts flicker and jump when struck, blood spatters the glass, frost creeps in on a breach, the glass fogs as O2 runs out, radiation flecks it with static.
+- **The suit panel** (§9.4): the belt and hands to manage, the suit's state in full, the logs, the crew. It opens over the view with a short animation and sounds; the world goes on behind it.
+- **The wrist cuff is the communicator.** Holding `V` raises it and keys the radio: the cuff shows a scrolling spectrogram of the channel (who's speaking, and what's on it). The in-game voice itself is to come (TODO.md).
 
-| Info | In the world | On the visor HUD |
-|---|---|---|
-| Health | **Wrist cuff** ECG (left forearm; `Tab` raises it to read), heartbeat audio | A warning when vitals are critical |
-| O2 and suit integrity | Wrist cuff; hiss and visor frost on a breach | Small gauges in vacuum, when low, or after damage |
-| EVA harness propellant | Wrist cuff (a thin bar while it's worn); the jets' hiss | RCS, under O2, while it's worn weightless, or when low; its label bright while the jets fire |
-| Held item and belt | The item in your hands; the cuff lists the belt | The belt in the lower right: four slots with icons, the one in hand raised and named. Bright when it changes, then dim |
-| Interaction | — | A small centre dot, and the one-word verb ("OPEN", "TAKE") in a bordered box that floats beside the thing, tied to it by a jointed leader line that fades toward it |
-| Damage | **Visor:** cracks, frost and condensation when O2 is low, a blood spatter | Readouts flicker and distort |
-| Your stress | Breathing and heartbeat audio, tied to vitals and threat proximity | — |
-| Other players' state | **Spine lights** on each suit (Dead Space-style) visible from behind; the item in their hand and their beam; their cuff's screen lighting up as they raise it to read; their breathing on the radio; the station's Vitals board | — |
-| Helmet lamp battery | The wrist cuff, plus the lamp's flicker when low | — |
-| Tool and weapon state | Each tool's own screen or indicator (scanner CRT, motion tracker, charge LEDs) | — |
-| Map, route, fuel, salvage | The station's terminals and gauges (§5) | — |
-| Objectives | None explicit. Nav Chart info, plus PA announcements from the station's computer, "KEEPER" | — |
-| Menus | The title screen is a CRT terminal boot | Pause and settings are flat screens, styled to match |
+| Info | In the world | On the visor HUD | On the suit panel |
+|---|---|---|---|
+| Health | Heartbeat audio | VITALS blinking when critical | SUIT tab, the crew's too |
+| O2 and suit integrity | Hiss and visor frost on a breach | O2 and SUIT gauges in vacuum, when low, or after damage | SUIT tab, with what they mean |
+| Radiation | The Geiger counter; static on the visor | RAD while there's a dose | SUIT tab |
+| EVA harness propellant | The jets' hiss | RCS while it's worn weightless, or when low | SUIT tab |
+| Held item and belt | The item in your hands | The belt in the lower right, the one in hand raised and named; bright when it changes, then dim | GEAR tab: drag, drop, use, details |
+| Interaction | — | A small centre dot, and the verb ("OPEN", "TAKE") in a bordered box beside the thing, tied to it by a jointed leader line | — |
+| Damage | — | Readouts flicker; blood, frost, fog, static on the glass | — |
+| Your stress | Breathing and heartbeat audio | — | — |
+| Other players' state | **Spine lights** on each suit, visible from behind; the item in their hand and their beam; their cuff lighting up as they talk; the station's Vitals board | Who's talking, lower left | SUIT tab: condition, O2, whereabouts, cause of death |
+| Helmet lamp battery | The lamp's flicker when low | — | SUIT tab |
+| Map, route, fuel, salvage | The station's terminals and gauges (§5) | — | — |
+| Objectives | None explicit. Nav Chart info, plus PA announcements from the station's computer, "KEEPER" | — | — |
+| Menus | The title screen is a CRT terminal boot | — | Pause and settings are flat screens, styled to match |
 
 **Terminal interaction:**
 - Pressing `E` on a terminal eases the camera in until the screen fills the view, so text stays readable at 270 lines. The cursor is drawn inside the screen itself.
@@ -300,19 +303,20 @@ Death is frequent and specific.
 | Hazard | Death | Counter-play |
 |---|---|---|
 | Creatures | Mauled by the Crawler (its second blow), grabbed from behind by it, drawn up into a Hanger (§12) | Light, sound discipline, doors, teamwork |
+| Prize events | Shot by a sentry, blown out through a hull breach, crushed under falling debris (§8.3) | Take the Prize ready to run; read the tells |
 | Vacuum | Helmet breach, cycling the airlock with someone inside, a blown hatch | Read the pressure lights, patch the suit, communicate |
 | O2 depletion | Suffocation (slow, audible, with a dimming visor) | Route planning, canisters |
 | Decompression | Sucked out through a breach when someone opens the wrong door | Check pressure gauges before opening doors |
-| Electrical | Live cables in coolant puddles | Light the floor; cut power first |
-| Crush | Faulty blast doors, lifts, the docking collar | Watch the warning strobes |
-| Radiation | Reactor rooms (a clicking Geiger tool) | Limit exposure |
+| Electrical | Coolant spills with a torn cable hanging in them, live once their section has power: they arc, spark and buzz. ELECTROCUTED. A Crawler that blunders in is stunned | Light the floor; cut power first (throw the section's breaker) |
+| Crush | Faulty doors cycling on a dying circuit once powered (open, a lurch, then a slam three times too fast; their lamp stutters, their panel says FAULT); lifts, the docking collar | Time the cycle; watch the lamp |
+| Radiation | A leaking drive core (half of derelict drive rooms): sick green light, vapour, the suit's Geiger counter and RAD dosimeter. IRRADIATED at a full dose | Limit exposure |
 | Falls | Shafts, lift wells (and low gravity makes jumps tempting) | Look before jumping |
 | Fire / explosions | Gas leaks plus sparks or tools | Flares and cutters near leaks are a bad idea |
 | Friendly fire | Weapons, flares, slamming hatches | On by default (§17) |
 | Left behind | Undock or jump with someone outside | The Vitals board and the undock siren |
 
 **What happens when you die:**
-- Your body falls where you die, limp, with everything you had dropped round it, and your camera moves to **LANTERN's systems**. From there you can:
+- Your body falls where you die, limp, with everything you had dropped round it, and your camera moves to **LANTERN's systems**, which tell you what killed you (the Vitals board shows it too). From there you can:
   - cycle through station cameras and teammates' helmet cams (LMB or the wheel)
   - speak over the PA
   - read the Vitals board
@@ -462,9 +466,9 @@ Death is frequent and specific.
 
 **What a player experiences:** 1–4 players spawn aboard LANTERN in deep space and play one full loop:
 1. Plot a route on the Nav Chart and jump.
-2. Arrive in a new system, run the long-range scan, and survey a planet.
+2. Arrive in a new system, survey a planet, and read a survey core if the crew brought one back (or jump blind).
 3. Dock with a derelict and explore it in the dark.
-4. Recover fuel and salvage, facing the Crawler, the Hanger and environmental hazards. Die in specific ways and be revived.
+4. Recover fuel, salvage and the Prize (the derelict's survey core), facing the Crawler, the Hanger, what taking the Prize sets off, and environmental hazards. Die in specific ways and be revived.
 5. Extract, load fuel, and jump on.
 
 The whole Sector 1 map is generated and playable. The boss node exists as a greybox placeholder.
@@ -473,10 +477,10 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 
 | Area | Content |
 |---|---|
-| **LANTERN** | **Bridge hub** with forward viewport and four stations: Helm (Nav Chart, Jump Lever), Science (long-range scanner, Survey Console), Ops (Vitals board, cameras, PA), Engineering (gauges, breakers). **Off the bridge:** Suit Room and EVA airlock, Docking Port and collar, Drive Room (drive, fuel slots), Workshop (recycler hopper, Fabricator). **Rear corridor:** crew cabins, stores, Med Bay (offline). Hull exterior visible from EVA |
-| **Derelict** | The station's tech language, decayed: broken panels, debris, cable spills, blood and growth, emergency strobes, breaker boxes. 6–10 room types, plus a Prize room and an exterior hull |
+| **LANTERN** | **Bridge hub** with forward viewport and four stations: Helm (Nav Chart, Jump Lever), Science (scope, Survey Console, the core reader), Ops (Vitals board, cameras, PA), Engineering (gauges, breakers). **Off the bridge:** Suit Room and EVA airlock, Docking Port and collar, Drive Room (drive, fuel slots), Workshop (recycler hopper, Fabricator). **Rear corridor:** crew cabins, stores, Med Bay (offline). Hull exterior visible from EVA |
+| **Derelict** | The station's tech language, decayed: broken panels, debris, cable spills, blood and growth, emergency strobes, breaker boxes and power sections, a secure store and its lock panel. 6–10 room types, plus a Prize room and its survey core, and an exterior hull. Hazards: live coolant spills, a leaking drive core, faulty doors |
 | **Space** | Starfield and nebula skies, star types, a planet set, debris and asteroids, hyperspace tunnel |
-| **Items** | Helmet lamp, fuel cell, salvage, O2 canister, power cell, data core, sealant patch; first-person arms |
+| **Items** | Helmet lamp, fuel cell, survey core, salvage, O2 canister, power cell, data core, sealant; first-person arms |
 | **Weapons** | Tier 0 (crowbar, shock prod, flares) and Tier 1 (plasma cutter, rivet driver); energy cartridges |
 | **Characters** | Player suit (with spine lights), Crawler, Hanger |
 | **Upgrades** | O2 Capacity I, Med Bay (if revive is gated behind it) |
@@ -511,6 +515,12 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 17. **The creatures, as built** (§12): the Crawler hears and feels and nothing else; it can't open doors, so a shut door is a real refuge (and closing one on it kills it). Crew and creatures are solid to one another.
 18. **A Hanger's victim can free themselves** with a tool in hand, as a teammate can, by striking it: solo must be viable (A7), and it rewards keeping a tool drawn. Without one, they need a teammate.
 19. **A struck suit shows it** (§10): the readouts flicker and jump, and blood spatters the visor's glass at an edge and fades. The suit's alarm sounds; a crew member's death flatlines in their helmet and on the Vitals board.
+20. **Diegetic-first is rescinded** (§2, §10): the suit has a full panel (`Tab`: gear, suit and crew, logs) besides the visor HUD, because a world-only interface couldn't express everything the game needs. Two-handed carries stay in the arms, outside the panel. The wrist cuff becomes the **communicator** (hold `V`): a spectrogram of the radio channel; the in-game voice itself is to come.
+21. **The Prize is a survey core** (§6, §8.3): it replaces the long-range scan. The next row of jumps is always shown but unknown until a core is read in the bridge's core reader, and can be plotted blind; a core charts the next row only; relays rack one too. Planetary surveys and their Survey Data stay; what the data buys waits.
+22. **Power sections** (§8.3): every derelict is split into 3–5 sections with a breaker each, some with a charged cell, some wanting one carried in. Gravity stays at 1 g in dead sections for now (weightless derelicts wait for mag-boots). A dead door can be pried with a crowbar.
+23. **Secure stores and their cipher** (§8.3): most derelicts have a locked store whose code is solved at its lock panel, a small puzzle with limited tries; locked out, it sounds an alarm.
+24. **Prize events and hazards, as built** (§8.3, §11): see the tables. The pressurized rooms of a depressurization are the one exception to decision 13: they hold air behind shut doors until the Prize is taken.
+25. **Something can follow the crew aboard** (§5): a Crawler on their heels follows them out through the derelict's hatch, along the collar's tube and in through the airlock if its outer hatch is open, and hunts aboard the LANTERN from then on, through jumps. A shut outer hatch it beats on, then turns back. Hangers only hang in rooms that stay dark, and shy from a burning flare.
 
 **Open (proposed 2026-10-14): the tether.** A safety line for EVA, to decide after playing the harness:
 - The harness carries a reel. At the EVA airlock's outer hatch (and the anchor rings by a relay's hatch), crew CLIP their line on before going out. It pays out behind them up to its length (about 50 m: the crossing and a little more), drawn as a line from the anchor to their harness.
@@ -528,7 +538,8 @@ The whole Sector 1 map is generated and playable. The boss node exists as a grey
 - **A7.** Difficulty scales with crew size. Solo must be viable.
 
 **TODO:**
-- What Survey Data is used for (§7).
+- What Survey Data and salvage's scrap value are used for (§7).
+- In-game voice on the communicator (§10).
 
 **Descoped for now:**
 - Transit events (power failures, hull breaches or stowaways during jumps).
